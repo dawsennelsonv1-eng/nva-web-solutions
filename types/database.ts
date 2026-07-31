@@ -1,11 +1,27 @@
 /**
  * types/database.ts — HAND-WRITTEN, exactly matching supabase/migrations
- * 0001–0004 as verified by execution in Phase 2. If the SQL and this file
+ * 0001–0005 as verified by execution. If the SQL and this file
  * disagree, the SQL that actually ran wins and this file is the defect.
+ *
+ * WHY EVERY SHAPE HERE IS A `type` AND NOT AN `interface`:
+ * @supabase/postgrest-js constrains a schema to `Record<string, GenericTable>`,
+ * and TypeScript only grants an implicit index signature to object *type
+ * aliases* — never to interfaces. Declaring these as interfaces makes the
+ * whole schema fail the constraint, at which point every .from() and .rpc()
+ * call silently resolves to `never` instead of erroring at the definition.
+ * This is not a style preference; it is load-bearing.
  *
  * Conventions: timestamptz → string (ISO 8601) · jsonb → Json ·
  * numeric → number · pg enums → the string-literal unions below (which also
  * mirror types/index.ts application unions 1:1).
+ *
+ * EVERY ROW SHAPE IS A `type` ALIAS, NEVER AN `interface`. This is not style.
+ * TypeScript grants implicit index signatures to type aliases but NOT to
+ * interfaces, so an interface cannot satisfy postgrest-js's
+ * `Row: Record<string, unknown>` constraint. When that constraint fails, the
+ * whole schema falls back to `never` and every .from()/.rpc() call silently
+ * loses its types — with errors that point at your query, not at this file.
+ * Corrected in Phase 3 after the first real queries exposed it.
  */
 
 export type Json =
@@ -42,7 +58,7 @@ export type DbDunningChannel = 'email' | 'sms';
 // row shapes
 // ---------------------------------------------------------------------------
 
-export interface ProspectRow {
+export type ProspectRow = {
   id: string;
   business_name: string;
   contact_name: string | null;
@@ -60,11 +76,11 @@ export interface ProspectRow {
   status: DbProspectStatus;
   created_at: string;
   updated_at: string;
-}
+};
 export type ProspectInsert = Partial<ProspectRow> & { business_name: string };
 export type ProspectUpdate = Partial<ProspectRow>;
 
-export interface PrototypeRow {
+export type PrototypeRow = {
   id: string;
   prospect_id: string;
   slug: string;
@@ -75,14 +91,14 @@ export interface PrototypeRow {
   vertical: string;
   created_at: string;
   updated_at: string;
-}
+};
 export type PrototypeInsert = Partial<PrototypeRow> & {
   prospect_id: string;
   slug: string;
 };
 export type PrototypeUpdate = Partial<PrototypeRow>;
 
-export interface BrandKitRow {
+export type BrandKitRow = {
   id: string;
   prototype_id: string;
   logo_path: string | null;
@@ -94,11 +110,11 @@ export interface BrandKitRow {
   extraction_source: DbExtractionSource;
   created_at: string;
   updated_at: string;
-}
+};
 export type BrandKitInsert = Partial<BrandKitRow> & { prototype_id: string };
 export type BrandKitUpdate = Partial<BrandKitRow>;
 
-export interface TemplateConfigRow {
+export type TemplateConfigRow = {
   id: string;
   prototype_id: string;
   template_id: string;
@@ -108,7 +124,7 @@ export interface TemplateConfigRow {
   copy_overrides: Json;
   created_at: string;
   updated_at: string;
-}
+};
 export type TemplateConfigInsert = Partial<TemplateConfigRow> & {
   prototype_id: string;
   template_id: string;
@@ -117,7 +133,7 @@ export type TemplateConfigInsert = Partial<TemplateConfigRow> & {
 };
 export type TemplateConfigUpdate = Partial<TemplateConfigRow>;
 
-export interface QuoteConfigRow {
+export type QuoteConfigRow = {
   id: string;
   prototype_id: string;
   vertical: string;
@@ -128,7 +144,7 @@ export interface QuoteConfigRow {
   range_spread_pct: number;
   created_at: string;
   updated_at: string;
-}
+};
 export type QuoteConfigInsert = Partial<QuoteConfigRow> & {
   prototype_id: string;
   vertical: string;
@@ -140,7 +156,7 @@ export type QuoteConfigInsert = Partial<QuoteConfigRow> & {
 };
 export type QuoteConfigUpdate = Partial<QuoteConfigRow>;
 
-export interface QuoteRow {
+export type QuoteRow = {
   id: string;
   public_id: string;
   prototype_id: string | null;
@@ -154,7 +170,7 @@ export interface QuoteRow {
   was_capped: boolean;
   session_id: string | null;
   created_at: string;
-}
+};
 export type QuoteInsert = Partial<QuoteRow> & {
   public_id: string;
   vertical: string;
@@ -165,7 +181,7 @@ export type QuoteInsert = Partial<QuoteRow> & {
 };
 export type QuoteUpdate = Partial<QuoteRow>;
 
-export interface LeadRow {
+export type LeadRow = {
   id: string;
   source: DbLeadSource;
   prototype_id: string | null;
@@ -181,7 +197,7 @@ export interface LeadRow {
   status: DbLeadStatus;
   notes: string | null;
   created_at: string;
-}
+};
 export type LeadInsert = Partial<LeadRow> & {
   source: DbLeadSource;
   name: string;
@@ -190,7 +206,7 @@ export type LeadInsert = Partial<LeadRow> & {
 };
 export type LeadUpdate = Partial<LeadRow>;
 
-export interface DemoSessionRow {
+export type DemoSessionRow = {
   id: string;
   session_id: string;
   prototype_id: string | null;
@@ -201,27 +217,27 @@ export interface DemoSessionRow {
   analyses_used_this_session: number;
   created_at: string;
   updated_at: string;
-}
+};
 export type DemoSessionInsert = Partial<DemoSessionRow> & {
   session_id: string;
   surface: DbSessionSurface;
 };
 export type DemoSessionUpdate = Partial<DemoSessionRow>;
 
-export interface AnalyticsEventRow {
+export type AnalyticsEventRow = {
   id: string;
   event_name: string;
   session_id: string | null;
   prototype_id: string | null;
   properties: Json;
   occurred_at: string;
-}
+};
 export type AnalyticsEventInsert = Partial<AnalyticsEventRow> & {
   event_name: string;
 };
 export type AnalyticsEventUpdate = Partial<AnalyticsEventRow>;
 
-export interface AiJobRow {
+export type AiJobRow = {
   id: string;
   prototype_id: string | null;
   job_type: string;
@@ -233,7 +249,7 @@ export interface AiJobRow {
   status: DbAiJobStatus;
   error: string | null;
   created_at: string;
-}
+};
 export type AiJobInsert = Partial<AiJobRow> & {
   provider: string;
   model: string;
@@ -241,7 +257,7 @@ export type AiJobInsert = Partial<AiJobRow> & {
 };
 export type AiJobUpdate = Partial<AiJobRow>;
 
-export interface StylePresetRow {
+export type StylePresetRow = {
   id: string;
   name: string;
   template_id: string;
@@ -251,7 +267,7 @@ export interface StylePresetRow {
   palette: Json;
   is_system: boolean;
   created_at: string;
-}
+};
 export type StylePresetInsert = Partial<StylePresetRow> & {
   name: string;
   template_id: string;
@@ -260,7 +276,7 @@ export type StylePresetInsert = Partial<StylePresetRow> & {
 };
 export type StylePresetUpdate = Partial<StylePresetRow>;
 
-export interface PlanRow {
+export type PlanRow = {
   code: string;
   name: string;
   setup_fee_cents: number;
@@ -271,7 +287,7 @@ export interface PlanRow {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-}
+};
 export type PlanInsert = Partial<PlanRow> & {
   code: string;
   name: string;
@@ -280,7 +296,7 @@ export type PlanInsert = Partial<PlanRow> & {
 };
 export type PlanUpdate = Partial<PlanRow>;
 
-export interface SubscriptionRow {
+export type SubscriptionRow = {
   id: string;
   prospect_id: string;
   prototype_id: string;
@@ -295,7 +311,7 @@ export interface SubscriptionRow {
   canceled_at: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 export type SubscriptionInsert = Partial<SubscriptionRow> & {
   prospect_id: string;
   prototype_id: string;
@@ -307,7 +323,7 @@ export type SubscriptionInsert = Partial<SubscriptionRow> & {
 };
 export type SubscriptionUpdate = Partial<SubscriptionRow>;
 
-export interface PaymentRow {
+export type PaymentRow = {
   id: string;
   subscription_id: string;
   provider_payment_id: string | null;
@@ -318,7 +334,7 @@ export interface PaymentRow {
   failure_reason: string | null;
   occurred_at: string;
   created_at: string;
-}
+};
 export type PaymentInsert = Partial<PaymentRow> & {
   subscription_id: string;
   kind: DbPaymentKind;
@@ -328,7 +344,7 @@ export type PaymentInsert = Partial<PaymentRow> & {
 };
 export type PaymentUpdate = Partial<PaymentRow>;
 
-export interface UsageCounterRow {
+export type UsageCounterRow = {
   id: string;
   prototype_id: string;
   period_start: string;
@@ -339,7 +355,7 @@ export interface UsageCounterRow {
   warned_at_20: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 export type UsageCounterInsert = Partial<UsageCounterRow> & {
   prototype_id: string;
   period_start: string;
@@ -347,14 +363,14 @@ export type UsageCounterInsert = Partial<UsageCounterRow> & {
 };
 export type UsageCounterUpdate = Partial<UsageCounterRow>;
 
-export interface DunningEventRow {
+export type DunningEventRow = {
   id: string;
   subscription_id: string;
   day_number: 1 | 3 | 5 | 7 | 10;
   channel: DbDunningChannel;
   sent_at: string;
   delivery_status: string | null;
-}
+};
 export type DunningEventInsert = Partial<DunningEventRow> & {
   subscription_id: string;
   day_number: 1 | 3 | 5 | 7 | 10;
@@ -362,7 +378,7 @@ export type DunningEventInsert = Partial<DunningEventRow> & {
 };
 export type DunningEventUpdate = Partial<DunningEventRow>;
 
-export interface WebhookEventRow {
+export type WebhookEventRow = {
   id: string;
   provider: string;
   provider_event_id: string; // UNIQUE — the idempotency guard
@@ -370,7 +386,7 @@ export interface WebhookEventRow {
   received_at: string;
   processed_at: string | null;
   processing_error: string | null;
-}
+};
 export type WebhookEventInsert = Partial<WebhookEventRow> & {
   provider: string;
   provider_event_id: string;
@@ -378,39 +394,62 @@ export type WebhookEventInsert = Partial<WebhookEventRow> & {
 };
 export type WebhookEventUpdate = Partial<WebhookEventRow>;
 
-export interface AppAdminRow {
+export type AppAdminRow = {
   email: string;
   note: string | null;
   created_at: string;
-}
+};
 export type AppAdminInsert = Partial<AppAdminRow> & { email: string };
 export type AppAdminUpdate = Partial<AppAdminRow>;
+
+
+export type RateLimitHitRow = {
+  bucket_key: string;
+  scope: string;
+  window_start: string;
+  hits: number;
+};
+export type RateLimitHitInsert = Partial<RateLimitHitRow> & {
+  bucket_key: string;
+  scope: string;
+  window_start: string;
+};
+export type RateLimitHitUpdate = Partial<RateLimitHitRow>;
 
 // ---------------------------------------------------------------------------
 // the Database interface consumed by createClient<Database>()
 // ---------------------------------------------------------------------------
 
-export interface Database {
+export type Database = {
   public: {
+    // Relationships is REQUIRED by @supabase/postgrest-js: a table entry
+    // missing it fails the GenericSchema constraint and the ENTIRE schema
+    // silently resolves to `never`, so every .from()/.rpc() call loses its
+    // types without an obvious error. Empty arrays are correct here — we
+    // never use PostgREST embedded-resource syntax (`select('*, other(*)')`),
+    // because every tenant-scoped read goes through the explicit helper in
+    // lib/supabase/server.ts. If a future phase adds an embedded select, that
+    // table's relationship must be declared here first.
     Tables: {
-      prospects: { Row: ProspectRow; Insert: ProspectInsert; Update: ProspectUpdate };
-      prototypes: { Row: PrototypeRow; Insert: PrototypeInsert; Update: PrototypeUpdate };
-      brand_kits: { Row: BrandKitRow; Insert: BrandKitInsert; Update: BrandKitUpdate };
-      template_configs: { Row: TemplateConfigRow; Insert: TemplateConfigInsert; Update: TemplateConfigUpdate };
-      quote_configs: { Row: QuoteConfigRow; Insert: QuoteConfigInsert; Update: QuoteConfigUpdate };
-      quotes: { Row: QuoteRow; Insert: QuoteInsert; Update: QuoteUpdate };
-      leads: { Row: LeadRow; Insert: LeadInsert; Update: LeadUpdate };
-      demo_sessions: { Row: DemoSessionRow; Insert: DemoSessionInsert; Update: DemoSessionUpdate };
-      analytics_events: { Row: AnalyticsEventRow; Insert: AnalyticsEventInsert; Update: AnalyticsEventUpdate };
-      ai_jobs: { Row: AiJobRow; Insert: AiJobInsert; Update: AiJobUpdate };
-      style_presets: { Row: StylePresetRow; Insert: StylePresetInsert; Update: StylePresetUpdate };
-      plans: { Row: PlanRow; Insert: PlanInsert; Update: PlanUpdate };
-      subscriptions: { Row: SubscriptionRow; Insert: SubscriptionInsert; Update: SubscriptionUpdate };
-      payments: { Row: PaymentRow; Insert: PaymentInsert; Update: PaymentUpdate };
-      usage_counters: { Row: UsageCounterRow; Insert: UsageCounterInsert; Update: UsageCounterUpdate };
-      dunning_events: { Row: DunningEventRow; Insert: DunningEventInsert; Update: DunningEventUpdate };
-      webhook_events: { Row: WebhookEventRow; Insert: WebhookEventInsert; Update: WebhookEventUpdate };
-      app_admins: { Row: AppAdminRow; Insert: AppAdminInsert; Update: AppAdminUpdate };
+      prospects: { Row: ProspectRow; Insert: ProspectInsert; Update: ProspectUpdate; Relationships: [] };
+      prototypes: { Row: PrototypeRow; Insert: PrototypeInsert; Update: PrototypeUpdate; Relationships: [] };
+      brand_kits: { Row: BrandKitRow; Insert: BrandKitInsert; Update: BrandKitUpdate; Relationships: [] };
+      template_configs: { Row: TemplateConfigRow; Insert: TemplateConfigInsert; Update: TemplateConfigUpdate; Relationships: [] };
+      quote_configs: { Row: QuoteConfigRow; Insert: QuoteConfigInsert; Update: QuoteConfigUpdate; Relationships: [] };
+      quotes: { Row: QuoteRow; Insert: QuoteInsert; Update: QuoteUpdate; Relationships: [] };
+      leads: { Row: LeadRow; Insert: LeadInsert; Update: LeadUpdate; Relationships: [] };
+      demo_sessions: { Row: DemoSessionRow; Insert: DemoSessionInsert; Update: DemoSessionUpdate; Relationships: [] };
+      analytics_events: { Row: AnalyticsEventRow; Insert: AnalyticsEventInsert; Update: AnalyticsEventUpdate; Relationships: [] };
+      ai_jobs: { Row: AiJobRow; Insert: AiJobInsert; Update: AiJobUpdate; Relationships: [] };
+      style_presets: { Row: StylePresetRow; Insert: StylePresetInsert; Update: StylePresetUpdate; Relationships: [] };
+      plans: { Row: PlanRow; Insert: PlanInsert; Update: PlanUpdate; Relationships: [] };
+      subscriptions: { Row: SubscriptionRow; Insert: SubscriptionInsert; Update: SubscriptionUpdate; Relationships: [] };
+      payments: { Row: PaymentRow; Insert: PaymentInsert; Update: PaymentUpdate; Relationships: [] };
+      usage_counters: { Row: UsageCounterRow; Insert: UsageCounterInsert; Update: UsageCounterUpdate; Relationships: [] };
+      dunning_events: { Row: DunningEventRow; Insert: DunningEventInsert; Update: DunningEventUpdate; Relationships: [] };
+      webhook_events: { Row: WebhookEventRow; Insert: WebhookEventInsert; Update: WebhookEventUpdate; Relationships: [] };
+      app_admins: { Row: AppAdminRow; Insert: AppAdminInsert; Update: AppAdminUpdate; Relationships: [] };
+      rate_limit_hits: { Row: RateLimitHitRow; Insert: RateLimitHitInsert; Update: RateLimitHitUpdate; Relationships: [] };
     };
     Views: Record<string, never>;
     Functions: {
@@ -446,6 +485,21 @@ export interface Database {
         Args: { p_prototype_id: string; p_period_start: string };
         Returns: UsageCounterRow;
       };
+      // --- 0005_rate_limits.sql (Phase 3) ---
+      check_rate_limit: {
+        Args: {
+          p_bucket_key: string;
+          p_scope: string;
+          p_window_seconds: number;
+          p_max: number;
+        };
+        /** { allowed, hits, max, window_start, retry_after_seconds } */
+        Returns: Json;
+      };
+      prune_rate_limit_hits: {
+        Args: { p_older_than?: string };
+        Returns: number;
+      };
     };
     Enums: {
       prospect_status: DbProspectStatus;
@@ -465,4 +519,4 @@ export interface Database {
     };
     CompositeTypes: Record<string, never>;
   };
-}
+};
