@@ -309,6 +309,8 @@ export type SubscriptionRow = {
   current_period_end: string;
   grace_ends_at: string | null;
   canceled_at: string | null;
+  /** 0006_billing_ops.sql — out-of-order webhook guard. Webhook path only. */
+  last_provider_event_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -499,6 +501,29 @@ export type Database = {
       prune_rate_limit_hits: {
         Args: { p_older_than?: string };
         Returns: number;
+      };
+      // --- 0006_billing_ops.sql (Phase 5.5) ---
+      billing_overview: {
+        Args: Record<string, never>;
+        Returns: {
+          prototype_id: string;
+          slug: string;
+          business_name: string;
+          contact_name: string | null;
+          phone: string | null;
+          email: string | null;
+          plan_code: string;
+          subscription_id: string;
+          status: DbSubscriptionStatus;
+          provider: DbPaymentProvider;
+          current_period_start: string;
+          current_period_end: string;
+          analyses_used: number;
+          leads_captured: number;
+          analysis_limit: number | null;
+          cap_reached_at: string | null;
+          pct_of_cap: number | null;
+        }[];
       };
     };
     Enums: {

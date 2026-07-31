@@ -2,6 +2,7 @@ import 'server-only';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { resolveEntitlement } from '@/lib/entitlements/check';
 import { trackServer } from '@/lib/analytics.server';
+import { sendCapNotice } from '@/lib/billing/cap';
 import type { WidgetMode, Surface } from '@/types';
 
 /**
@@ -136,6 +137,9 @@ export async function consumeAnalysis(ctx: MeterContext): Promise<ConsumeResult 
       { prototype_id: prototypeId, leads_captured: row.leads_captured },
       { surface: ctx.surface, mode: ctx.mode, sessionId: ctx.sessionId, prototypeId }
     );
+    // Phase 5.5: actually tell him. Fire-and-forget — a mail failure must
+    // never fail the analysis the homeowner is waiting on.
+    void sendCapNotice({ prototypeId, kind: 'warning' }).catch(() => {});
   }
 
   if (capReachedNow) {
@@ -155,6 +159,8 @@ export async function consumeAnalysis(ctx: MeterContext): Promise<ConsumeResult 
       },
       { surface: ctx.surface, mode: ctx.mode, sessionId: ctx.sessionId, prototypeId }
     );
+    // Phase 5.5: the success-framed cap message + the admin hot-upsell alert.
+    void sendCapNotice({ prototypeId, kind: 'reached' }).catch(() => {});
   }
 
   return {

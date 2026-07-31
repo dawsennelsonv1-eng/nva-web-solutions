@@ -76,6 +76,41 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * Generic transactional send for BILLING correspondence — dunning, cap
+ * notices, recovery. Separate from the demo-lead helpers above because the
+ * audience and the stakes differ: these go to a paying contractor about his
+ * account, and the body is authored copy from OFFER.md rather than a
+ * generated summary.
+ *
+ * `body` arrives as light markdown (the OFFER.md copy uses **bold** and
+ * [links](url)); this converts the two constructs that copy actually uses
+ * and escapes everything else. A full markdown dependency for two syntaxes
+ * would fail this build's dependency discipline.
+ */
+export async function sendBillingEmail(args: {
+  to: string;
+  subject: string;
+  body: string;
+  replyTo?: string;
+}): Promise<EmailResult> {
+  const html = markdownishToHtml(args.body);
+  return sendViaResend({ to: args.to, subject: args.subject, html, replyTo: args.replyTo });
+}
+
+function markdownishToHtml(body: string): string {
+  const escaped = escapeHtml(body);
+  const withLinks = escaped.replace(
+    /\[([^\]]+)\]\(([^)\s]+)\)/g,
+    '<a href="$2">$1</a>'
+  );
+  const withBold = withLinks.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  return withBold
+    .split(/\n{2,}/)
+    .map((para) => '<p>' + para.replace(/\n/g, '<br>') + '</p>')
+    .join('\n');
+}
+
 export interface DemoLeadEmailFields {
   name: string;
   phone: string;
