@@ -92,14 +92,16 @@ export function DemoExperience({
       estimatedSqft: res.hints.estimatedSqft,
       conditionModifierIds: res.hints.conditionModifierIds,
       handToUser: res.hints.handToUser,
+      photoPath: res.photoPath ?? null,
     };
   }
 
-  async function persistQuoteAdapter(computation: QuoteComputation) {
+  async function persistQuoteAdapter(computation: QuoteComputation, photoPath: string | null) {
     return persistDemoQuote(computation, {
       surface,
       sessionId: sessionId as string,
       usedAiAnalysis: usedAiRef.current,
+      photoPath,
     });
   }
 

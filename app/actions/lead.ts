@@ -81,7 +81,7 @@ function normalizePhone(raw: string): string {
  */
 export async function persistDemoQuote(
   computation: QuoteComputation,
-  args: { surface: Surface; sessionId: string; usedAiAnalysis: boolean }
+  args: { surface: Surface; sessionId: string; usedAiAnalysis: boolean; photoPath?: string | null }
 ): Promise<string | null> {
   try {
     const recomputed = calculateQuote(computation.inputs, DEMO_RULES);
@@ -106,6 +106,7 @@ export async function persistDemoQuote(
       used_ai_analysis: args.usedAiAnalysis,
       was_capped: false,
       session_id: args.sessionId,
+      photo_path: args.photoPath ?? null,
     });
     if (error) return null;
     trackServer(

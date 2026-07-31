@@ -1,10 +1,69 @@
-import { Placeholder } from '@/components/ui/Placeholder';
+import { notFound } from 'next/navigation';
+import Link from 'next/link';
+import { getProspectAction } from '@/app/actions/prospects';
+import { ProspectForm, type ProspectFormValues } from '@/components/admin/ProspectForm';
 
-export default function ProspectDetailPage({ params }: { params: { id: string } }) {
+/**
+ * /admin/prospects/[id] — detail + edit, reusing ProspectForm so the live
+ * scorecard preview works identically whether creating or editing.
+ * Related prototypes are listed (a prospect may have staged one once
+ * pitched — Phase 8/9 build the staging flow this links toward).
+ */
+export const dynamic = 'force-dynamic';
+
+export default async function ProspectDetailPage({ params }: { params: { id: string } }) {
+  const result = await getProspectAction(params.id);
+  if (!result) notFound();
+  const { prospect, prototypes } = result;
+
+  const initial: ProspectFormValues = {
+    id: prospect.id,
+    businessName: prospect.business_name,
+    contactName: prospect.contact_name ?? '',
+    phone: prospect.phone ?? '',
+    email: prospect.email ?? '',
+    city: prospect.city ?? '',
+    state: prospect.state ?? '',
+    websiteUrl: prospect.website_url ?? '',
+    vertical: prospect.vertical,
+    qualificationNotes: prospect.qualification_notes ?? '',
+    status: prospect.status,
+    scorecard: {
+      hasGoogleAds: prospect.has_google_ads ?? false,
+      googleReviewCount: prospect.google_review_count ?? 0,
+      searchRank: prospect.google_search_rank,
+      estimatedMonthlyTraffic: prospect.estimated_monthly_traffic ?? 0,
+      hasQuoteOrPricingTool: prospect.has_quote_or_pricing_tool,
+      siteLooksAbandoned: prospect.site_looks_abandoned,
+    },
+  };
+
   return (
-    <Placeholder
-      name="Route: /admin/prospects/[id] (Phase 6)"
-      props={{ id: params.id }}
-    />
+    <div className="mx-auto max-w-2xl p-4">
+      <Link href="/admin/prospects" className="font-data text-sm text-rule hover:text-ink">
+        ← Prospects
+      </Link>
+      <h1 className="mt-2 font-display font-condensed text-2xl font-bold uppercase tracking-wide">
+        {prospect.business_name}
+      </h1>
+
+      {prototypes.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {prototypes.map((p) => (
+            <a
+              key={p.id}
+              href={'/s/' + p.slug}
+              className="rounded-milled border bg-sheet px-3 py-1.5 font-data text-xs"
+            >
+              /s/{p.slug} · {p.status}
+            </a>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-6">
+        <ProspectForm initial={initial} />
+      </div>
+    </div>
   );
 }

@@ -73,6 +73,11 @@ export type ProspectRow = {
   estimated_monthly_traffic: number | null;
   qualification_score: number | null;
   qualification_notes: string | null;
+  /** 0007_admin.sql (Phase 6) additions — the three scorecard signals
+   * OFFER.md §7 marked "derived" but never gave columns to. */
+  google_search_rank: 'page_1' | 'page_2' | 'not_ranking' | 'unknown';
+  has_quote_or_pricing_tool: boolean | null;
+  site_looks_abandoned: boolean | null;
   status: DbProspectStatus;
   created_at: string;
   updated_at: string;
@@ -503,6 +508,10 @@ export type Database = {
         Returns: number;
       };
       // --- 0006_billing_ops.sql (Phase 5.5) ---
+      resolve_prototype_full: {
+        Args: { p_slug: string };
+        Returns: Json;
+      };
       billing_overview: {
         Args: Record<string, never>;
         Returns: {

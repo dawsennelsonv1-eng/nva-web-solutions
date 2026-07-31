@@ -94,9 +94,14 @@ export interface QuoteMachinePorts {
     estimatedSqft?: number;
     conditionModifierIds: string[];
     handToUser: VisionField[];
+    /** Phase 6: Storage path if the adapter uploaded the photo. */
+    photoPath?: string | null;
   } | null>;
-  /** Recomputes and persists server-side, returning the public id. */
-  persistQuote?: (computation: QuoteComputation) => Promise<string | null>;
+  /** Recomputes and persists server-side, returning the public id. photoPath
+   * is passed separately (Phase 6) rather than folded into QuoteComputation,
+   * since pricing.ts stays photo-agnostic — a photo is provenance for the
+   * quote row, not an input to the price itself. */
+  persistQuote?: (computation: QuoteComputation, photoPath: string | null) => Promise<string | null>;
   /** Phase 5 owns the real lead write; the machine only hands it the draft. */
   submitLead?: (draft: LeadDraft) => Promise<void>;
 }
@@ -121,6 +126,8 @@ export interface QuoteMachineState {
 
   // results
   analysisHandToUser: VisionField[];
+  /** Phase 6: Storage path of the uploaded photo, if analysis produced one. */
+  photoPath: string | null;
   computation: QuoteComputation | null;
   quotePublicId: string | null;
 
@@ -198,6 +205,7 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
     sqft: r?.sqft ?? null,
     conditionModifierIds: r?.conditionModifierIds ?? [],
     analysisHandToUser: [],
+    photoPath: null,
     computation: null,
     quotePublicId: r?.quotePublicId ?? null,
     degraded: r?.degraded ?? false,
@@ -253,6 +261,7 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
             sqft: hints.estimatedSqft ?? get().sqft,
             conditionModifierIds: hints.conditionModifierIds,
             analysisHandToUser: hints.handToUser,
+            photoPath: hints.photoPath ?? get().photoPath,
           });
         }
       } catch (e) {
@@ -301,7 +310,7 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
       }
       set({ busy: true });
       try {
-        const publicId = await ports.persistQuote(computation);
+        const publicId = await ports.persistQuote(computation, get().photoPath);
         set({ quotePublicId: publicId });
       } catch {
         // A persistence failure must not block lead capture — the homeowner

@@ -1,6 +1,7 @@
 import 'server-only';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { resolveBillingPeriod } from '@/lib/billing/period';
+import { decideEntitlement, decision, type ResolvedEntitlement } from './decideEntitlement';
 import {
   NEVER_GATED,
   type CanFn,
@@ -39,14 +40,6 @@ import {
 
 const MODE_DEFAULT: NonNullable<EntitlementContext['mode']> = 'live';
 
-/**
- * Fallback session limit, used ONLY when no plan row exists (an unsold
- * prototype). It is a fairness limit on anonymous visitors, not a price, so
- * it does not belong in the plans table for the unsold case. Every sold plan
- * carries analysis_limit_per_session and that value always wins.
- */
-const DEFAULT_SESSION_LIMIT = 3;
-
 /** Subscription states that entitle the paid feature set. */
 const ENTITLING_STATUSES = new Set([
   'trialing',
@@ -54,18 +47,6 @@ const ENTITLING_STATUSES = new Set([
   'past_due', // dunning days 1-7: we do NOT break his site (Product Rule 3)
   'grace',    // the 10-day grace window: still fully live
 ]);
-
-export interface ResolvedEntitlement {
-  planCode: string | null;
-  limits: PlanLimits | null;
-  features: Record<string, boolean>;
-  subscriptionEntitling: boolean;
-  periodStart: string | null;
-  periodEnd: string | null;
-  analysesUsed: number;
-  leadsCaptured: number;
-  sessionAnalysesUsed: number;
-}
 
 // The period arithmetic lives in lib/billing/period.ts, pure and unit-tested,
 // so check.ts, usage.ts and Phase 5.5's dunning all derive the SAME
@@ -164,22 +145,6 @@ export async function resolveEntitlement(
   };
 }
 
-// ---------------------------------------------------------------------------
-// can()
-// ---------------------------------------------------------------------------
-
-function decision(
-  partial: Partial<EntitlementDecision> & { reason: DecisionReason }
-): EntitlementDecision {
-  return {
-    allowed: partial.allowed ?? false,
-    remainingMonth: partial.remainingMonth ?? null,
-    remainingSession: partial.remainingSession ?? 0,
-    reason: partial.reason,
-    degradedMode: partial.degradedMode ?? false,
-  };
-}
-
 /**
  * THE signature. Server-side only.
  *
@@ -237,65 +202,16 @@ export const can: CanFn = async (
     });
   }
 
-  const sessionLimit =
-    resolved.limits?.analysisLimitPerSession ?? DEFAULT_SESSION_LIMIT;
-  const remainingSession = Math.max(0, sessionLimit - resolved.sessionAnalysesUsed);
-
-  if (mode === 'prototype') {
-    if (neverGated) {
-      return decision({ allowed: true, remainingMonth: null, remainingSession, reason: 'ok' });
-    }
-    if (remainingSession <= 0) {
-      return decision({ allowed: false, remainingMonth: null, remainingSession: 0, reason: 'session_limit' });
-    }
-    return decision({ allowed: true, remainingMonth: null, remainingSession, reason: 'ok' });
-  }
-
-  const limit = resolved.limits?.analysisLimitPerMonth ?? null;
-  const remainingMonth =
-    limit === null ? null : Math.max(0, limit - resolved.analysesUsed);
-
-  if (!resolved.subscriptionEntitling) {
-    return decision({
-      allowed: neverGated,
-      remainingMonth,
-      remainingSession,
-      reason: neverGated ? 'ok' : 'subscription_suspended',
-      degradedMode: !neverGated,
-    });
-  }
-
-  if (neverGated) {
-    const capped = limit !== null && resolved.analysesUsed >= limit;
-    return decision({
-      allowed: true,
-      remainingMonth,
-      remainingSession,
-      reason: capped ? 'cap_reached' : 'ok',
-      degradedMode: capped,
-    });
-  }
-
-  if (resolved.features[feature] !== true) {
-    return decision({ allowed: false, remainingMonth, remainingSession, reason: 'feature_not_in_plan' });
-  }
-
-  if (limit !== null && resolved.analysesUsed >= limit) {
-    return decision({
-      allowed: false,
-      remainingMonth: 0,
-      remainingSession,
-      reason: 'cap_reached',
-      degradedMode: true,
-    });
-  }
-
-  if (remainingSession <= 0) {
-    return decision({ allowed: false, remainingMonth, remainingSession: 0, reason: 'session_limit' });
-  }
-
-  return decision({ allowed: true, remainingMonth, remainingSession, reason: 'ok' });
+  return decideEntitlement(resolved, feature, mode);
 };
+
+
+// ---------------------------------------------------------------------------
+// can()
+// ---------------------------------------------------------------------------
+
+export { decideEntitlement } from './decideEntitlement';
+export type { ResolvedEntitlement } from './decideEntitlement';
 
 /**
  * One call returning both the decision inputs and the numbers the

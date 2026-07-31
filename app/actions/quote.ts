@@ -14,6 +14,7 @@ import {
 } from '@/lib/quote/guards';
 import { trackServer } from '@/lib/analytics.server';
 import { generateQuotePublicId } from '@/lib/slug';
+import { uploadFloorPhoto } from '@/lib/storage/photos';
 import { getVertical } from '@/lib/verticals/registry';
 import { ensureVerticalsRegistered } from '@/lib/verticals/manifest';
 import type { DbDegradedReason, Surface, WidgetMode } from '@/types';
@@ -56,6 +57,12 @@ export interface AnalyzeResponse {
   /** Plain-language copy for the visitor. Never mentions billing (R-146). */
   message?: string;
   remainingSession?: number;
+  /**
+   * Phase 6: the Storage path the photo was uploaded to, if the upload
+   * succeeded. Threaded through the widget machine and attached to the
+   * quote row at persist time — see lib/storage/photos.ts.
+   */
+  photoPath?: string | null;
 }
 
 /** Maps an entitlement decision onto the persisted degraded_reason enum. */
@@ -183,11 +190,23 @@ export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeRe
     trackServer('analysis_field_handed_to_user', { field }, evtCtx);
   }
 
+  // Phase 6: persist the photo now, while the decoded bytes are already in
+  // hand. Never blocks or fails the response — uploadFloorPhoto degrades to
+  // null on any storage problem, and a quote with no photo is a state the
+  // leads inbox already renders cleanly.
+  const photoPath = await uploadFloorPhoto({
+    prototypeId: req.prototypeId,
+    sessionId: req.sessionId,
+    base64: req.imageBase64,
+    mediaType: req.mediaType,
+  });
+
   const hints = analysisToPricingHints(result);
   return {
     status: 'ok',
     hints: { ...hints, handToUser: result.handToUser },
     remainingSession: Math.max(0, 3 - sessionReserve.used),
+    photoPath,
   };
 }
 
@@ -203,6 +222,8 @@ export interface PersistQuoteRequest {
   vertical: string;
   input: PricingInput;
   usedAiAnalysis: boolean;
+  /** Phase 6: Storage path from a successful analyzePhotoAction upload, if any. */
+  photoPath?: string | null;
 }
 
 export interface PersistQuoteResponse {
@@ -289,6 +310,7 @@ export async function persistQuoteAction(req: PersistQuoteRequest): Promise<Pers
     used_ai_analysis: req.usedAiAnalysis,
     was_capped: decision ? decision.reason === 'cap_reached' : false,
     session_id: req.sessionId,
+    photo_path: req.photoPath ?? null,
   });
 
   if (insertErr) {

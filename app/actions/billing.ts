@@ -3,6 +3,7 @@
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { getPaymentProvider, getProviderById, PaymentProviderError } from '@/lib/payments';
 import { trackServer } from '@/lib/analytics.server';
+import { requireAdmin } from '@/lib/auth/admin';
 import type { Tier } from '@/types';
 
 /**
@@ -115,6 +116,12 @@ export interface ManualPaymentInput {
 export async function recordManualPaymentAction(
   input: ManualPaymentInput
 ): Promise<{ ok: boolean; error?: string }> {
+  // PHASE 6 RETROFIT: this action shipped in Phase 5.5 trusting the /admin
+  // page gate alone — a mutating action that records money changing hands
+  // deserves its own check, not just "nobody built a form that calls this
+  // from outside /admin yet." middleware.ts now provides a real admin
+  // session to check against; this is that check.
+  if (!(await requireAdmin())) return { ok: false, error: 'Not authorized.' };
   if (input.amountCents <= 0) return { ok: false, error: 'Amount must be positive.' };
   try {
     const db = getSupabaseAdminClient();
@@ -203,6 +210,7 @@ export async function recordRefundAction(input: {
   providerPaymentId?: string | null;
   cancelSubscription?: boolean;
 }): Promise<{ ok: boolean; error?: string }> {
+  if (!(await requireAdmin())) return { ok: false, error: 'Not authorized.' };
   if (input.amountCents <= 0) return { ok: false, error: 'Refund amount must be positive.' };
   try {
     const db = getSupabaseAdminClient();

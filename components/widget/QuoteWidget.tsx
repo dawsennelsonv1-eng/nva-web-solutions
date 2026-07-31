@@ -64,8 +64,9 @@ export interface QuoteWidgetPorts {
     estimatedSqft?: number;
     conditionModifierIds: string[];
     handToUser: VisionField[];
+    photoPath?: string | null;
   } | null>;
-  persistQuote?: (c: QuoteComputation) => Promise<string | null>;
+  persistQuote?: (c: QuoteComputation, photoPath: string | null) => Promise<string | null>;
   submitLead?: (draft: {
     name: string;
     phone: string;
