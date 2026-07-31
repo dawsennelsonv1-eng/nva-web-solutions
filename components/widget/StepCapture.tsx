@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PriceSpan } from './PriceSpan';
 
 /**
@@ -33,6 +33,8 @@ export interface StepCaptureProps {
   contractorName?: string;
   contractorPhone?: string | null;
   quoteUrl?: string | null;
+  /** Phase 5: fired once when the (non-unlocked) capture form mounts. */
+  onViewed?: () => void;
 }
 
 const TIMELINES = ['As soon as possible', 'Within a month', '1-3 months', 'Just researching'];
@@ -64,10 +66,17 @@ export function StepCapture({
   contractorName = 'The contractor',
   contractorPhone,
   quoteUrl,
+  onViewed,
 }: StepCaptureProps) {
   const [fields, setFields] = useState<CaptureFields>({ name: '', phone: '', email: '', timeline: '' });
   const [errors, setErrors] = useState<Partial<Record<keyof CaptureFields, string>>>({});
   const [touched, setTouched] = useState<Partial<Record<keyof CaptureFields, boolean>>>({});
+
+  useEffect(() => {
+    if (!unlocked) onViewed?.();
+    // Fire once per mount of the actual form, not on every keystroke re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const set = (k: keyof CaptureFields, v: string) => {
     const next = { ...fields, [k]: k === 'phone' ? formatUsPhone(v) : v };

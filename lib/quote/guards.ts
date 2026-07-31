@@ -159,6 +159,49 @@ export async function checkIpRateLimit(
   }
 }
 
+/**
+ * A GENERIC sibling to checkIpRateLimit (Phase 5 addition).
+ *
+ * checkIpRateLimit reads its window/max from RATE_LIMIT_WINDOW_SECONDS /
+ * RATE_LIMIT_MAX_ANALYSES_PER_IP — names that are correct for the vision
+ * path but would be misleading for anything else that calls it. This
+ * function takes window/max as explicit arguments and calls the SAME
+ * execution-verified check_rate_limit RPC (0005_rate_limits.sql) under a
+ * caller-chosen scope, so a second kind of abuse (e.g. lead-form spam) gets
+ * its own independent budget rather than sharing — and draining — the
+ * vision quota's counter.
+ */
+export async function checkScopedRateLimit(
+  ip: string | null,
+  scope: string,
+  windowSeconds: number,
+  max: number
+): Promise<GuardVerdict> {
+  if (!ip) return { ok: true };
+  try {
+    const db = getSupabaseAdminClient();
+    const { data, error } = await db.rpc('check_rate_limit', {
+      p_bucket_key: hashSubject(ip),
+      p_scope: scope,
+      p_window_seconds: windowSeconds,
+      p_max: max,
+    });
+    if (error) throw error;
+    const verdict = data as unknown as { allowed: boolean; retry_after_seconds: number } | null;
+    if (verdict && verdict.allowed === false) {
+      return {
+        ok: false,
+        code: 'rate_limited',
+        message: 'Too many submissions from this connection. Try again shortly.',
+        retryAfterSeconds: verdict.retry_after_seconds,
+      };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: true }; // fail open — see checkIpRateLimit for the reasoning
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 3. daily spend ceiling
 // ---------------------------------------------------------------------------

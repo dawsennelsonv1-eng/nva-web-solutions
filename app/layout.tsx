@@ -14,6 +14,22 @@ export const metadata: Metadata = {
   },
   description:
     'The system that turns the people already looking at your site into booked jobs.',
+  // Sitewide OG/Twitter defaults (Phase 5). Individual routes override title
+  // and description via their own metadata export; Next merges the rest of
+  // this object in as a fallback, so every route gets a correct link
+  // preview even without repeating these fields.
+  // VERIFY: no openGraph.images set — no brand image asset exists yet in
+  // this build. A share preview without an image still renders correctly
+  // (title + description), just without a thumbnail; add images here the
+  // moment a real OG asset exists.
+  openGraph: {
+    siteName: 'Girder',
+    type: 'website',
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary',
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

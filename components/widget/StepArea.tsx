@@ -29,6 +29,10 @@ export interface StepAreaProps {
   modifiers: { id: string; label: string; active: boolean }[];
   onToggleModifier: (id: string) => void;
   onContinue: () => void;
+  /** Phase 5: fired when a "not sure?" helper chip sets the value (EVENTS.md sqft_changed). */
+  onHelperPick?: (sqft: number) => void;
+  /** Phase 5: fired when the breakdown table is opened (EVENTS.md breakdown_expanded). */
+  onExpandBreakdown?: () => void;
 }
 
 export function StepArea({
@@ -41,6 +45,8 @@ export function StepArea({
   modifiers,
   onToggleModifier,
   onContinue,
+  onHelperPick,
+  onExpandBreakdown,
 }: StepAreaProps) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showHelper, setShowHelper] = useState(false);
@@ -74,6 +80,7 @@ export function StepArea({
                 type="button"
                 onClick={() => {
                   onSqftChange(t.sqft);
+                  onHelperPick?.(t.sqft);
                   setShowHelper(false);
                 }}
                 className="min-h-[2.75rem] rounded-milled border border-rule bg-sheet px-3 text-sm hover:border-ink"
@@ -116,7 +123,12 @@ export function StepArea({
 
           <button
             type="button"
-            onClick={() => setShowBreakdown((v) => !v)}
+            onClick={() =>
+              setShowBreakdown((v) => {
+                if (!v) onExpandBreakdown?.();
+                return !v;
+              })
+            }
             aria-expanded={showBreakdown}
             className="mt-2 font-data text-sm text-rule underline underline-offset-4 hover:text-ink"
           >

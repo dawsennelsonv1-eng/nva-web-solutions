@@ -184,7 +184,16 @@ function resolveSink(): Sink | null {
 
 const SID_KEY = 'nva_sid';
 
-function deriveSessionId(): string | null {
+/**
+ * Exported (Phase 5) so callers that need a stable session id for SERVER
+ * ACTION calls — not just for track()'s own envelope — reuse this exact
+ * derivation instead of re-implementing the same sessionStorage key
+ * elsewhere and risking two different ids for one browser tab.
+ * components/demo/DemoExperience.tsx is the first such caller: it needs the
+ * same session id for analyzePhotoAction/submitDemoLead that track() already
+ * derives internally for analytics.
+ */
+export function deriveSessionId(): string | null {
   if (typeof window === 'undefined') return null;
   try {
     let sid = window.sessionStorage.getItem(SID_KEY);

@@ -27,6 +27,24 @@ import type { VisionField } from '@/lib/quote/vision';
  * transport, and means a test can drive the whole funnel with four stubs.
  */
 
+/**
+ * PHASE 5 ADDITION. The `analyze` port's contract is "return hints, or
+ * null for manual entry" — but analyzePhotoAction (Phase 3) can also
+ * discover MID-FLOW that the prototype is now degraded (another visitor
+ * just pushed it over the cap, or the daily spend ceiling tripped between
+ * page load and this photo). That is a state transition, not a hint, so it
+ * does not fit the port's return type. An adapter that detects it throws
+ * this instead; attachPhoto's catch clause recognises it and routes to the
+ * SAME enterDegraded() every other degraded trigger uses, rather than
+ * falling through to the generic "treat it as a network hiccup" path.
+ */
+export class AnalysisDegradedSignal extends Error {
+  constructor(public readonly reason: DbDegradedReason) {
+    super('analysis_degraded');
+    this.name = 'AnalysisDegradedSignal';
+  }
+}
+
 export type QuoteStep =
   | 'surface'
   | 'photo'
@@ -226,6 +244,7 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
       set({ photoAttached: true, busy: true, error: null });
       get().goTo('photo');
       get().goTo('analyzing');
+      let wentDegraded = false;
       try {
         const hints = await ports.analyze({ imageBase64, mediaType });
         if (hints) {
@@ -236,13 +255,19 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
             analysisHandToUser: hints.handToUser,
           });
         }
-      } catch {
-        // The analysis is an accelerator, never a gate. A failure here means
-        // the visitor fills in what the model would have guessed.
-        set({ analysisHandToUser: [] });
+      } catch (e) {
+        if (e instanceof AnalysisDegradedSignal) {
+          wentDegraded = true;
+          get().enterDegraded(e.reason);
+        } else {
+          // Any other failure is an accelerator failing, never a gate. The
+          // visitor fills in what the model would have guessed.
+          set({ analysisHandToUser: [] });
+        }
       } finally {
         set({ busy: false });
-        get().goTo('finish');
+        // enterDegraded already moved the step; do not also push 'finish'.
+        if (!wentDegraded) get().goTo('finish');
       }
     },
 
