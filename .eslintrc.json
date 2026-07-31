@@ -1,0 +1,14 @@
+{
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "no-restricted-imports": ["error", {
+      "paths": [{
+        "name": "framer-motion",
+        "message": "Import { m, MotionProvider } from '@/lib/motion' instead. A bare framer-motion import defeats LazyMotion tree-shaking for the whole bundle (CONVENTIONS.md 6)."
+      }]
+    }]
+  },
+  "overrides": [
+    { "files": ["lib/motion/**"], "rules": { "no-restricted-imports": "off" } }
+  ]
+}
