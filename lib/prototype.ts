@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { decideEntitlement, type ResolvedEntitlement } from '@/lib/entitlements/decideEntitlement';
 import type { DbDegradedReason, StyleVariant, WidgetMode } from '@/types';
@@ -15,25 +16,46 @@ import type { Json } from '@/types/database';
  * second time in SQL (a second source of truth for the single most
  * consequential decision in the product) or eating resolveEntitlement's own
  * three separate queries on top of whatever this needed. Instead:
- * 0007_admin.sql's resolve_prototype_full() joins prototype, prospect, brand
- * kit, template config, quote config, subscription, plan and usage_counter
- * into one row, and THIS function feeds that row into
+ * 0008_prototype_view.sql's resolve_prototype_full() joins prototype,
+ * prospect, brand kit, template config, quote config, subscription, plan and
+ * usage_counter into one row, and THIS function feeds that row into
  * decideEntitlement() — the exact same pure function check.ts's can() calls
- * on the live request path (Phase 6 extracted it for precisely this reuse).
- * One query, one source of truth for what it means to be entitled.
+ * on the live request path. One query, one source of truth for what it
+ * means to be entitled.
  *
- * "SAFE TO CALL FROM A PUBLIC ROUTE" despite reading subscription and plan
- * data internally: the SQL function is service-role only (never anon-
- * callable — unlike 0003's resolve_prototype_by_slug), and this function's
- * OWN return type is the actual safety boundary. Nothing billing-shaped
- * leaves it. Compare the two return shapes: quote_config carries pricing
- * *rules* (needed client-side so the datum rule can price a slider drag
- * without a round trip — Phase 3's isomorphic pricing.ts is what makes that
- * safe to expose), while contractorName/contractorPhone/degraded/
- * degradedReason are the only entitlement-adjacent fields, and they are
- * exactly what the Phase 4 widget already needs to choose its happy path or
- * its degraded one. No tier name, no subscription status, no analysis count
- * ever appears in this type.
+ * === PHASE 8 CORRECTION: MODE IS DERIVED, NOT DEFAULTED ===
+ * Through Phase 6/7 this defaulted to `mode: 'live'` — harmless while
+ * nothing mounted a real widget against it, wrong the moment Phase 8 needs
+ * to. A puppy-dog prototype is, by definition, shown to a contractor BEFORE
+ * he has paid anything: no subscription row exists for it yet.
+ * decideEntitlement's own 'prototype' branch already never checks
+ * subscriptionEntitling at all (verified: it goes straight to
+ * session-limit-only gating) — that design was correct from Phase 3
+ * onward, it just was never actually WIRED to fire for an unpurchased
+ * prototype, because nothing computed which mode a given prototype should
+ * resolve in.
+ *
+ * The rule: if NO subscription row has ever existed for this prototype,
+ * it is being shown pre-purchase — mode 'prototype', unmetered sales tool.
+ * The MOMENT a subscription is created (active, past_due, even a later
+ * cancellation), the prototype has graduated to being a real site — mode
+ * 'live', where the normal cap/suspension rules apply correctly (a churned
+ * customer's page degrades via subscription_suspended, exactly as it
+ * should — it does not silently reopen as a free demo). 'preview' remains
+ * an explicit caller override for the admin looking at his own staged
+ * work, exactly as before.
+ *
+ * === PHASE 8 CORRECTION: EXPIRED IS NOW DISTINGUISHABLE FROM NOT-FOUND ===
+ * Through Phase 7 both collapsed to `null` — correct for draft/revoked/
+ * nonexistent, which the Phase 1 routing contract deliberately keeps
+ * indistinguishable for security (a revoked link should look exactly like
+ * one that never existed). But an EXPIRED prototype is a different case:
+ * lib/analytics.ts has carried a `prototype_expired_viewed` event since
+ * Phase 1, which only makes sense if an expired link renders its OWN page
+ * rather than a generic 404 — and Phase 8 explicitly asks for "a clean
+ * expired state that still sells." The return type is now a discriminated
+ * union so the route can tell the two apart while keeping every other
+ * non-live status exactly as opaque as before.
  */
 
 export interface ResolvedPrototype {
@@ -62,6 +84,13 @@ export interface ResolvedPrototype {
   } | null;
   contractorName: string;
   contractorPhone: string | null;
+  contractorEmail: string | null;
+  contractorCity: string | null;
+  contractorState: string | null;
+  /** The prospects.id FK — needed by createCheckoutAction, distinct from prototype.id. */
+  prospectId: string;
+  /** Derived, not caller-supplied (see header). What the widget must mount as. */
+  mode: WidgetMode;
   entitlement: {
     degraded: boolean;
     degradedReason: DbDegradedReason | null;
@@ -69,9 +98,17 @@ export interface ResolvedPrototype {
   };
 }
 
+export type PrototypeResolution =
+  | { status: 'ok'; data: ResolvedPrototype }
+  | { status: 'expired'; contractorName: string; slug: string }
+  | { status: 'not_found' };
+
 interface FullRow {
   prototype: { id: string; slug: string; vertical: string; status: string; expires_at: string | null };
-  prospect: { id: string; business_name: string; contact_name: string | null; phone: string | null; email: string | null };
+  prospect: {
+    id: string; business_name: string; contact_name: string | null;
+    phone: string | null; email: string | null; city: string | null; state: string | null;
+  };
   brand_kit: {
     logo_path: string | null; primary_hex: string | null; secondary_hex: string | null;
     accent_hex: string | null; derived_tokens: Json | null;
@@ -98,29 +135,33 @@ function toDegradedReason(reason: string): DbDegradedReason {
 }
 
 /**
- * Resolves a live prototype by slug for a public route. Returns null for
- * anything not live-and-unexpired (draft, revoked, expired, or nonexistent —
- * deliberately indistinguishable, per the Phase 1 routing contract: the
- * route 404s either way).
+ * Resolves a prototype by slug for a public route.
  *
- * `mode` and `sessionId` shape the entitlement the same way check.ts's can()
- * does: 'prototype' mode never touches the monthly cap; a missing sessionId
- * means the per-session count reads as zero for this bootstrap render (the
- * widget derives and threads a real one for the actions that follow).
+ * `opts.mode: 'preview'` is the only mode a caller may force — used by the
+ * admin's own preview surface. Otherwise mode is derived from whether a
+ * subscription has ever existed (see header). `sessionId` shapes the
+ * per-session count the same way check.ts's can() does; a missing one reads
+ * as zero for this bootstrap render, and the widget threads a real one for
+ * the actions that follow.
  */
-export async function resolvePrototypeBySlug(
+export const resolvePrototypeBySlug = cache(async function resolvePrototypeBySlug(
   slug: string,
-  opts: { mode?: WidgetMode; sessionId?: string } = {}
-): Promise<ResolvedPrototype | null> {
+  opts: { mode?: 'preview'; sessionId?: string } = {}
+): Promise<PrototypeResolution> {
   const db = getSupabaseAdminClient();
   const { data, error } = await db.rpc('resolve_prototype_full', { p_slug: slug });
-  if (error || !data) return null;
+  if (error || !data) return { status: 'not_found' };
 
   const row = data as unknown as FullRow;
-  if (!row.prototype || row.prototype.status !== 'live') return null;
-  if (row.prototype.expires_at && new Date(row.prototype.expires_at) <= new Date()) return null;
+  if (!row.prototype || row.prototype.status !== 'live') return { status: 'not_found' };
 
-  const mode = opts.mode ?? 'live';
+  const isExpired = Boolean(row.prototype.expires_at && new Date(row.prototype.expires_at) <= new Date());
+  if (isExpired) {
+    return { status: 'expired', contractorName: row.prospect.business_name, slug: row.prototype.slug };
+  }
+
+  const mode: WidgetMode = opts.mode === 'preview' ? 'preview' : row.subscription ? 'live' : 'prototype';
+
   let degraded = false;
   let degradedReason: DbDegradedReason | null = null;
   let remainingSession = row.plan?.analysis_limit_per_session ?? 3;
@@ -143,52 +184,56 @@ export async function resolvePrototypeBySlug(
       sessionAnalysesUsed: 0, // this bootstrap has no per-request session count yet
     };
 
-    const decision = decideEntitlement(
-      resolved,
-      'quote.ai_analysis',
-      mode === 'prototype' ? 'prototype' : 'live'
-    );
+    const decision = decideEntitlement(resolved, 'quote.ai_analysis', mode === 'prototype' ? 'prototype' : 'live');
     degraded = decision.degradedMode;
     degradedReason = decision.degradedMode ? toDegradedReason(decision.reason) : null;
     remainingSession = decision.remainingSession;
   }
 
   return {
-    prototype: {
-      id: row.prototype.id,
-      slug: row.prototype.slug,
-      vertical: row.prototype.vertical,
+    status: 'ok',
+    data: {
+      prototype: {
+        id: row.prototype.id,
+        slug: row.prototype.slug,
+        vertical: row.prototype.vertical,
+      },
+      brandKit: row.brand_kit
+        ? {
+            logoPath: row.brand_kit.logo_path,
+            primaryHex: row.brand_kit.primary_hex,
+            secondaryHex: row.brand_kit.secondary_hex,
+            accentHex: row.brand_kit.accent_hex,
+            derivedTokens: row.brand_kit.derived_tokens,
+          }
+        : null,
+      templateConfig: row.template_config
+        ? {
+            templateId: row.template_config.template_id,
+            typographyId: row.template_config.typography_id,
+            buttonStyleId: row.template_config.button_style_id,
+            styleVariant: row.template_config.style_variant as StyleVariant,
+            copyOverrides: row.template_config.copy_overrides,
+          }
+        : null,
+      quoteConfig: row.quote_config
+        ? {
+            vertical: row.quote_config.vertical,
+            rules: row.quote_config.rules,
+            finishCatalogue: row.quote_config.finish_catalogue,
+            sqftMin: row.quote_config.sqft_min,
+            sqftMax: row.quote_config.sqft_max,
+            rangeSpreadPct: row.quote_config.range_spread_pct,
+          }
+        : null,
+      contractorName: row.prospect.business_name,
+      contractorPhone: row.prospect.phone,
+      contractorEmail: row.prospect.email,
+      contractorCity: row.prospect.city,
+      contractorState: row.prospect.state,
+      prospectId: row.prospect.id,
+      mode,
+      entitlement: { degraded, degradedReason, remainingSession },
     },
-    brandKit: row.brand_kit
-      ? {
-          logoPath: row.brand_kit.logo_path,
-          primaryHex: row.brand_kit.primary_hex,
-          secondaryHex: row.brand_kit.secondary_hex,
-          accentHex: row.brand_kit.accent_hex,
-          derivedTokens: row.brand_kit.derived_tokens,
-        }
-      : null,
-    templateConfig: row.template_config
-      ? {
-          templateId: row.template_config.template_id,
-          typographyId: row.template_config.typography_id,
-          buttonStyleId: row.template_config.button_style_id,
-          styleVariant: row.template_config.style_variant as StyleVariant,
-          copyOverrides: row.template_config.copy_overrides,
-        }
-      : null,
-    quoteConfig: row.quote_config
-      ? {
-          vertical: row.quote_config.vertical,
-          rules: row.quote_config.rules,
-          finishCatalogue: row.quote_config.finish_catalogue,
-          sqftMin: row.quote_config.sqft_min,
-          sqftMax: row.quote_config.sqft_max,
-          rangeSpreadPct: row.quote_config.range_spread_pct,
-        }
-      : null,
-    contractorName: row.prospect.business_name,
-    contractorPhone: row.prospect.phone,
-    entitlement: { degraded, degradedReason, remainingSession },
   };
-}
+});
