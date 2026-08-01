@@ -423,6 +423,23 @@ export type RateLimitHitInsert = Partial<RateLimitHitRow> & {
 };
 export type RateLimitHitUpdate = Partial<RateLimitHitRow>;
 
+
+export type PrototypePreviewRow = {
+  id: string;
+  prototype_id: string;
+  staged_brand: Json;
+  staged_template: Json;
+  created_at: string;
+  updated_at: string;
+  expires_at: string;
+};
+export type PrototypePreviewInsert = Partial<PrototypePreviewRow> & {
+  prototype_id: string;
+  staged_brand: Json;
+  staged_template: Json;
+};
+export type PrototypePreviewUpdate = Partial<PrototypePreviewRow>;
+
 // ---------------------------------------------------------------------------
 // the Database interface consumed by createClient<Database>()
 // ---------------------------------------------------------------------------
@@ -457,6 +474,7 @@ export type Database = {
       webhook_events: { Row: WebhookEventRow; Insert: WebhookEventInsert; Update: WebhookEventUpdate; Relationships: [] };
       app_admins: { Row: AppAdminRow; Insert: AppAdminInsert; Update: AppAdminUpdate; Relationships: [] };
       rate_limit_hits: { Row: RateLimitHitRow; Insert: RateLimitHitInsert; Update: RateLimitHitUpdate; Relationships: [] };
+      prototype_previews: { Row: PrototypePreviewRow; Insert: PrototypePreviewInsert; Update: PrototypePreviewUpdate; Relationships: [] };
     };
     Views: Record<string, never>;
     Functions: {
@@ -510,6 +528,10 @@ export type Database = {
       // --- 0006_billing_ops.sql (Phase 5.5) ---
       resolve_prototype_full: {
         Args: { p_slug: string };
+        Returns: Json;
+      };
+      resolve_prototype_full_by_id: {
+        Args: { p_prototype_id: string };
         Returns: Json;
       };
       billing_overview: {

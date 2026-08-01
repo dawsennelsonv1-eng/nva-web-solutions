@@ -61,6 +61,16 @@ export default async function ProspectDetailPage({ params }: { params: { id: str
         </div>
       ) : null}
 
+      {/* Phase 9: the combiner is where a prototype's brand/template gets
+          staged and deployed. Always shown — getOrCreateDraftPrototypeAction
+          creates one on first visit if this prospect doesn't have one yet. */}
+      <a
+        href={'/admin/combiner?prospectId=' + prospect.id}
+        className="mt-3 flex min-h-[2.75rem] w-full items-center justify-center rounded-milled bg-hazard px-4 font-data text-sm font-semibold text-sheet"
+      >
+        {prototypes.length > 0 ? 'Edit design' : 'Stage a prototype'}
+      </a>
+
       <div className="mt-6">
         <ProspectForm initial={initial} />
       </div>
