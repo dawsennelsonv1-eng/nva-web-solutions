@@ -1,25 +1,57 @@
 import { z } from 'zod';
+import {
+  additiveModifierLines,
+  assertWithinBounds,
+  finaliseQuote,
+  formatCentsWhole,
+  PricingError,
+  type BreakdownKind,
+  type BreakdownLine,
+  type QuoteComputationOf,
+} from '@/lib/quote/kit';
 
 /**
- * lib/quote/pricing.ts — THE DETERMINISTIC PRICING ENGINE.
+ * lib/quote/pricing.ts — THE AREA x TIER PRICING KERNEL.
  *
  * THE PRICING RULE (Phase 3, absolute): the AI never produces a price. Price
  * is a pure function of contractor-owned rules in quote_configs.rules. This
- * module has ZERO imports beyond zod, does no I/O, reads no env, and touches
- * no clock or randomness — the same inputs always produce the same cents.
- * That is what makes it fully unit-testable, and what makes a quote survive
- * when the AI is down, unsure, or capped.
+ * module does no I/O, reads no env, and touches no clock or randomness — the
+ * same inputs always produce the same cents. That is what makes it fully
+ * unit-testable, and what makes a quote survive when the AI is down, unsure,
+ * or capped.
  *
- * NO MAGIC NUMBERS: every rate, fee, bound and spread is read from `rules`.
- * A number in this file that affects a price is a defect (SPEC R-113). The
- * only literals are 0, 1 and 100 — unit arithmetic.
+ * PHASE 11 CHANGE — read this before touching it. In Phase 3 this file WAS
+ * "the engine": one formula, therefore one trade. It is now one PRICING
+ * STRATEGY among several — quantity x tier rate, plus a per-unit prep rate —
+ * which epoxy uses and roofing plausibly will. Painting does not: its price is
+ * wall area x coat count with prep as a first-class line, so it composes its
+ * own formula from lib/quote/kit.ts instead. Dispatch by vertical now lives in
+ * lib/quote/price-quote.ts, which asks the MODULE to price itself. Nothing in
+ * this file knows a vertical id, and nothing in it ever should.
  *
- * ISOMORPHIC BY DESIGN: deliberately NOT server-only. The Phase 4 sqft
- * slider recomputes the range on every drag tick; a server round trip per
- * tick is not a product. The server recomputes independently before
- * persisting, so a tampered client changes what a homeowner sees for a
- * moment and nothing that gets written down.
+ * The shared ending (job minimum, quoted band, additive modifiers) moved to
+ * kit.ts so there is exactly one implementation of it. The arithmetic is
+ * unchanged to the cent; imports are still limited to zod and that pure kit.
+ *
+ * NO MAGIC NUMBERS: every rate, fee, bound and spread is read from `rules`. A
+ * number in this file that affects a price is a defect (SPEC R-113). The only
+ * literals are 0, 1 and 100 — unit arithmetic.
+ *
+ * ISOMORPHIC BY DESIGN: deliberately NOT server-only. The Phase 4 sqft slider
+ * recomputes the range on every drag tick; a server round trip per tick is not
+ * a product. The server recomputes independently before persisting, so a
+ * tampered client changes what a homeowner sees for a moment and nothing that
+ * gets written down.
  */
+
+// re-exported so every Phase 3-era import path keeps working unchanged
+export {
+  PricingError,
+  formatCentsWhole,
+  type BreakdownKind,
+  type BreakdownLine,
+};
+export type { PricingErrorCode } from '@/lib/quote/kit';
 
 // ---------------------------------------------------------------------------
 // rules — the STRUCTURAL schema the maths needs
@@ -30,10 +62,9 @@ import { z } from 'zod';
  *   1. Each vertical owns a STRICT schema with exact finish-tier keys
  *      (epoxyPricingRuleSchema: flake | metallic | solid_polyaspartic). That
  *      runs at the config boundary — when rules are saved or loaded.
- *   2. THIS schema is structural: the shape the arithmetic requires, with
- *      tier keys left open. It lets the engine price any vertical without
- *      importing the registry, which keeps this module pure and keeps
- *      Phase 11 additive.
+ *   2. THIS schema is structural: the shape this kernel's arithmetic requires,
+ *      with tier keys left open. It lets the kernel price any area x tier
+ *      vertical without importing the registry, which keeps this module pure.
  */
 export const pricingRulesSchema = z.object({
   /** tierKey -> cents per square foot. Keys are vertical-defined. */
@@ -76,53 +107,8 @@ export interface PricingInput {
   sqftMax: number;
 }
 
-export type BreakdownKind =
-  | 'coating'
-  | 'prep'
-  | 'modifier'
-  | 'mobilization'
-  | 'minimum_adjustment';
-
-export interface BreakdownLine {
-  id: string;
-  label: string;
-  kind: BreakdownKind;
-  /** Signed integer cents. Modifiers may be negative. */
-  cents: number;
-  /** On per-sqft lines so the UI can show "480 sq ft x $5.50". */
-  detail?: { sqft: number; rateCentsPerSqft: number } | { pctAdjust: number };
-}
-
-export interface QuoteComputation {
-  lowCents: number;
-  midpointCents: number;
-  highCents: number;
-  /** Itemised, in display order. Sums to midpointCents exactly. */
-  lines: BreakdownLine[];
-  /** Ids of the modifiers that actually applied. */
-  modifiersApplied: string[];
-  /** True when minimumJobCents raised the price above the computed total. */
-  minimumApplied: boolean;
-  rangeSpreadPct: number;
-  /** Echo of the priced inputs, for persistence in quotes.inputs. */
-  inputs: PricingInput;
-}
-
-export type PricingErrorCode =
-  | 'invalid_rules'
-  | 'sqft_out_of_bounds'
-  | 'unknown_finish_tier'
-  | 'unknown_modifier'
-  | 'invalid_bounds';
-
-export class PricingError extends Error {
-  readonly code: PricingErrorCode;
-  constructor(code: PricingErrorCode, message: string) {
-    super(message);
-    this.name = 'PricingError';
-    this.code = code;
-  }
-}
+/** Unchanged shape: the Phase 3 computation, narrowed to this kernel's input. */
+export type QuoteComputation = QuoteComputationOf<PricingInput>;
 
 // ---------------------------------------------------------------------------
 // the calculation
@@ -134,18 +120,11 @@ export class PricingError extends Error {
  *   1. coating  = sqft x baseRate[finishTier]
  *   2. prep     = sqft x prepRate
  *   3. subtotal = coating + prep
- *   4. modifiers apply to the SUBTOTAL, ADDITIVELY, not compounding.
- *      Three +20% modifiers give +60%, not x1.728. A contractor pricing a
- *      hard floor thinks "twenty for the oil, twelve for the cracks" and
- *      adds them up; compounding would silently overprice the worst floors,
- *      which are exactly the jobs he most wants to win.
+ *   4. modifiers apply to the SUBTOTAL, ADDITIVELY, not compounding (kit).
  *   5. + mobilisation — a FLAT fee, added AFTER the percentages. Condition
  *      modifiers describe the floor, not the drive.
- *   6. midpoint = max(total, minimumJobCents) — the minimum is a floor on
- *      the whole job, applied before the band is drawn.
- *   7. low/high = midpoint x (1 -/+ spread), then low is clamped to the
- *      minimum again. Without that clamp a small job quotes a low end BELOW
- *      the number the contractor just said he will never go under.
+ *   6. midpoint = max(total, minimumJobCents) (kit).
+ *   7. low/high = midpoint x (1 -/+ spread), low clamped to the minimum (kit).
  */
 export function calculateQuote(
   input: PricingInput,
@@ -163,28 +142,13 @@ export function calculateQuote(
   }
   const rules = parsed.data;
 
-  if (
-    !Number.isFinite(input.sqftMin) ||
-    !Number.isFinite(input.sqftMax) ||
-    input.sqftMax <= input.sqftMin
-  ) {
-    throw new PricingError(
-      'invalid_bounds',
-      'sqft bounds are incoherent: min=' + input.sqftMin + ' max=' + input.sqftMax
-    );
-  }
-
-  if (
-    !Number.isFinite(input.sqft) ||
-    input.sqft < input.sqftMin ||
-    input.sqft > input.sqftMax
-  ) {
-    throw new PricingError(
-      'sqft_out_of_bounds',
-      'sqft ' + input.sqft + ' is outside the configured range ' +
-        input.sqftMin + '-' + input.sqftMax
-    );
-  }
+  assertWithinBounds(
+    input.sqft,
+    input.sqftMin,
+    input.sqftMax,
+    'sqft_out_of_bounds',
+    'sqft'
+  );
 
   const baseRate = rules.baseRateCentsPerSqft[input.finishTierKey];
   if (baseRate === undefined) {
@@ -222,29 +186,13 @@ export function calculateQuote(
 
   const subtotalCents = coatingCents + prepCents;
 
-  // 4 — modifiers, additive on the subtotal. Unknown ids fail LOUDLY: a typo
-  // that silently priced a heavy-oil floor as clean is the one bug that
-  // costs the contractor real money on a real job.
-  const requested = input.conditionModifierIds ?? [];
-  const modifiersApplied: string[] = [];
-  for (const id of requested) {
-    const mod = rules.conditionModifiers.find((m) => m.id === id);
-    if (!mod) {
-      throw new PricingError(
-        'unknown_modifier',
-        "condition modifier '" + id + "' is not defined in this quote_config"
-      );
-    }
-    if (modifiersApplied.includes(id)) continue; // same id twice counts once
-    modifiersApplied.push(id);
-    lines.push({
-      id: 'modifier:' + mod.id,
-      label: mod.label,
-      kind: 'modifier',
-      cents: Math.round(subtotalCents * mod.pctAdjust),
-      detail: { pctAdjust: mod.pctAdjust },
-    });
-  }
+  // 4 — modifiers, additive on the subtotal, unknown ids fail loudly
+  const mods = additiveModifierLines(
+    subtotalCents,
+    input.conditionModifierIds,
+    rules.conditionModifiers
+  );
+  lines.push(...mods.lines);
 
   // 5 — flat mobilisation, after the percentages
   if (rules.mobilizationFeeCents > 0) {
@@ -256,39 +204,22 @@ export function calculateQuote(
     });
   }
 
-  const computedTotalCents = lines.reduce((sum, l) => sum + l.cents, 0);
-
-  // 6 — job minimum
-  let midpointCents = computedTotalCents;
-  let minimumApplied = false;
-  if (computedTotalCents < rules.minimumJobCents) {
-    minimumApplied = true;
-    lines.push({
-      id: 'minimum_adjustment',
-      label: 'Minimum job value',
-      kind: 'minimum_adjustment',
-      cents: rules.minimumJobCents - computedTotalCents,
-    });
-    midpointCents = rules.minimumJobCents;
-  }
-
-  // 7 — the band
-  const spread = rules.rangeSpreadPct;
-  let lowCents = Math.round(midpointCents * (1 - spread));
-  const highCents = Math.round(midpointCents * (1 + spread));
-  if (lowCents < rules.minimumJobCents) lowCents = rules.minimumJobCents;
-
-  return {
-    lowCents,
-    midpointCents,
-    highCents,
+  // 6 & 7 — minimum, then the band
+  return finaliseQuote<PricingInput>({
     lines,
-    modifiersApplied,
-    minimumApplied,
-    rangeSpreadPct: spread,
+    minimumJobCents: rules.minimumJobCents,
+    rangeSpreadPct: rules.rangeSpreadPct,
+    modifiersApplied: mods.applied,
     inputs: { ...input, sqft },
-  };
+  });
 }
+
+/**
+ * The same function under the name that describes the STRATEGY rather than the
+ * era. New code (and vertical modules) should import this name; `calculateQuote`
+ * stays exported for every Phase 3-10 call site.
+ */
+export const areaTierQuote = calculateQuote;
 
 /**
  * SURFACE TYPE IS RECORDED, NOT PRICED — on purpose.
@@ -300,8 +231,3 @@ export function calculateQuote(
  * R-113 forbids. If volume tiering is wanted, it is a rules-schema change,
  * made once, in the vertical module and the seed.
  */
-
-/** Whole-dollar display string for integer cents. */
-export function formatCentsWhole(cents: number): string {
-  return '$' + Math.round(cents / 100).toLocaleString('en-US');
-}
