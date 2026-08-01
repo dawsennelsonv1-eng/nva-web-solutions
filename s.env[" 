@@ -1,0 +1,16 @@
+[35mlib/ai/authz.ts[m[36m:[m[32m36[m[36m:[m  const value = [1;31mprocess.env[m.AI_ADMIN_TOKEN_SECRET;
+[35mlib/ai/budget.ts[m[36m:[m[32m25[m[36m:[m  const raw = [1;31mprocess.env[m.AI_DAILY_SPEND_CEILING_CENTS;
+[35mlib/ai/pricing.ts[m[36m:[m[32m21[m[36m:[m  const raw = [1;31mprocess.env[m[envName];
+[35mlib/ai/providers/anthropic.ts[m[36m:[m[32m93[m[36m:[m    return Boolean([1;31mprocess.env[m[PROVIDER_ENDPOINTS.anthropic.apiKeyEnv]);
+[35mlib/ai/providers/anthropic.ts[m[36m:[m[32m102[m[36m:[m    const raw = [1;31mprocess.env[m[cfg.baseUrlEnv] ?? cfg.defaultBaseUrl ?? '';
+[35mlib/ai/providers/anthropic.ts[m[36m:[m[32m136[m[36m:[m    const apiKey = [1;31mprocess.env[m[PROVIDER_ENDPOINTS.anthropic.apiKeyEnv];
+[35mlib/ai/providers/openai-compatible.ts[m[36m:[m[32m120[m[36m:[m    return Boolean([1;31mprocess.env[m[this.opts.apiKeyEnv]) && this.resolvedBaseUrl() !== null;
+[35mlib/ai/providers/openai-compatible.ts[m[36m:[m[32m130[m[36m:[m    const raw = [1;31mprocess.env[m[this.opts.baseUrlEnv] ?? this.opts.defaultBaseUrl;
+[35mlib/ai/providers/openai-compatible.ts[m[36m:[m[32m136[m[36m:[m    const apiKey = [1;31mprocess.env[m[this.opts.apiKeyEnv];
+[35mlib/ai/ratelimit.ts[m[36m:[m[32m25[m[36m:[m  const raw = [1;31mprocess.env[m[name];
+[35mlib/ai/router.ts[m[36m:[m[32m94[m[36m:[m  const raw = [1;31mprocess.env[m[name];
+[35mlib/ai/router.ts[m[36m:[m[32m101[m[36m:[m  const override = c.modelEnv ? [1;31mprocess.env[m[c.modelEnv] : undefined;
+[35mlib/quote/guards.ts[m[36m:[m[32m109[m[36m:[m    [1;31mprocess.env[m.RATE_LIMIT_SALT ??
+[35mlib/quote/guards.ts[m[36m:[m[32m110[m[36m:[m    [1;31mprocess.env[m.SUPABASE_SERVICE_ROLE_KEY ??
+[35mlib/quote/guards.ts[m[36m:[m[32m116[m[36m:[m  const raw = [1;31mprocess.env[m[name];
+[35mlib/quote/guards.ts[m[36m:[m[32m219[m[36m:[m  const ceiling = [1;31mprocess.env[m.AI_DAILY_SPEND_CEILING_CENTS;

@@ -36,9 +36,31 @@ export function getPaymentProvider(): PaymentProvider {
   return isProduction ? stripeProvider : stubProvider;
 }
 
-/** Named lookup, for the admin UI recording a payment against a chosen rail. */
+/**
+ * Named lookup, for the admin UI recording a payment against a chosen rail.
+ *
+ * PHASE 12A: this function carried none of the production guard its sibling
+ * spends eleven lines arguing for. getProviderById('stub') returned the stub
+ * in production, which meant the codebase's stated most-dangerous-possible
+ * misconfiguration was reachable through the back door of the same module
+ * that forbids it at the front. No current call site passes 'stub' — the only
+ * caller is a hardcoded getProviderById('stripe') in app/actions/billing.ts —
+ * so this was latent rather than live. It is fixed as a latent bug because
+ * `id` is typed ProviderId and TypeScript types are erased at runtime: the
+ * day something derives that argument from a form field, the type says
+ * nothing and this throw is the only thing left.
+ *
+ * Throwing rather than silently substituting Stripe, because unlike the env
+ * var above there is no benign reason for a production call site to name the
+ * stub. That is a bug in the caller and it should be loud.
+ */
 export function getProviderById(id: ProviderId): PaymentProvider {
   if (id === 'manual') return manualProvider;
-  if (id === 'stub') return stubProvider;
+  if (id === 'stub') {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[payments] The stub provider cannot be used in production.');
+    }
+    return stubProvider;
+  }
   return stripeProvider;
 }
