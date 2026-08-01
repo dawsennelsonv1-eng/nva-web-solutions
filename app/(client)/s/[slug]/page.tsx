@@ -1,61 +1,48 @@
-import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { Placeholder } from '@/components/ui/Placeholder';
 import { resolvePrototypeBySlug } from '@/lib/prototype';
-import { getLogoPublicUrl } from '@/lib/storage/logos';
-import { PrototypeView } from '@/components/prototype/PrototypeView';
-import { ExpiredState } from '@/components/prototype/ExpiredState';
+import type { DerivedTokens } from '@/lib/brand/tokens';
 
 /**
- * app/(client)/s/[slug]/page.tsx — THE PUPPY DOG (public route).
+ * /s/[slug] — 404 semantics still live HERE, not in edge middleware
+ * (unchanged reasoning since Phase 1).
  *
- * PHASE 9: the presentational body moved to components/prototype/
- * PrototypeView.tsx so the combiner's live preview route
- * (app/(client)/s/preview/[prototypeId]/page.tsx) can render the identical
- * component fed from staged data. This file's only job now is resolving
- * the REAL, SAVED prototype by slug and generating its metadata — the LCP
- * and code-splitting properties from Phase 8 are unchanged, since they live
- * in PrototypeView/LaunchGate, not here.
+ * PHASE 7 CHANGE: the theme scope and brand CSS variables moved UP to
+ * ./layout.tsx, which is the only level that both knows the tenant and
+ * wraps the error/loading states. This page is now purely content. The
+ * resolve call is shared with the layout via React cache() — still one
+ * query.
+ *
+ * The full widget mount remains Phase 8's job, as it was in Phase 6.
  */
-
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const resolution = await resolvePrototypeBySlug(params.slug);
-
-  if (resolution.status === 'expired') {
-    return { title: resolution.contractorName + ' — link expired', robots: { index: false, follow: false } };
-  }
-  if (resolution.status !== 'ok') {
-    return { title: 'Not found', robots: { index: false, follow: false } };
-  }
-
-  const { contractorName, contractorCity, brandKit } = resolution.data;
-  const marketLine = contractorCity ? 'Instant floor quotes in ' + contractorCity : 'Instant floor quotes';
-  const logoUrl = brandKit?.logoPath ? getLogoPublicUrl(brandKit.logoPath) : null;
-
-  return {
-    title: contractorName,
-    description: marketLine + '. Price your floor in under a minute.',
-    robots: { index: false, follow: false },
-    openGraph: {
-      title: contractorName,
-      description: marketLine,
-      type: 'website',
-      ...(logoUrl ? { images: [{ url: logoUrl }] } : {}),
-    },
-    twitter: {
-      card: logoUrl ? 'summary' : 'summary_large_image',
-      title: contractorName,
-      description: marketLine,
-    },
-  };
-}
-
 export default async function PrototypePage({ params }: { params: { slug: string } }) {
-  const resolution = await resolvePrototypeBySlug(params.slug);
+  const resolved = await resolvePrototypeBySlug(params.slug, { mode: 'live' });
+  if (!resolved) notFound();
 
-  if (resolution.status === 'not_found') notFound();
-  if (resolution.status === 'expired') {
-    return <ExpiredState contractorName={resolution.contractorName} slug={resolution.slug} />;
-  }
+  const { prototype, brandKit, templateConfig, quoteConfig, contractorName, contractorPhone, entitlement } =
+    resolved;
+  const derived = brandKit?.derivedTokens as DerivedTokens | null;
 
-  return <PrototypeView resolved={resolution.data} />;
+  return (
+    <Placeholder
+      name="Route: /s/[slug] (branded via layout — widget mount is Phase 8)"
+      props={{
+        slug: prototype.slug,
+        vertical: prototype.vertical,
+        contractorName,
+        contractorPhone,
+        styleVariant: templateConfig?.styleVariant ?? null,
+        hasQuoteConfig: quoteConfig !== null,
+        brand: derived
+          ? {
+              source: 'derived_tokens',
+              hazard: derived.light?.hazard ?? null,
+              adjustments: derived.adjustments?.length ?? 0,
+              provenance: derived.provenance ?? null,
+            }
+          : { source: brandKit?.accentHex ? 'raw_accent_hex' : 'house_defaults' },
+        entitlement,
+      }}
+    />
+  );
 }
