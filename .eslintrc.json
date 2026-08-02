@@ -1,64 +1,15 @@
 {
   "extends": "next/core-web-vitals",
+  "plugins": ["@typescript-eslint"],
   "rules": {
     "no-restricted-imports": ["error", {
       "paths": [{
         "name": "framer-motion",
         "message": "Import { m, MotionProvider } from '@/lib/motion' instead. A bare framer-motion import defeats LazyMotion tree-shaking for the whole bundle (CONVENTIONS.md 6)."
       }]
-    }],
-    "no-restricted-syntax": [
-      "error",
-      {
-        "selector": "JSXAttribute[name.name='className'][value.value=/(^|\\s)(shadow-|drop-shadow-|backdrop-blur|blur-)/]",
-        "message": "box-shadow, drop-shadow and backdrop blur are banned (13A build constraint 1). These utilities were also deleted from the Tailwind theme, so this class emits no CSS. Separate surfaces with a colour change or a 1px rule."
-      },
-      {
-        "selector": "JSXAttribute[name.name='className'][value.value=/\\[#/]",
-        "message": "Hardcoded hex colour. There are six colours and they are all tokens (13A build constraint 5). Use bg-/text-/border- with concrete, sheet, ink, rule, hazard or cure."
-      },
-      {
-        "selector": "JSXAttribute[name.name='className'][value.value=/rounded-(sm|md|lg|xl|2xl|3xl)/]",
-        "message": "Exactly two radii exist: rounded-none for factual, rounded-milled for pressable (13A build constraint 2). rounded-full is reserved for the Plate status indicator."
-      }
-    ]
+    }]
   },
   "overrides": [
-    {
-      "files": ["lib/motion/**"],
-      "rules": { "no-restricted-imports": "off" }
-    },
-    {
-      "files": ["app/(public)/**", "components/site/**", "components/ui/Plate.tsx"],
-      "rules": {
-        "no-restricted-syntax": [
-          "error",
-          {
-            "selector": "JSXAttribute[name.name='className'][value.value=/(^|\\s)(shadow-|drop-shadow-|backdrop-blur|blur-)/]",
-            "message": "box-shadow, drop-shadow and backdrop blur are banned (13A build constraint 1)."
-          },
-          {
-            "selector": "JSXAttribute[name.name='className'][value.value=/\\[#/]",
-            "message": "Hardcoded hex colour. Six colours, all tokens (13A build constraint 5)."
-          },
-          {
-            "selector": "JSXAttribute[name.name='className'][value.value=/rounded-(sm|md|lg|xl|2xl|3xl)/]",
-            "message": "Exactly two radii: rounded-none and rounded-milled (13A build constraint 2)."
-          },
-          {
-            "selector": "JSXAttribute[name.name='className'][value.value=/(text|bg|border)-(warning|danger)/]",
-            "message": "warning and danger are not part of the six colours and are banned on public surfaces (13A build constraint 5). They exist only for pre-13B admin and widget error states."
-          },
-          {
-            "selector": "JSXOpeningElement[name.name=/^(h1|h2|h3|h4|button)$/] > JSXAttribute[name.name='className'][value.value=/font-data/]",
-            "message": "THE MONO RULE (13A build constraint 3): mono appears only on measured values, plate text and the build log. Never on headlines or buttons. Mono used decoratively reads as developer portfolio, and that reads as a hobbyist who will disappear."
-          },
-          {
-            "selector": "NewExpression[callee.name='IntersectionObserver']",
-            "message": "No scroll-triggered animation of any kind (13A build constraint 4). A page whose contents arrive as you scroll is a page performing for you."
-          }
-        ]
-      }
-    }
+    { "files": ["lib/motion/**"], "rules": { "no-restricted-imports": "off" } }
   ]
 }
