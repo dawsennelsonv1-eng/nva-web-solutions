@@ -3,47 +3,131 @@
 @tailwind utilities;
 
 /* ============================================================================
-   THEME ENGINE — token schema (DESIGN.md is canonical for every value here)
+   FONTS — self-hosted, subsetted, no CDN call (Phase 13B, Part 1.5)
 
-   NO-FLASH STRATEGY, explained:
-   The theme variant on every surface in this product is SERVER-KNOWN, never a
-   client preference. The public site's variant is static ('light'); a branded
-   prototype's variant comes from template_configs.style_variant, which the
-   server has at render time. So instead of the usual client-side trick (a
-   blocking <head> script reading localStorage before first paint), we render
-   the data-theme attribute AND any per-tenant token overrides directly into
-   the server HTML:
+   Replaces the @fontsource npm imports that were in app/layout.tsx. Those
+   shipped full latin sets, were not preloaded, and — critically — served
+   Archivo Variable as BOTH display and body. 13A rules the body face is IBM
+   Plex Sans 400, on the grounds that it is not Inter and that it was drawn for
+   an industrial equipment manufacturer.
 
+   MEASURED payload, subset with fonttools pyftsubset, not estimated:
+     archivo-800.woff2        11,956   display, headline
+     archivo-600.woff2        11,864   display, section headers
+     archivo-700-cond.woff2   11,776   legacy .font-condensed shim, see below
+     plex-sans-400.woff2      17,796   body
+     plex-mono-500.woff2       7,560   measured values, plates, build log
+     TOTAL                    60,952 = 59.5 KB   (ceiling 100 KB, target 74 KB)
+
+   WHY STATIC INSTANCES AND NOT THE VARIABLE FILE: Archivo variable, subset to
+   latin with wght 400-800 and wdth 100-125, measures 51.2 KB — over the 40 KB
+   display-face ceiling 13A sets. 13A's own fallback is "drop the width axis
+   and ship static weights", so that is what this is. wdth is baked at 112:
+   expanded, the nameplate voice.
+
+   THE CONDENSED SHIM: the pre-13B app used .font-condensed (font-stretch: 75%)
+   in admin and marketing surfaces this phase is not allowed to touch. Static
+   instances ignore font-stretch, so dropping the width axis would have silently
+   flattened every one of those headings to normal width. archivo-700-cond
+   declares font-stretch: 75% so the existing utility still resolves to a real
+   condensed face. It is a compatibility file, not a fourth display voice, and
+   it is not preloaded.
+   ========================================================================= */
+
+@font-face {
+  font-family: 'Archivo Subset';
+  src: url('/fonts/archivo-800.woff2') format('woff2');
+  font-weight: 800;
+  font-stretch: 112%;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Archivo Subset';
+  src: url('/fonts/archivo-600.woff2') format('woff2');
+  font-weight: 600;
+  font-stretch: 112%;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Archivo Subset';
+  src: url('/fonts/archivo-700-cond.woff2') format('woff2');
+  font-weight: 700;
+  font-stretch: 75%;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plex Sans Subset';
+  src: url('/fonts/plex-sans-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plex Mono Subset';
+  src: url('/fonts/plex-mono-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ============================================================================
+   THEME ENGINE — token schema
+
+   NO-FLASH STRATEGY is unchanged from Phase 1 and still correct: the theme
+   variant on every surface is SERVER-KNOWN, never a client preference.
      1. app/layout.tsx renders <html data-theme="light"> — the default variant
         is present before any CSS or JS arrives.
      2. app/(client)/layout.tsx wraps branded pages in a scope element carrying
-        data-theme={variant} plus an inline style="--c-hazard: R G B; ..." of
-        brand-kit overrides. CSS custom properties cascade, so the subtree is
-        fully themed and fully branded in the initial HTML payload. Zero flash,
-        including on server-rendered branded pages, with zero runtime JS cost.
-     3. Runtime switching (the Phase 4 Style Toggle) flips the data-theme
-        attribute on that scope element via lib/theme.ts. Every token below is
-        a CSS custom property, so the entire subtree restyles in one attribute
-        write — no React re-render, no class swapping, no repaint storm.
+        data-theme={variant} plus inline brand-kit overrides. CSS custom
+        properties cascade, so the subtree is fully themed in the initial HTML.
+     3. Runtime switching flips data-theme on that scope element via
+        lib/theme.ts — one attribute write, no React re-render.
 
-   Tokens are stored as raw "R G B" triplets so Tailwind utilities can apply
-   alpha: bg-hazard/20 compiles to rgb(var(--c-hazard) / 0.2).
+   Tokens are raw "R G B" triplets so Tailwind can apply alpha.
+
+   WHAT CHANGED IN 13B: the six VALUES are replaced with the 13A palette. The
+   six token NAMES are kept, because 13A's six roles map one-to-one onto the
+   slots that already existed, and renaming them would have required editing
+   every admin, widget and prototype file in the repo — none of which are in
+   scope for this phase.
+
+     --c-concrete  ground      Cure Gray      #E5E4DF
+     --c-sheet     document    Ticket White   #FAFAF7
+     --c-ink       panel/text  Machine Black  #0E1211
+     --c-rule      hairlines   Rule Gray      #8A8880
+     --c-hazard    action/live Signal Orange  #E4511E
+     --c-cure      measured    Gauge Green    #1D6B4F
    ========================================================================= */
 
 :root,
 [data-theme='light'] {
-  /* -- colour: the six DESIGN.md values + Phase-1-derived status tokens -- */
-  --c-concrete: 228 230 227; /* #E4E6E3 page surface — polished concrete   */
-  --c-sheet: 244 245 243;    /* #F4F5F3 panels — the data sheet on the slab */
-  --c-ink: 20 23 26;         /* #14171A print ink                           */
-  --c-rule: 155 162 156;     /* #9BA29C graduation marks, borders, disabled */
-  --c-hazard: 255 106 19;    /* #FF6A13 safety orange — ONE action/viewport */
-  --c-cure: 31 95 82;        /* #1F5F52 status only: success / confirmed    */
-  /* status derivations, held to WCAG AA as text on their surface:          */
-  --c-warning: 138 106 0;    /* #8A6A00 ochre — 5.0:1 on --c-sheet          */
-  --c-danger: 178 42 24;     /* #B22A18 — 5.3:1 on --c-sheet                */
+  /* -- colour: the six 13A values ---------------------------------------- */
+  --c-concrete: 229 228 223; /* #E5E4DF Cure Gray — the page ground        */
+  --c-sheet: 250 250 247;    /* #FAFAF7 Ticket White — INFORMATION only    */
+  --c-ink: 14 18 17;         /* #0E1211 Machine Black — text, bar, chrome  */
+  --c-rule: 138 136 128;     /* #8A8880 Rule Gray — hairlines, field labels*/
+  --c-hazard: 228 81 30;     /* #E4511E Signal Orange — pressable or live  */
+  --c-cure: 29 107 79;       /* #1D6B4F Gauge Green — measured values only */
 
-  /* -- type scale (DESIGN.md: 1.25 ratio, spec-sheet compact) ------------- */
+  /* -- NOT part of the six. Retained, and banned from public surfaces.
+        These carry AA-contrast error and warning states in admin and in the
+        widget's degraded flow — files this phase may not edit. Deleting them
+        would not fail the build; Tailwind would simply stop emitting the
+        classes and those states would render as unstyled inherited text,
+        which is a silent accessibility regression in code I cannot review.
+        Reported as a deliberate deviation in the closing block. ---------- */
+  --c-warning: 138 106 0;    /* #8A6A00 — 5.0:1 on --c-sheet               */
+  --c-danger: 178 42 24;     /* #B22A18 — 5.3:1 on --c-sheet               */
+
+  /* -- type scale --------------------------------------------------------
+     Steps 11 through 49 are unchanged; out-of-scope surfaces depend on them.
+     --fs-display is ADDED for the headline. It is fluid rather than a fixed
+     step because expanded Archivo at a fixed 64px overflows a 360px screen,
+     and the headline must not reflow or shift after paint.               */
+  --fs-11: 0.6875rem;
   --fs-12: 0.75rem;
   --fs-14: 0.875rem;
   --fs-16: 1rem;
@@ -52,21 +136,24 @@
   --fs-31: 1.9375rem;
   --fs-39: 2.4375rem;
   --fs-49: 3.0625rem;
+  --fs-display: clamp(2.375rem, 8.5vw, 4rem);
 
-  /* -- radius: ONE value in the whole system (CONVENTIONS.md 7) ----------- */
+  /* -- radius: exactly two. 0 for factual, 2px for pressable. ------------- */
   --r-milled: 2px;
 
-  /* -- elevation: expressed by surface value, never blur (DESIGN.md 1.3).
-        A raised element uses --c-sheet on --c-concrete plus a --c-rule
-        border. There are no shadow tokens by design. -------------------- */
+  /* -- elevation: there are no shadow tokens, by design. Separation comes
+        from a change of surface value or a 1px rule. box-shadow is removed
+        from the Tailwind theme entirely — see tailwind.config.ts.       --- */
 
-  /* -- motion durations (DESIGN.md 1.5) ----------------------------------- */
+  /* -- motion ------------------------------------------------------------
+     --t-press is the only duration the public site uses: 70ms linear, a
+     switch rather than a bounce. The others remain for the widget.      */
+  --t-press: 70ms;
   --t-step: 180ms;
   --t-span: 240ms;
   --t-scan: 1400ms;
 
-  /* -- datum-rule geometry: shared by widget AND admin chrome so the two
-        can never drift into different measurement styles (FILE_TREE.md) -- */
+  /* -- datum-rule geometry, shared by widget AND admin chrome ------------- */
   --tick-w: 1px;
   --tick-minor: 6px;
   --tick-major: 12px;
@@ -75,29 +162,32 @@
   color-scheme: light;
 }
 
-/* Dark Industrial is a different instrument — a backlit control panel, not an
-   inverted data sheet. --c-hazard is deliberately IDENTICAL: safety orange
-   does not change with the lighting; that constancy is what makes the two
-   variants read as the same manufacturer. (DESIGN.md 1.1)                   */
+/* Dark Industrial is a per-tenant prototype variant, not a public surface.
+   13A is light-first for a functional reason and does not govern this block,
+   so the values are left as they were — except --c-hazard, which is realigned
+   to the new Signal Orange. Safety orange not changing with the lighting is
+   what makes the two variants read as the same manufacturer.               */
 [data-theme='dark-industrial'] {
   --c-concrete: 25 28 27;   /* #191C1B sealed dark concrete                 */
   --c-sheet: 35 39 42;      /* #23272A panel housing                        */
   --c-ink: 230 233 229;     /* #E6E9E5 warm off-white — never pure white    */
   --c-rule: 74 82 77;       /* #4A524D etched marks                         */
-  --c-hazard: 255 106 19;   /* unchanged, by design                         */
+  --c-hazard: 228 81 30;    /* #E4511E — matched to light, by design        */
   --c-cure: 62 156 134;     /* #3E9C86 lifted for AA on dark                */
   --c-warning: 217 178 58;  /* #D9B23A                                      */
   --c-danger: 228 85 47;    /* #E4552F                                      */
   color-scheme: dark;
 }
 
-/* Reduced motion is a designed state (SPEC R-003): every duration collapses
-   to zero, so spans jump, figures set, and the scan resolves instantly. The
-   datum rule itself never moved in the first place — that is the thesis.    */
+/* Reduced motion is a designed state: every duration collapses to zero, so
+   spans jump, figures set, and the scan resolves instantly. On the public
+   homepage this removes both permitted animations — the widget assembling its
+   figure, and the press state.                                              */
 @media (prefers-reduced-motion: reduce) {
   :root,
   [data-theme='light'],
   [data-theme='dark-industrial'] {
+    --t-press: 0ms;
     --t-step: 0ms;
     --t-span: 0ms;
     --t-scan: 0ms;
@@ -108,8 +198,8 @@
   body {
     @apply bg-concrete text-ink font-body text-base antialiased;
   }
-  /* R-002: visible keyboard focus on every interactive element, tokened so
-     it survives both variants and per-tenant branding. */
+  /* Visible keyboard focus on every interactive element, tokened so it
+     survives both variants and per-tenant branding. */
   :focus-visible {
     outline: 2px solid rgb(var(--c-hazard));
     outline-offset: 2px;
@@ -120,8 +210,8 @@
 }
 
 @layer utilities {
-  /* Archivo Variable carries a width axis; condensed display type is pulled
-     from the SAME file via font-stretch — no second typeface (DESIGN.md 2.3) */
+  /* Legacy display voice. Resolves to archivo-700-cond.woff2 via the
+     font-stretch descriptor. Public 13B surfaces do not use it. */
   .font-condensed {
     font-stretch: 75%;
   }
@@ -129,8 +219,19 @@
     font-stretch: 65%;
     letter-spacing: -0.01em;
   }
-  /* Numbers that animate must not jitter: tabular figures (DESIGN.md 1.2) */
+  /* Numbers that change must not jitter: tabular figures. */
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+  /* The only motion permitted on a pressable element: 1px down, rule darkens
+     to Machine Black, 70ms linear. Mechanical, no easing personality. */
+  .press {
+    transition:
+      transform var(--t-press) linear,
+      border-color var(--t-press) linear;
+  }
+  .press:active {
+    transform: translateY(1px);
+    border-color: rgb(var(--c-ink));
   }
 }
