@@ -65,7 +65,7 @@ type Outcome =
 export function CalibrationCheck() {
   const [sqft, setSqft] = useState('');
   const [price, setPrice] = useState('');
-  const [tierKey, setTierKey] = useState(REFERENCE_FINISHES[0].tierKey);
+  const [tierKey, setTierKey] = useState(REFERENCE_FINISHES[0]!.tierKey);
   const [modifierIds, setModifierIds] = useState<string[]>([]);
 
   const sqftNum = Number(sqft.replace(/[^0-9.]/g, ''));
