@@ -1,72 +1,103 @@
 import type { Metadata } from 'next';
-import { Hero } from '@/components/marketing/Hero';
-import { InfiniteMotion } from '@/components/marketing/InfiniteMotion';
-import { ProofOfFlexibility } from '@/components/marketing/ProofOfFlexibility';
-import { HowItWorks } from '@/components/marketing/HowItWorks';
-import { WhoItsFor } from '@/components/marketing/WhoItsFor';
-import { FranchiseComparison } from '@/components/marketing/FranchiseComparison';
-import { CtaButton } from '@/components/marketing/CtaButton';
-import { DemoExperience } from '@/components/demo/DemoExperience';
+import { CalibrationCheck } from '@/components/site/CalibrationCheck';
+import { ProofOfOperation } from '@/components/site/ProofOfOperation';
+import { Faq, Integration, Machinery, Terms } from '@/components/site/Sections';
+import { Plate } from '@/components/ui/Plate';
+import { liveInstalls } from '@/lib/site/metrics';
 
 /**
- * app/(public)/page.tsx — THE PUBLIC HUB. "The live widget IS the hero."
+ * app/(public)/page.tsx — THE PUBLIC HOMEPAGE.
  *
- * DemoExperience mounts directly inside Hero's children with
- * surface="public_hub" — real pricing engine, real photo analysis, real
- * lead capture, from the first paint. Nothing here is a screenshot standing
- * in for the product.
+ * The entire page is a frame around one interaction: a contractor running a
+ * job he has already completed through the live pricing engine. Everything
+ * below the hero exists to get him to touch it, or to answer the question he
+ * has immediately after he does.
  *
- * Section order is deliberate: hero (the widget) -> infinite motion (proof
- * the theme engine reskins) -> proof of flexibility (proof the vertical
- * system generalises) -> how it works -> who it's for (honest qualification)
- * -> franchise comparison (the money argument) -> closing CTA. Everything
- * after the hero is there to convert someone who scrolled PAST an already-
- * working demo, which is a different, harder job than a typical landing
- * page's hero-then-pitch order.
+ * Order: hero (the instrument) -> integration (kills "I can't code") ->
+ * machinery (the model itself, because a man sold to badly is starved of
+ * anyone showing him how the thing works) -> proof of operation (counted, not
+ * claimed) -> terms (where the badge row would have gone) -> FAQ.
+ *
+ * THE HEADLINE CONTAINS A REAL NUMBER AND DOES NOT MOVE. No typewriter, no
+ * reveal, no fade. It is set once, it is the largest thing on the page, and it
+ * is in the initial HTML.
+ *
+ * NOTHING ON THIS PAGE OBSERVES SCROLL. There is no IntersectionObserver, no
+ * stagger, no parallax, and no hover-lift anywhere in the tree.
  */
 
 export const metadata: Metadata = {
-  title: 'Girder — instant floor quotes that book jobs',
+  title: 'Girder — the quoting system a franchise sells for $49,500',
   description:
-    'Not a website. The instant AI quoting system a $49,500 franchise sells you — for $500 and 0% of your revenue.',
+    'Put a job you have already done through the live pricing engine and check the number yourself. $500 setup, $250 a month, 0% of your revenue.',
   openGraph: {
-    title: 'Girder — instant floor quotes that book jobs',
-    description: 'Try the AI quoting engine live. Real pricing, no signup.',
+    title: 'Girder — the quoting system a franchise sells for $49,500',
+    description:
+      'Run a job you have already done through the live engine and check the number yourself.',
     type: 'website',
+    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Girder' }],
   },
   twitter: {
-    card: 'summary',
-    title: 'Girder — instant floor quotes that book jobs',
-    description: 'Try the AI quoting engine live. Real pricing, no signup.',
+    card: 'summary_large_image',
+    title: 'Girder — the quoting system a franchise sells for $49,500',
+    description:
+      'Run a job you have already done through the live engine and check the number yourself.',
+    images: ['/og.png'],
   },
 };
 
-export default function PublicHubPage() {
+export default async function HomePage() {
+  // The hero Plate carries a live count, so it is counted, not written down.
+  // If the database cannot be reached the Plate is omitted entirely rather
+  // than rendered with a number nobody verified.
+  const installs = await liveInstalls();
+
   return (
     <>
-      <Hero>
-        <DemoExperience surface="public_hub" entryPoint="public_hub_hero" />
-      </Hero>
+      {/* HERO. Deliberately compact: the input panel must be reachable without
+          scrolling on a 360px screen, so the headline is two lines and there
+          is no sub-headline paragraph competing for the fold. */}
+      <section className="bg-concrete px-4 pb-12 pt-6" aria-labelledby="hero-h">
+        <div className="mx-auto max-w-5xl">
+          {installs && (
+            <Plate
+              unit="NVA-EPX-01"
+              status="IN SERVICE"
+              rev={12}
+              date="2026-08"
+              count={{ label: installs.label, value: installs.value }}
+            />
+          )}
 
-      <InfiniteMotion />
-      <ProofOfFlexibility />
-      <HowItWorks />
-      <WhoItsFor />
-      <FranchiseComparison />
+          <h1
+            id="hero-h"
+            className="mt-4 max-w-[18ch] font-display text-display font-extrabold uppercase"
+          >
+            A franchise charges $49,500 for this part
+          </h1>
 
-      <section className="border-t bg-sheet py-14 text-center">
-        <div className="mx-auto max-w-2xl px-4">
-          <h2 className="font-display font-condensed text-2xl font-bold sm:text-3xl">
-            See exactly what your customer would see.
-          </h2>
-          <p className="mt-2 text-base text-rule">
-            Full test drive, framed for a contractor evaluating this for his own site.
+          <p className="mt-3 max-w-[54ch] text-base">
+            Put in a floor you have already done. The engine below is the live one, running real
+            rates, and it will show you the range your customer would have been given — and every
+            line that produced it.
           </p>
-          <div className="mt-6 flex justify-center">
-            <CtaButton href="/demo">Test Drive the Software Now</CtaButton>
+
+          <div className="mt-5 max-w-xl">
+            <CalibrationCheck />
           </div>
+
+          <p className="mt-3 max-w-[54ch] text-sm text-rule">
+            $500 to set up, $250 a month, and we take none of the job. No call booked, no email
+            asked for.
+          </p>
         </div>
       </section>
+
+      <Integration />
+      <Machinery />
+      <ProofOfOperation />
+      <Terms />
+      <Faq />
     </>
   );
 }
