@@ -32,7 +32,7 @@ export interface RouteConfig {
   label: string;
   /** Shown in the admin panel under the job name. Plain language, no jargon. */
   description: string;
-  chain: RouteCandidate[];
+  chain: readonly [RouteCandidate, ...RouteCandidate[]];
   /**
    * Whether the server-side daily spend ceiling applies. FALSE for vision only,
    * because vision already sits behind the ceiling in lib/quote/guards.ts and
