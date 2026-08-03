@@ -185,6 +185,8 @@ export async function runJob<T>(opts: RunJobOptions<T>): Promise<RunJobResult<T>
 
   for (let i = 0; i < route.chain.length; i += 1) {
     const candidate = route.chain[i];
+    if (!candidate) continue;
+    if (!candidate) continue;
     const provider = getProvider(candidate.provider);
     const model = resolveModel(candidate);
 

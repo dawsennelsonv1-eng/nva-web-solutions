@@ -534,6 +534,14 @@ export type Database = {
         Args: { p_prototype_id: string };
         Returns: Json;
       };
+      ai_spend_today_cents: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      claim_spend_alert: {
+        Args: { p_scope: string; p_threshold_pct: number; p_spent_cents: number; p_ceiling_cents: number };
+        Returns: boolean;
+      };
       billing_overview: {
         Args: Record<string, never>;
         Returns: {

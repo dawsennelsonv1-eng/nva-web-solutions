@@ -101,7 +101,7 @@ export function Machinery() {
                 <tr key={f.id} className="border-b border-rule">
                   <td className="py-2 pr-3">{f.label}</td>
                   <td className="py-2 pr-3 font-data tabular">
-                    {dollars(REFERENCE_RULES.baseRateCentsPerSqft[f.tierKey])} / sqft
+                    {dollars(REFERENCE_RULES.baseRateCentsPerSqft[f.tierKey]!)} / sqft
                   </td>
                   <td className="py-2">× square feet</td>
                 </tr>
