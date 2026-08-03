@@ -32,12 +32,30 @@ import type { PricingRules } from '@/lib/quote/pricing';
 export const REFERENCE_SQFT_MIN = 100;
 export const REFERENCE_SQFT_MAX = 6000;
 
+/**
+ * Base rates as a LITERAL object rather than inline in REFERENCE_RULES.
+ *
+ * PricingRules types baseRateCentsPerSqft as Record<string, number>, and this
+ * project compiles with noUncheckedIndexedAccess — so indexing that record
+ * yields `number | undefined` and every lookup needs a guard for a key that
+ * cannot be missing. Declaring the rates here with literal keys makes TierKey
+ * an exact union, and BASE_RATES[tierKey] is plainly a number. The record is
+ * still handed to the pricing kernel unchanged; only the local lookups are
+ * narrowed.
+ */
+export const BASE_RATES = {
+  flake: 550,
+  metallic: 850,
+  solid_polyaspartic: 650,
+} as const;
+
+export type TierKey = keyof typeof BASE_RATES;
+
+/** The tier the calibration check opens on. Named, never REFERENCE_FINISHES[0]. */
+export const DEFAULT_TIER: TierKey = 'flake';
+
 export const REFERENCE_RULES: PricingRules = {
-  baseRateCentsPerSqft: {
-    flake: 550,
-    metallic: 850,
-    solid_polyaspartic: 650,
-  },
+  baseRateCentsPerSqft: BASE_RATES,
   prepRateCentsPerSqft: 150,
   conditionModifiers: [
     { id: 'oil_heavy', label: 'Heavy oil contamination', pctAdjust: 0.18 },
@@ -53,7 +71,7 @@ export const REFERENCE_RULES: PricingRules = {
 export const REFERENCE_FINISHES: {
   id: string;
   label: string;
-  tierKey: keyof typeof REFERENCE_RULES.baseRateCentsPerSqft;
+  tierKey: TierKey;
 }[] = [
   { id: 'decorative_flakes', label: 'Decorative flakes', tierKey: 'flake' },
   { id: 'metallic_epoxy', label: 'Metallic epoxy', tierKey: 'metallic' },

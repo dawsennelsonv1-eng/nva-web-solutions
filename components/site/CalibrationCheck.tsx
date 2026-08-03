@@ -3,11 +3,14 @@
 import { useMemo, useState } from 'react';
 import { calculateQuote } from '@/lib/quote/pricing';
 import {
+  BASE_RATES,
+  DEFAULT_TIER,
   REFERENCE_FINISHES,
   REFERENCE_RULES,
   REFERENCE_SQFT_MAX,
   REFERENCE_SQFT_MIN,
   wholeDollars,
+  type TierKey,
 } from '@/lib/site/reference-rates';
 
 /**
@@ -65,7 +68,7 @@ type Outcome =
 export function CalibrationCheck() {
   const [sqft, setSqft] = useState('');
   const [price, setPrice] = useState('');
-  const [tierKey, setTierKey] = useState(REFERENCE_FINISHES[0]!.tierKey);
+  const [tierKey, setTierKey] = useState<TierKey>(DEFAULT_TIER);
   const [modifierIds, setModifierIds] = useState<string[]>([]);
 
   const sqftNum = Number(sqft.replace(/[^0-9.]/g, ''));
@@ -89,7 +92,10 @@ export function CalibrationCheck() {
 
       // Reconstruct the documented order of operations for display.
       const n = Math.round(sqftNum);
-      const rate = REFERENCE_RULES.baseRateCentsPerSqft[tierKey]!;
+      // BASE_RATES, not REFERENCE_RULES.baseRateCentsPerSqft: the latter is a
+      // Record<string, number> and yields number | undefined under
+      // noUncheckedIndexedAccess. Same numbers, exact keys.
+      const rate = BASE_RATES[tierKey];
       const coating = Math.round(n * rate);
       const prep = Math.round(n * REFERENCE_RULES.prepRateCentsPerSqft);
       const subtotal = coating + prep;

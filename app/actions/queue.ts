@@ -30,7 +30,11 @@ function voterHash(): string | null {
   const salt = process.env.QUEUE_VOTE_SALT;
   if (!salt) return null;
   const h = headers();
-  const ip = (h.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  // split() always returns at least one element, but noUncheckedIndexedAccess
+  // types [0] as possibly undefined, so it is optional-chained rather than
+  // asserted. The fallback is also the correct behaviour behind a proxy that
+  // strips the header.
+  const ip = (h.get('x-forwarded-for') ?? '').split(',')[0]?.trim() || 'unknown';
   const ua = h.get('user-agent') ?? 'unknown';
   return createHash('sha256').update(`${salt}:${ip}:${ua}`).digest('hex');
 }

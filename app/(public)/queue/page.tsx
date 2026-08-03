@@ -49,7 +49,9 @@ function Section({
   heading: string;
   blurb: string;
   rows: ReactNode;
-  empty?: string;
+  // `| undefined` explicitly, so the component is also correct under
+  // exactOptionalPropertyTypes if that flag is ever switched on.
+  empty?: string | undefined;
 }) {
   return (
     <section className="mt-10">
