@@ -6,22 +6,7 @@
         "name": "framer-motion",
         "message": "Import { m, MotionProvider } from '@/lib/motion' instead. A bare framer-motion import defeats LazyMotion tree-shaking for the whole bundle (CONVENTIONS.md 6)."
       }]
-    }],
-    "no-restricted-syntax": [
-      "error",
-      {
-        "selector": "JSXAttribute[name.name='className'][value.value=/(^|\\s)(shadow-|drop-shadow-|backdrop-blur|blur-)/]",
-        "message": "box-shadow, drop-shadow and backdrop blur are banned (13A build constraint 1). These utilities were also deleted from the Tailwind theme, so this class emits no CSS. Separate surfaces with a colour change or a 1px rule."
-      },
-      {
-        "selector": "JSXAttribute[name.name='className'][value.value=/\\[#/]",
-        "message": "Hardcoded hex colour. There are six colours and they are all tokens (13A build constraint 5). Use bg-/text-/border- with concrete, sheet, ink, rule, hazard or cure."
-      },
-      {
-        "selector": "JSXAttribute[name.name='className'][value.value=/rounded-(sm|md|lg|xl|2xl|3xl)/]",
-        "message": "Exactly two radii exist: rounded-none for factual, rounded-milled for pressable (13A build constraint 2). rounded-full is reserved for the Plate status indicator."
-      }
-    ]
+    }]
   },
   "overrides": [
     {
@@ -29,25 +14,32 @@
       "rules": { "no-restricted-imports": "off" }
     },
     {
-      "files": ["app/(public)/**", "components/site/**", "components/queue/**", "components/ui/Plate.tsx"],
+      "files": [
+        "app/(public)/page.tsx",
+        "app/(public)/layout.tsx",
+        "app/(public)/queue/**",
+        "components/site/**",
+        "components/queue/**",
+        "components/ui/Plate.tsx"
+      ],
       "rules": {
         "no-restricted-syntax": [
           "error",
           {
             "selector": "JSXAttribute[name.name='className'][value.value=/(^|\\s)(shadow-|drop-shadow-|backdrop-blur|blur-)/]",
-            "message": "box-shadow, drop-shadow and backdrop blur are banned (13A build constraint 1)."
+            "message": "box-shadow, drop-shadow and backdrop blur are banned (13A build constraint 1). These utilities were also deleted from the Tailwind theme, so this class emits no CSS. Separate surfaces with a colour change or a 1px rule."
           },
           {
             "selector": "JSXAttribute[name.name='className'][value.value=/\\[#/]",
-            "message": "Hardcoded hex colour. Six colours, all tokens (13A build constraint 5)."
+            "message": "Hardcoded hex colour. There are six colours and they are all tokens (13A build constraint 5). Use bg-/text-/border- with concrete, sheet, ink, rule, hazard or cure."
           },
           {
             "selector": "JSXAttribute[name.name='className'][value.value=/rounded-(sm|md|lg|xl|2xl|3xl)/]",
-            "message": "Exactly two radii: rounded-none and rounded-milled (13A build constraint 2)."
+            "message": "Exactly two radii exist: rounded-none for factual, rounded-milled for pressable (13A build constraint 2). rounded-full is reserved for the Plate status indicator."
           },
           {
             "selector": "JSXAttribute[name.name='className'][value.value=/(text|bg|border)-(warning|danger)/]",
-            "message": "warning and danger are not part of the six colours and are banned on public surfaces (13A build constraint 5). They exist only for pre-13B admin and widget error states."
+            "message": "warning and danger are not part of the six colours and are banned on 13B surfaces (13A build constraint 5). They exist only for pre-13B admin and widget error states."
           },
           {
             "selector": "JSXOpeningElement[name.name=/^(h1|h2|h3|h4|button)$/] > JSXAttribute[name.name='className'][value.value=/font-data/]",
