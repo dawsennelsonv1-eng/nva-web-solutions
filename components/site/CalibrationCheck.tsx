@@ -89,7 +89,7 @@ export function CalibrationCheck() {
 
       // Reconstruct the documented order of operations for display.
       const n = Math.round(sqftNum);
-      const rate = REFERENCE_RULES.baseRateCentsPerSqft[tierKey];
+      const rate = REFERENCE_RULES.baseRateCentsPerSqft[tierKey]!;
       const coating = Math.round(n * rate);
       const prep = Math.round(n * REFERENCE_RULES.prepRateCentsPerSqft);
       const subtotal = coating + prep;
