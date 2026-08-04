@@ -82,6 +82,16 @@ const RETRYABLE = new Set<AiErrorCode>([
 export function classifyStatus(status: number): AiErrorCode {
   if (status === 400 || status === 404 || status === 422) return 'invalid_request';
   if (status === 401 || status === 403) return 'auth';
+  /**
+   * 402 — a prepaid balance ran out. OpenRouter is the only vendor here that
+   * can fail this way, and it maps to 'provider_error' ON PURPOSE rather than
+   * to 'budget_exceeded': 'budget_exceeded' is not retryable, because it means
+   * OUR ceiling stopped us and trying another vendor would defeat it. An empty
+   * OpenRouter wallet is the opposite situation — the work is still authorised,
+   * one route to it is closed, and falling through to a direct key is exactly
+   * what should happen. Written out because the two look identical in a log.
+   */
+  if (status === 402) return 'provider_error';
   if (status === 413) return 'context_length';
   if (status === 429) return 'rate_limited';
   if (status === 529 || status === 503) return 'overloaded';

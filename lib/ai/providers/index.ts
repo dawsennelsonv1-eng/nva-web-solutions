@@ -3,6 +3,7 @@ import { PROVIDER_IDS, type ProviderId } from '../types';
 import { anthropicProvider } from './anthropic';
 import { compatibleProvider } from './compatible';
 import { moonshotProvider } from './moonshot';
+import { openrouterProvider } from './openrouter';
 import { openaiProvider } from './openai';
 import type { AiProvider } from './base';
 
@@ -19,6 +20,7 @@ const REGISTRY: Record<ProviderId, AiProvider> = {
   anthropic: anthropicProvider,
   openai: openaiProvider,
   moonshot: moonshotProvider,
+  openrouter: openrouterProvider,
   compatible: compatibleProvider,
 };
 

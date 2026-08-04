@@ -12,21 +12,20 @@ import type { JobId, ProviderId } from './types';
  *
  * === OPENROUTER, AND WHY THERE IS NO NEW ADAPTER ===
  *
- * OpenRouter speaks the OpenAI /chat/completions dialect exactly, so the
- * `compatible` provider Phase 10 already shipped IS the OpenRouter adapter —
- * its own docstring names OpenRouter as the intended use. Pointing
- * AI_COMPATIBLE_BASE_URL at https://openrouter.ai/api/v1 and setting
- * AI_COMPATIBLE_API_KEY to an sk-or-... key is the entire integration.
+ * OpenRouter is a first-class provider: one account, one balance, one invoice
+ * covering Claude, GPT and Kimi. It speaks the OpenAI /chat/completions
+ * dialect, so it reuses the shared adapter and adds only a default endpoint,
+ * attribution headers and its own rate table. Set OPENROUTER_API_KEY.
  *
  * The three ADMIN jobs now lead with it, so one account and one invoice cover
  * Claude, GPT and Kimi. The direct providers stay in each chain BELOW it: if
  * OpenRouter is down, rate-limits, or the credit balance runs dry, the router
  * falls through to a direct key exactly as it does today.
  *
- * SAFE TO DEPLOY BEFORE YOU SET THE ENV VARS. `compatible` has no default base
- * URL on purpose, so with AI_COMPATIBLE_BASE_URL unset it reports itself
- * unconfigured and the router skips straight to Anthropic — today's behaviour,
- * unchanged. Nothing switches over until you add the two variables.
+ * SAFE TO DEPLOY BEFORE YOU SET THE KEY. With OPENROUTER_API_KEY unset the
+ * provider reports itself unconfigured and the router skips straight to the
+ * direct Anthropic candidate — today's behaviour, unchanged. Nothing switches
+ * over until you add one variable.
  *
  * VISION IS DELIBERATELY NOT MOVED. See the vision_analysis route below.
  */
@@ -136,7 +135,7 @@ function withOpenRouterFee(listCentsPerMTok: number): number {
  * deliberately pessimistic so an unpriced model over-reports rather than
  * under-reports spend.
  *
- * The `compatible:` keys are the OpenRouter routes. They carry the SAME list
+ * The `openrouter:` keys are the same models bought through OpenRouter. They carry the SAME list
  * price as the direct entry above them plus the platform fee, which is the
  * honest comparison: routing through OpenRouter costs a few percent more per
  * token and buys one account, one balance and one invoice.
@@ -176,23 +175,23 @@ export const MODEL_RATES: Record<string, CostRate> = {
     cacheWriteMultiplier: 1,
   },
 
-  // ---- via OpenRouter (the `compatible` provider) ----
+  // ---- via OpenRouter ----
   // Cache multipliers are 1 across the board: the compatible adapter sends no
   // cache_control and claims no caching, so anything else here would be a
   // number that looks meaningful and is not.
-  'compatible:anthropic/claude-sonnet-5': {
+  'openrouter:anthropic/claude-sonnet-5': {
     inputCentsPerMTok: withOpenRouterFee(300),
     outputCentsPerMTok: withOpenRouterFee(1500),
     cachedReadMultiplier: 1,
     cacheWriteMultiplier: 1,
   },
-  'compatible:anthropic/claude-haiku-4.5': {
+  'openrouter:anthropic/claude-haiku-4.5': {
     inputCentsPerMTok: withOpenRouterFee(100),
     outputCentsPerMTok: withOpenRouterFee(500),
     cachedReadMultiplier: 1,
     cacheWriteMultiplier: 1,
   },
-  'compatible:openai/gpt-4o': {
+  'openrouter:openai/gpt-4o': {
     inputCentsPerMTok: withOpenRouterFee(250),
     outputCentsPerMTok: withOpenRouterFee(1000),
     // OpenAI's automatic caching IS reported through OpenRouter in
@@ -201,13 +200,13 @@ export const MODEL_RATES: Record<string, CostRate> = {
     cachedReadMultiplier: 0.5,
     cacheWriteMultiplier: 1,
   },
-  'compatible:openai/gpt-4o-mini': {
+  'openrouter:openai/gpt-4o-mini': {
     inputCentsPerMTok: withOpenRouterFee(15),
     outputCentsPerMTok: withOpenRouterFee(60),
     cachedReadMultiplier: 0.5,
     cacheWriteMultiplier: 1,
   },
-  'compatible:moonshotai/kimi-k2': {
+  'openrouter:moonshotai/kimi-k2': {
     inputCentsPerMTok: withOpenRouterFee(240),
     outputCentsPerMTok: withOpenRouterFee(240),
     cachedReadMultiplier: 1,
@@ -235,13 +234,20 @@ export const PROVIDER_DEFAULT_RATES: Record<ProviderId, CostRate> = {
     cacheWriteMultiplier: 1,
   },
   /**
-   * Pessimistic ON PURPOSE, and more so now that this slot points at a
-   * catalogue of 300+ models. A typo in a model slug must over-report spend,
-   * never under-report it — the ceiling is the last line of defence.
+   * Pessimistic ON PURPOSE. OpenRouter fronts a catalogue of 300+ models, so a
+   * slug that is not in the table above is far more likely here than anywhere
+   * else — and an unpriced model must over-report spend, never under-report
+   * it. The ceiling is the last line of defence.
    */
-  compatible: {
+  openrouter: {
     inputCentsPerMTok: withOpenRouterFee(300),
     outputCentsPerMTok: withOpenRouterFee(1500),
+    cachedReadMultiplier: 1,
+    cacheWriteMultiplier: 1,
+  },
+  compatible: {
+    inputCentsPerMTok: 300,
+    outputCentsPerMTok: 1500,
     cachedReadMultiplier: 1,
     cacheWriteMultiplier: 1,
   },
@@ -253,7 +259,7 @@ export const AI_ROUTES: Record<JobId, RouteConfig> = {
     description: 'Writes the headline, value props, process and FAQ for one trade in one market.',
     chain: [
       {
-        provider: 'compatible',
+        provider: 'openrouter',
         model: 'anthropic/claude-sonnet-5',
         modelEnv: 'AI_MODEL_SITE_COPY',
         maxOutputTokens: 3000,
@@ -297,7 +303,7 @@ export const AI_ROUTES: Record<JobId, RouteConfig> = {
     description: 'Proposes new style tokens for one component. Chooses from fixed options only.',
     chain: [
       {
-        provider: 'compatible',
+        provider: 'openrouter',
         model: 'anthropic/claude-sonnet-5',
         modelEnv: 'AI_MODEL_RESTYLE',
         maxOutputTokens: 1500,
@@ -331,7 +337,7 @@ export const AI_ROUTES: Record<JobId, RouteConfig> = {
     description: 'Suggests changes to pricing inputs. Always a proposal — never applied on its own.',
     chain: [
       {
-        provider: 'compatible',
+        provider: 'openrouter',
         model: 'anthropic/claude-sonnet-5',
         modelEnv: 'AI_MODEL_QUOTE_PARAMS',
         maxOutputTokens: 2000,
@@ -458,13 +464,20 @@ export const PROVIDER_ENDPOINTS: Record<
     defaultBaseUrl: 'https://api.moonshot.ai/v1',
     apiKeyEnv: 'MOONSHOT_API_KEY',
   },
+  openrouter: {
+    // A DEFAULT IS CORRECT HERE, unlike `compatible` below. OpenRouter is a
+    // named vendor with one documented endpoint, so hardcoding it removes an
+    // env var you could typo rather than removing a safeguard. Still
+    // overridable for a proxy or a regional gateway.
+    baseUrlEnv: 'OPENROUTER_BASE_URL',
+    defaultBaseUrl: 'https://openrouter.ai/api/v1',
+    apiKeyEnv: 'OPENROUTER_API_KEY',
+  },
   compatible: {
-    // STILL NO DEFAULT, even though this slot is now aimed at OpenRouter. An
-    // adapter with a guessed URL is a way to send your prompts somewhere you
-    // did not choose, and that property is worth more than saving you one
-    // environment variable. Set AI_COMPATIBLE_BASE_URL to
-    // https://openrouter.ai/api/v1 — until you do, the router skips this
-    // provider entirely and every job runs exactly as it does today.
+    // No default: an OpenAI-compatible adapter with a guessed URL is a way to
+    // send your prompts somewhere you did not choose. This slot stays the
+    // anonymous escape hatch — Together, Groq, a self-hosted vLLM — now that
+    // OpenRouter has an entry of its own.
     baseUrlEnv: 'AI_COMPATIBLE_BASE_URL',
     defaultBaseUrl: null,
     apiKeyEnv: 'AI_COMPATIBLE_API_KEY',

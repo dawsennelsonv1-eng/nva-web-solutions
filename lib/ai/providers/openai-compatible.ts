@@ -48,6 +48,12 @@ export interface OpenAiCompatibleOptions {
   maxTokensField: 'max_tokens' | 'max_completion_tokens';
   /** Only OpenAI reliably honours stream_options.include_usage. */
   sendStreamOptions: boolean;
+  /**
+   * Extra headers, evaluated PER CALL rather than captured at construction —
+   * same reason keys are read from env at call time: a warm lambda can outlive
+   * an environment variable change. Used by OpenRouter for attribution.
+   */
+  extraHeaders?: () => Record<string, string>;
   supportsVision: boolean;
   supportsJsonMode: boolean;
   supportsPromptCaching: boolean;
@@ -126,6 +132,18 @@ export class OpenAiCompatibleProvider extends BaseProvider {
       : `${this.opts.apiKeyEnv} and ${this.opts.baseUrlEnv}`;
   }
 
+  /** Never allowed to override content-type or authorization. */
+  private headers(base: Record<string, string>): Record<string, string> {
+    const extra = this.opts.extraHeaders?.() ?? {};
+    const merged: Record<string, string> = { ...base };
+    for (const [k, v] of Object.entries(extra)) {
+      const key = k.toLowerCase();
+      if (key === 'authorization' || key === 'content-type') continue;
+      if (v) merged[k] = v;
+    }
+    return merged;
+  }
+
   private resolvedBaseUrl(): string | null {
     const raw = process.env[this.opts.baseUrlEnv] ?? this.opts.defaultBaseUrl;
     if (!raw) return null;
@@ -171,10 +189,10 @@ export class OpenAiCompatibleProvider extends BaseProvider {
     try {
       const res = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
-        headers: {
+        headers: this.headers({
           'content-type': 'application/json',
           authorization: `Bearer ${apiKey}`,
-        },
+        }),
         body: JSON.stringify(this.body(req, false)),
         signal: deadline.signal,
       });
@@ -224,11 +242,11 @@ export class OpenAiCompatibleProvider extends BaseProvider {
     try {
       const res = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
-        headers: {
+        headers: this.headers({
           'content-type': 'application/json',
           authorization: `Bearer ${apiKey}`,
           accept: 'text/event-stream',
-        },
+        }),
         body: JSON.stringify(this.body(req, true)),
         signal: deadline.signal,
       });

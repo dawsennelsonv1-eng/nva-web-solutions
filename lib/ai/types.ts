@@ -14,12 +14,30 @@ import type { ZodType } from 'zod';
  * dies inside the adapter.
  */
 
-export type ProviderId = 'anthropic' | 'openai' | 'moonshot' | 'compatible';
+export type ProviderId =
+  | 'anthropic'
+  | 'openai'
+  | 'moonshot'
+  | 'openrouter'
+  | 'compatible';
 
+/**
+ * ORDER IS THE ADMIN PANEL'S DISPLAY ORDER, nothing more — routing priority
+ * lives in each route's `chain` in config.ts, never here.
+ *
+ * 'openrouter' is its own id rather than a use of 'compatible' because the two
+ * mean different things operationally: 'compatible' is an unconfigured escape
+ * hatch with no default URL, while OpenRouter is a known vendor with a known
+ * endpoint, a known fee structure, its own rate table and its own attribution
+ * headers. Folding them together would make the status strip say
+ * "OpenAI-compatible: configured" when what is actually configured is a
+ * specific account with a specific balance that can run out.
+ */
 export const PROVIDER_IDS: readonly ProviderId[] = [
   'anthropic',
   'openai',
   'moonshot',
+  'openrouter',
   'compatible',
 ];
 
