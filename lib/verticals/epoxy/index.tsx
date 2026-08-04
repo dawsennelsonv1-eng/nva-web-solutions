@@ -251,12 +251,25 @@ const finishes: FinishOption[] = [
 // steps — epoxy's questions, declared not hard-coded
 // ---------------------------------------------------------------------------
 
+/**
+ * ORDER MATTERS AND IS NOT ARBITRARY: this is the exact sequence the Phase 4
+ * widget already ships — surface, then finish, then size. Declaring it in a
+ * different order would mean the dynamic renderer silently reshuffles the live
+ * funnel the day /demo switches paths, which is a UX change smuggled in under
+ * a refactor. The declared plan must reproduce the shipped flow exactly.
+ */
 const steps: StepDescriptor[] = [
   {
     id: 'surface',
     question: copy.step1Question,
     writesTo: 'surfaceTypeId',
     control: { kind: 'surface_select' },
+  },
+  {
+    id: 'finish',
+    question: 'Which finish do you want?',
+    writesTo: 'finishId',
+    control: { kind: 'finish_select' },
   },
   {
     id: 'size',
@@ -271,12 +284,6 @@ const steps: StepDescriptor[] = [
       configMaxKey: 'sqft_max',
       presetsFrom: 'surfaceType',
     },
-  },
-  {
-    id: 'finish',
-    question: 'Which finish do you want?',
-    writesTo: 'finishId',
-    control: { kind: 'finish_select' },
   },
   {
     id: 'colour',

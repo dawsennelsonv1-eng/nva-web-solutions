@@ -295,11 +295,40 @@ function WidgetBody({
   const current = plan.find((s) => s.id === step) ?? null;
   const isLastQuestion = plan.length > 0 && plan[plan.length - 1]?.id === step;
 
+  /**
+   * Walk to the next step this file actually DRAWS.
+   *
+   * The machine advances through the module's declared plan, which includes
+   * the steps a composite already collected (photo, colour, the modifier
+   * multi-select). Calling next() once would land on one of those and render
+   * nothing — a blank panel in the middle of a funnel, which is the worst
+   * possible failure because it looks like the site broke rather than like a
+   * step was skipped. So we keep stepping until we reach something drawable or
+   * fall off the end into 'quote'. The bound is a safety net against a module
+   * declaring a pathological plan; it is not expected to be reached.
+   */
   const advance = useCallback(() => {
     const s = store.getState();
-    if (isLastQuestion) void s.commitQuote();
-    else s.next();
+    if (isLastQuestion) {
+      void s.commitQuote();
+      return;
+    }
+    for (let hops = 0; hops < 24; hops += 1) {
+      if (!s.next()) break;
+      const landed = s.visiblePlan().find((x) => x.id === store.getState().step);
+      if (!landed || RENDERED_KINDS.includes(landed.control.kind)) break;
+    }
   }, [store, isLastQuestion]);
+
+  /** Same, in reverse: never land a Back tap on a step with nothing on it. */
+  const goBack = useCallback(() => {
+    const s = store.getState();
+    for (let hops = 0; hops < 24; hops += 1) {
+      if (!s.back()) break;
+      const landed = s.visiblePlan().find((x) => x.id === store.getState().step);
+      if (!landed || RENDERED_KINDS.includes(landed.control.kind)) break;
+    }
+  }, [store]);
 
   return (
     <section className="mx-auto w-full max-w-md bg-concrete p-4 text-ink" aria-label="Instant quote">
@@ -432,7 +461,7 @@ function WidgetBody({
           {current && plan[0]?.id !== step ? (
             <button
               type="button"
-              onClick={() => store.getState().back()}
+              onClick={goBack}
               className="mt-4 font-data text-sm text-rule underline underline-offset-4 hover:text-ink"
             >
               Back

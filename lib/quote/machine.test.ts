@@ -153,3 +153,149 @@ test('preview mode never calls submitLead', async () => {
   assert.equal(called, false);
   assert.equal(store.getState().step, 'unlocked');
 });
+
+/**
+ * === PHASE 11 ADDITIONS: DYNAMIC STEP PLANS ===
+ *
+ * Every test above runs the LEGACY plan and is unmodified, which is the point:
+ * supplying no `steps` must reproduce Phase 4 exactly. These add the other
+ * path — a plan declared by a vertical module, walked by next().
+ *
+ * The failure mode these guard against is the same one that produced this file:
+ * something that LOOKS like it works. A dynamic plan that silently drops a step,
+ * writes an answer to the wrong key, or fails to reach 'quote' would render
+ * perfectly and quote wrongly.
+ */
+
+import type { StepDescriptor } from '@/lib/verticals/registry';
+
+/** A three-question plan with one conditional step. Deliberately not epoxy. */
+const testPlan: StepDescriptor[] = [
+  { id: 'surface', question: 'What?', writesTo: 'surfaceTypeId', control: { kind: 'surface_select' } },
+  {
+    id: 'area', question: 'How much?', writesTo: 'areaSqft',
+    showIf: (s) => s.surfaceTypeId === 'walls',
+    control: { kind: 'quantity', unit: 'sqft', unitLabel: 'sq ft', configMinKey: 'sqft_min', configMaxKey: 'sqft_max' },
+  },
+  {
+    id: 'doors', question: 'How many?', writesTo: 'doorCount',
+    showIf: (s) => s.surfaceTypeId === 'cabinets',
+    control: { kind: 'stepper', min: 1, max: 80, unitLabel: 'fronts' },
+  },
+  { id: 'coats', question: 'Coats?', writesTo: 'coats', control: { kind: 'stepper', min: 1, max: 3, unitLabel: 'coats' } },
+];
+
+test('a declared plan replaces the legacy transition table and ends at quote', () => {
+  const store = createQuoteMachine({ mode: 'live', surface: 'demo', steps: testPlan });
+  const s = () => store.getState();
+
+  assert.equal(s().step, 'surface', 'starts on the first visible declared step');
+  s().setAnswer('surfaceTypeId', 'walls');
+  s().next();
+  assert.equal(s().step, 'area');
+  s().next();
+  assert.equal(s().step, 'coats', 'the invisible doors step is skipped, not stepped through');
+  s().next();
+  assert.equal(s().step, 'quote', 'past the last question every vertical ends the same way');
+});
+
+test('showIf swaps which quantity step is visible, and setSqft writes the right key', () => {
+  const store = createQuoteMachine({ mode: 'live', surface: 'demo', steps: testPlan });
+  const s = () => store.getState();
+
+  s().setAnswer('surfaceTypeId', 'cabinets');
+  assert.deepEqual(s().visiblePlan().map((x) => x.id), ['surface', 'doors', 'coats']);
+  s().next();
+  assert.equal(s().step, 'doors');
+  s().setSqft(30);
+  assert.equal(s().answers.doorCount, 30, 'the quantity lands in the visible step\u2019s key');
+  assert.equal(s().answers.areaSqft, undefined, 'and never in the hidden one');
+  assert.equal(s().sqft, 30, 'the legacy mirror still tracks it for StepArea');
+});
+
+test('a showIf predicate that throws shows the step rather than killing the funnel', () => {
+  const exploding: StepDescriptor[] = [
+    { id: 'a', question: 'A', writesTo: 'a', control: { kind: 'surface_select' } },
+    {
+      id: 'b', question: 'B', writesTo: 'b',
+      showIf: () => { throw new Error('module bug'); },
+      control: { kind: 'stepper', min: 1, max: 3, unitLabel: 'x' },
+    },
+  ];
+  const store = createQuoteMachine({ mode: 'live', surface: 'demo', steps: exploding });
+  assert.deepEqual(store.getState().visiblePlan().map((x) => x.id), ['a', 'b']);
+});
+
+test('back() walks a dynamic plan by history, skipping steps never visited', () => {
+  const store = createQuoteMachine({ mode: 'live', surface: 'demo', steps: testPlan });
+  const s = () => store.getState();
+  s().setAnswer('surfaceTypeId', 'walls');
+  s().next();
+  s().next();
+  assert.equal(s().step, 'coats');
+  s().back();
+  assert.equal(s().step, 'area');
+  s().back();
+  assert.equal(s().step, 'surface');
+  assert.equal(s().back(), false, 'no history left');
+});
+
+test('vertical-shaped analyze hints land in answers, and win over the legacy fields', async () => {
+  const store = createQuoteMachine({
+    mode: 'live', surface: 'demo', steps: testPlan,
+    ports: {
+      analyze: async () => ({
+        surfaceTypeId: 'walls', estimatedSqft: 100, conditionModifierIds: [], handToUser: [],
+        answers: { areaSqft: 1380, coats: 2 },
+      }),
+    },
+  });
+  await store.getState().attachPhoto({ imageBase64: 'x', mediaType: 'image/webp' });
+  assert.equal(store.getState().answers.areaSqft, 1380);
+  assert.equal(store.getState().answers.coats, 2);
+  assert.equal(store.getState().sqft, 1380, 'the mirror follows the vertical hint, not estimatedSqft');
+});
+
+test('degraded entry from mid-plan still overrides the plan entirely', () => {
+  const store = createQuoteMachine({ mode: 'live', surface: 'demo', steps: testPlan });
+  store.getState().setAnswer('surfaceTypeId', 'walls');
+  store.getState().next();
+  store.getState().enterDegraded('cap_reached');
+  assert.equal(store.getState().step, 'degraded_capture');
+  assert.equal(store.getState().computation, null, 'a degraded session promises no price');
+});
+
+test('serialize round-trips answers, and a v1 payload still restores', () => {
+  const store = createQuoteMachine({ mode: 'live', surface: 'demo', steps: testPlan });
+  store.getState().setAnswer('surfaceTypeId', 'walls');
+  store.getState().setAnswer('areaSqft', 900);
+  const snap = store.getState().serialize();
+  assert.equal(snap.v, 2);
+  assert.deepEqual(snap.answers, { surfaceTypeId: 'walls', areaSqft: 900 });
+
+  const restored = createQuoteMachine({ mode: 'live', surface: 'demo', steps: testPlan, restore: snap });
+  assert.equal(restored.getState().answers.areaSqft, 900);
+  assert.equal(restored.getState().surfaceTypeId, 'walls');
+
+  const v1 = { ...snap, v: 1 as const, answers: undefined };
+  const fromV1 = createQuoteMachine({ mode: 'live', surface: 'demo', restore: v1 });
+  assert.equal(fromV1.getState().sqft, snap.sqft, 'a Phase 4 payload restores without answers');
+  assert.deepEqual(fromV1.getState().answers, {});
+});
+
+test('a dynamic session in preview mode still writes nothing', async () => {
+  let persisted = false;
+  let submitted = false;
+  const store = createQuoteMachine({
+    mode: 'preview', surface: 'admin', steps: testPlan,
+    ports: {
+      persistQuote: async () => { persisted = true; return 'x'; },
+      submitLead: async () => { submitted = true; },
+    },
+  });
+  store.getState().setComputation(baseComputation);
+  await store.getState().commitQuote();
+  await store.getState().submitCapture({ name: 'A', phone: '2145551234', email: 'a@example.com', timeline: 'Now' });
+  assert.equal(persisted, false, 'preview consumes no quota and writes no quote');
+  assert.equal(submitted, false);
+});
