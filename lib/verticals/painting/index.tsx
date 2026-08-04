@@ -144,7 +144,12 @@ export const paintingInputSchema = z.object({
   /** Cabinet doors + drawer fronts. Required for cabinets. */
   doorCount: z.number().int().finite().optional(),
 
-  finishId: z.string().min(1),
+  /**
+   * Optional because the price never depends on it: finishTierKey is what
+   * resolves a rate. Phase 3 callers pass a PricingInput that carries the
+   * tier and no finish id, and they must keep validating.
+   */
+  finishId: z.string().min(1).optional(),
   finishTierKey: z.string().min(1),
   colourId: z.string().min(1).optional(),
 
@@ -619,6 +624,9 @@ const vision: VisionModule<PaintingInputs, PaintingPricingRules> = {
   responseSchema: paintingVisionResponseSchema,
 
   minConfidence: CONFIDENCE_FLOOR,
+
+  lowConfidenceFields: (parsed) =>
+    paintingLowConfidenceFields(parsed as PaintingVisionResult),
 
   allowancesFromRules(rules: PaintingPricingRules): VisionAllowances {
     return {

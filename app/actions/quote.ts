@@ -3,7 +3,9 @@
 import { headers } from 'next/headers';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { can } from '@/lib/entitlements/check';
-import { calculateQuote, PricingError, type PricingInput, type QuoteComputation } from '@/lib/quote/pricing';
+import { PricingError, type PricingInput } from '@/lib/quote/pricing';
+import { priceQuote } from '@/lib/quote/price-quote';
+import type { QuoteComputationOf } from '@/lib/quote/kit';
 import { analyzeFloorPhoto, analysisToPricingHints, type VisionField } from '@/lib/quote/vision';
 import { consumeAnalysis, reserveSessionAnalysis } from '@/lib/quote/usage';
 import {
@@ -15,8 +17,6 @@ import {
 import { trackServer } from '@/lib/analytics.server';
 import { generateQuotePublicId } from '@/lib/slug';
 import { uploadFloorPhoto } from '@/lib/storage/photos';
-import { getVertical } from '@/lib/verticals/registry';
-import { ensureVerticalsRegistered } from '@/lib/verticals/manifest';
 import type { DbDegradedReason, Surface, WidgetMode } from '@/types';
 
 /**
@@ -33,6 +33,16 @@ import type { DbDegradedReason, Surface, WidgetMode } from '@/types';
  *
  * Mode is an explicit argument on every action. It is never derived from the
  * route, the referer, or the presence of a prototype id (R-123).
+ *
+ * PHASE 11: neither action knows a trade any more. The photo path hands the
+ * vertical id to lib/quote/vision.ts, which asks the module for its prompt and
+ * schema; the pricing path calls priceQuote(), which asks the module to price
+ * its own answers. Adding roofing changes nothing in this file.
+ *
+ * THE STEP ORDER ABOVE IS UNCHANGED, including the one addition: the
+ * quote_config read added at step 6a is a READ, it happens after every guard
+ * has already passed, and it cannot alter whether the call is made — only what
+ * is done with the answer.
  */
 
 export interface AnalyzeRequest {
@@ -43,6 +53,13 @@ export interface AnalyzeRequest {
   vertical: string;
   imageBase64: string;
   mediaType: 'image/jpeg' | 'image/webp' | 'image/png';
+  /**
+   * PHASE 11: what the visitor has already answered, so the module can sharpen
+   * its prompt. Optional — a caller that omits it gets the module's base
+   * prompt, which is exactly the Phase 3 behaviour.
+   */
+  selections?: Record<string, unknown>;
+  surfaceTypeId?: string;
 }
 
 export interface AnalyzeResponse {
@@ -52,6 +69,8 @@ export interface AnalyzeResponse {
     estimatedSqft?: number;
     conditionModifierIds: string[];
     handToUser: VisionField[];
+    /** PHASE 11: the module's own inputs, keyed by its declared writesTo keys. */
+    answers?: Record<string, unknown>;
   };
   degradedReason?: DbDegradedReason;
   /** Plain-language copy for the visitor. Never mentions billing (R-146). */
@@ -70,6 +89,30 @@ function toDegradedReason(reason: string): DbDegradedReason {
   if (reason === 'cap_reached') return 'cap_reached';
   if (reason === 'subscription_suspended') return 'subscription_suspended';
   return 'ai_unavailable';
+}
+
+/**
+ * The contractor's own rules, or null when there is no config row to read —
+ * which is the /demo case, where pricing comes from a constant. Never throws:
+ * a failed read costs the hint filter, not the analysis.
+ */
+async function loadRules(
+  prototypeId: string | null,
+  vertical: string
+): Promise<unknown | null> {
+  if (!prototypeId) return null;
+  try {
+    const db = getSupabaseAdminClient();
+    const { data } = await db
+      .from('quote_configs')
+      .select('rules')
+      .eq('prototype_id', prototypeId)
+      .eq('vertical', vertical)
+      .maybeSingle();
+    return data?.rules ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeResponse> {
@@ -150,6 +193,10 @@ export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeRe
     mediaType: req.mediaType,
     vertical: req.vertical,
     prototypeId: req.prototypeId,
+    context: {
+      surfaceTypeId: req.surfaceTypeId,
+      selections: req.selections ?? {},
+    },
   });
 
   if (result.status !== 'ok') {
@@ -169,7 +216,7 @@ export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeRe
     // path that still ends in a price.
     return {
       status: 'manual_entry',
-      message: "We couldn't read that photo. Tell us about the floor and we'll price it instantly.",
+      message: "We couldn't read that photo. Tell us about it and we'll price it instantly.",
     };
   }
 
@@ -201,7 +248,14 @@ export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeRe
     mediaType: req.mediaType,
   });
 
-  const hints = analysisToPricingHints(result);
+  // 6a — PHASE 11. Read the contractor's rules so inferred modifier ids can be
+  // filtered against what he actually charges for. A read, after every guard,
+  // that cannot change whether the call happened. Before this, an AI-suggested
+  // id absent from his config reached the pricing engine and threw
+  // unknown_modifier — a paid analysis that produced no price at all.
+  const rules = await loadRules(req.prototypeId, req.vertical);
+  const hints = analysisToPricingHints(result, rules);
+
   return {
     status: 'ok',
     hints: { ...hints, handToUser: result.handToUser },
@@ -220,7 +274,13 @@ export interface PersistQuoteRequest {
   prototypeId: string | null;
   sessionId: string;
   vertical: string;
-  input: PricingInput;
+  /**
+   * PHASE 11: the vertical's own answers. Widened from PricingInput as a
+   * UNION rather than a replacement, so every Phase 4-10 caller that hands
+   * over an epoxy PricingInput keeps compiling and keeps working — epoxy's
+   * inputSchema accepts exactly that shape.
+   */
+  input: PricingInput | Record<string, unknown>;
   usedAiAnalysis: boolean;
   /** Phase 6: Storage path from a successful analyzePhotoAction upload, if any. */
   photoPath?: string | null;
@@ -235,9 +295,13 @@ export interface PersistQuoteResponse {
 
 /**
  * Recomputes the price SERVER-SIDE from the stored quote_config and persists
- * it. The client's numbers are never trusted or written: pricing.ts is
- * isomorphic so the slider can feel instant, and this action is what makes
+ * it. The client's numbers are never trusted or written: a vertical's price()
+ * is isomorphic so the slider can feel instant, and this action is what makes
  * the persisted figure authoritative.
+ *
+ * priceQuote() validates the rules against the vertical's strict schema AND
+ * the answers against its input schema before computing anything, which is the
+ * two-layer check the previous version did by hand.
  */
 export async function persistQuoteAction(req: PersistQuoteRequest): Promise<PersistQuoteResponse> {
   const evtCtx = { surface: req.surface, mode: req.mode, sessionId: req.sessionId, prototypeId: req.prototypeId };
@@ -254,21 +318,17 @@ export async function persistQuoteAction(req: PersistQuoteRequest): Promise<Pers
     return { publicId: null, lowCents: 0, highCents: 0, error: 'no_quote_config' };
   }
 
-  // Belt and braces: the vertical's own strict schema validates the exact
-  // finish-tier keys, then pricing.ts validates the structure it needs.
-  ensureVerticalsRegistered();
+  let computation: QuoteComputationOf<unknown>;
   try {
-    getVertical(req.vertical).pricingRuleSchema.parse(config.rules);
-  } catch {
-    return { publicId: null, lowCents: 0, highCents: 0, error: 'invalid_quote_config' };
-  }
-
-  let computation: QuoteComputation;
-  try {
-    computation = calculateQuote(
-      { ...req.input, sqftMin: config.sqft_min, sqftMax: config.sqft_max },
-      config.rules
-    );
+    computation = priceQuote({
+      verticalId: req.vertical,
+      rawInputs: {
+        ...(req.input as Record<string, unknown>),
+        sqftMin: config.sqft_min,
+        sqftMax: config.sqft_max,
+      },
+      rawRules: config.rules,
+    });
   } catch (e) {
     const code = e instanceof PricingError ? e.code : 'pricing_failed';
     return { publicId: null, lowCents: 0, highCents: 0, error: code };
