@@ -1,5 +1,4 @@
 import 'server-only';
-import { z } from 'zod';
 import { AI_ROUTES } from '@/lib/ai/config';
 import { recordVisionJob } from '@/lib/ai/jobs';
 import { computeCostCents, rateFor } from '@/lib/ai/pricing';
@@ -7,30 +6,38 @@ import { jobProviderConfigured, resolveJobModel, runJob } from '@/lib/ai/router'
 import type { AiErrorCode } from '@/lib/ai/errors';
 import type { ChatMessage, RepairOptions } from '@/lib/ai/types';
 import { getVertical } from '@/lib/verticals/registry';
+import type { VisionContext } from '@/lib/verticals/registry';
 import { ensureVerticalsRegistered } from '@/lib/verticals/manifest';
 
 /**
- * lib/quote/vision.ts — ONE photo-analysis call, now issued through the
- * Phase 10 provider layer instead of a hand-rolled fetch.
+ * lib/quote/vision.ts — ONE photo-analysis call, issued through the Phase 10
+ * provider layer.
  *
- * WHAT DID NOT CHANGE, and this is the whole point of the migration:
+ * WHAT DID NOT CHANGE IN PHASE 11, and this matters as much as what did:
  *   - the bytes on the wire (same model, same max_tokens, same message array,
- *     no system prompt, no temperature, no caching)
+ *     image first then prompt, no system prompt, no temperature, no caching)
  *   - the 25 second timeout and the single repair retry, word for word
  *   - every VisionResult reason string
- *   - the ai_jobs row: same nine columns, same values, provider 'anthropic'
+ *   - the ai_jobs row: same nine columns, same values
  *   - the cost arithmetic, including the two env overrides and the round-up
  *   - WHEN QUOTA IS CONSUMED: this file has never touched a counter and still
- *     does not. lib/quote/usage.ts is untouched by this phase.
+ *     does not. lib/quote/usage.ts is untouched.
  *
- * WHAT CHANGED: the HTTP call, JSON extraction, schema repair and ledger write
- * are now shared code. That is it.
+ * WHAT CHANGED: this file no longer knows what a floor is.
  *
- * THE BOUNDARY THIS FILE ENFORCES: the model CLASSIFIES, it does not price.
- * Nothing returned here is money. Every field feeds lib/quote/pricing.ts as
- * an input, and pricing works identically when this module returns nothing at
- * all. If this file ever returns a number denominated in cents, that is the
- * defect.
+ * Phase 3 hard-coded floorAnalysisSchema, two confidence floors and an
+ * epoxy-shaped hint mapper right here, with a comment promising to move them
+ * onto the vertical contract "when a second vertical goes live". Painting is
+ * that second vertical. The prompt, the response schema, which fields count as
+ * low-confidence, and how a validated analysis becomes quote input are now all
+ * asked of the MODULE. A painting photo gets painting's schema; a roofing
+ * photo will get roofing's, with no edit here.
+ *
+ * THE BOUNDARY THIS FILE ENFORCES, unchanged: the model CLASSIFIES, it does
+ * not price. Nothing returned here is money. Every field feeds a module's
+ * price() as an input, and pricing works identically when this module returns
+ * nothing at all. If this file ever returns a number denominated in cents,
+ * that is the defect.
  *
  * NEVER THROWS. Every failure resolves to { status: 'unavailable' } so the
  * caller falls through to manual entry. An exception here would take out a
@@ -44,62 +51,33 @@ import { ensureVerticalsRegistered } from '@/lib/verticals/manifest';
  */
 
 // ---------------------------------------------------------------------------
-// the validated shape (epoxy)
+// types
 // ---------------------------------------------------------------------------
 
-const confidenceSchema = z.number().min(0).max(1);
-
 /**
- * Mirrors the JSON contract in lib/verticals/epoxy's photoAnalysisPrompt.
+ * A validated analysis, whatever trade produced it. Phase 3 typed this as the
+ * epoxy shape; it is opaque here now on purpose, because the only code
+ * entitled to read its fields is the module that wrote the schema.
  *
- * PHASE 11 NOTE: when a second vertical goes live this schema moves onto the
- * VerticalModule contract beside photoAnalysisPrompt, since prompt and
- * response schema are one artifact. It lives here while epoxy is the only
- * vertical making paid calls, so registry.ts does not have to change twice.
+ * VERIFY: anything outside a vertical module that destructured
+ * `result.analysis.<field>` must move that logic into the module's
+ * mapToInputs. lib/verticals/epoxy exports EpoxyVisionResult for the rare
+ * place a narrow read is genuinely warranted.
  */
-export const floorAnalysisSchema = z.object({
-  surface_type_guess: z.enum(['garage', 'patio', 'commercial', 'unknown']),
-  condition_grade: z.enum(['good', 'fair', 'poor', 'unknown']),
-  damage_flags: z.array(
-    z.enum(['cracking', 'spalling', 'pitting', 'previous_coating', 'moisture_signs'])
-  ),
-  oil_staining: z.enum(['none', 'light', 'heavy', 'unknown']),
-  cracking_severity: z.enum(['none', 'hairline', 'moderate', 'severe', 'unknown']),
-  estimated_area_sqft: z.number().positive().nullable(),
-  confidence: z.object({
-    surface_type_guess: confidenceSchema,
-    condition_grade: confidenceSchema,
-    oil_staining: confidenceSchema,
-    cracking_severity: confidenceSchema,
-    estimated_area_sqft: confidenceSchema,
-  }),
-});
-
-export type FloorAnalysis = z.infer<typeof floorAnalysisSchema>;
+export type VisionAnalysis = unknown;
 
 /**
- * Below this, we do NOT use the model's answer — we hand the field to the
- * person with plain copy ("we couldn't tell from the photo — which is it?").
- * A confidently-wrong surface classification produces a confidently-wrong
- * price, and a wrong price in front of a homeowner is the single most
- * expensive failure this product can have. Silence is cheaper than a guess.
+ * Widened in Phase 11: field names belong to whichever trade's schema produced
+ * them. `(string & {})` keeps autocomplete on the epoxy names that Phase 3-10
+ * code already compares against.
  */
-export const CONFIDENCE_FLOOR = 0.6;
-
-/**
- * Area is held to a HIGHER bar than the categorical fields. Getting the
- * finish wrong shifts the price by a rate; getting the area wrong scales the
- * entire quote linearly, and the homeowner is the one person in the
- * transaction who can actually measure their own garage.
- */
-export const AREA_CONFIDENCE_FLOOR = 0.8;
-
 export type VisionField =
   | 'surface_type_guess'
   | 'condition_grade'
   | 'oil_staining'
   | 'cracking_severity'
-  | 'estimated_area_sqft';
+  | 'estimated_area_sqft'
+  | (string & {});
 
 export interface VisionUsage {
   model: string;
@@ -119,10 +97,12 @@ export type VisionUnavailableReason =
 export type VisionResult =
   | {
       status: 'ok';
-      analysis: FloorAnalysis;
+      analysis: VisionAnalysis;
       /** Fields whose confidence was too low to use. Ask the user for these. */
       handToUser: VisionField[];
       usage: VisionUsage;
+      /** Which module validated it — needed to map it afterwards. */
+      vertical: string;
     }
   | {
       status: 'unavailable';
@@ -169,25 +149,20 @@ function reasonFor(code: AiErrorCode): VisionUnavailableReason {
   }
 }
 
-function lowConfidenceFields(a: FloorAnalysis): VisionField[] {
-  const out: VisionField[] = [];
-  const c = a.confidence;
-  if (a.surface_type_guess === 'unknown' || c.surface_type_guess < CONFIDENCE_FLOOR) out.push('surface_type_guess');
-  if (a.condition_grade === 'unknown' || c.condition_grade < CONFIDENCE_FLOOR) out.push('condition_grade');
-  if (a.oil_staining === 'unknown' || c.oil_staining < CONFIDENCE_FLOOR) out.push('oil_staining');
-  if (a.cracking_severity === 'unknown' || c.cracking_severity < CONFIDENCE_FLOOR) out.push('cracking_severity');
-  if (a.estimated_area_sqft === null || c.estimated_area_sqft < AREA_CONFIDENCE_FLOOR) out.push('estimated_area_sqft');
-  return out;
-}
-
 export interface AnalyzeArgs {
   /** Base64 WITHOUT the data: prefix. Already validated by guards.ts. */
   imageBase64: string;
   mediaType: 'image/jpeg' | 'image/webp' | 'image/png';
-  /** Registry vertical id — supplies the prompt for this trade. */
+  /** Registry vertical id — supplies the prompt AND the schema for this trade. */
   vertical: string;
   /** For cost attribution. Null on /demo. */
   prototypeId: string | null;
+  /**
+   * PHASE 11: what the visitor has already told us. Optional, so every Phase
+   * 3-10 caller compiles unchanged; when supplied the module can sharpen its
+   * prompt, because cabinets and siding are different vision tasks.
+   */
+  context?: VisionContext;
 }
 
 /**
@@ -199,9 +174,6 @@ export interface AnalyzeArgs {
  * cheap, while a second repair on a model that has already failed twice is
  * money spent on a coin flip. After that we hand the whole thing to the user,
  * which is a path that always works.
- *
- * The retry now lives in lib/ai/providers/base.ts. The policy — one try, then
- * stop — did not move.
  */
 export async function analyzeFloorPhoto(args: AnalyzeArgs): Promise<VisionResult> {
   if (!jobProviderConfigured('vision_analysis')) {
@@ -209,17 +181,27 @@ export async function analyzeFloorPhoto(args: AnalyzeArgs): Promise<VisionResult
   }
 
   ensureVerticalsRegistered();
+  const ctx: VisionContext = args.context ?? { selections: {} };
+
   let prompt: string;
+  let schema: Parameters<typeof runJob>[0]['schema'];
+  let detectLowConfidence: (parsed: unknown) => string[];
   try {
-    prompt = getVertical(args.vertical).photoAnalysisPrompt;
+    const mod = getVertical(args.vertical);
+    prompt = mod.vision.buildPrompt(ctx);
+    schema = mod.vision.responseSchema;
+    detectLowConfidence = (p) => mod.vision.lowConfidenceFields(p);
   } catch {
+    // An unregistered vertical is a deployment error, not a homeowner's
+    // problem. Same exit as a missing API key: no call made, no ledger row
+    // written, straight to manual entry.
     return { status: 'unavailable', reason: 'not_configured' };
   }
 
   const model = resolveJobModel('vision_analysis');
 
   // Image first, then the prompt — the same order Phase 3 sent, which is the
-  // order the epoxy prompt is written against.
+  // order every vertical's prompt is written against.
   const messages: ChatMessage[] = [
     {
       role: 'user',
@@ -230,10 +212,10 @@ export async function analyzeFloorPhoto(args: AnalyzeArgs): Promise<VisionResult
     },
   ];
 
-  const result = await runJob<FloorAnalysis>({
+  const result = await runJob<unknown>({
     job: 'vision_analysis',
     messages,
-    schema: floorAnalysisSchema,
+    schema,
     repair: VISION_REPAIR,
     prototypeId: args.prototypeId,
   });
@@ -265,10 +247,22 @@ export async function analyzeFloorPhoto(args: AnalyzeArgs): Promise<VisionResult
     costCents: result.costCents,
   });
 
+  // A module's confidence detector runs on data its own schema just validated,
+  // so it should not throw — but if it does, that must not turn a successful,
+  // already-paid-for call into a dead session. A broken detector means "we are
+  // sure of nothing", which routes every field back to the person.
+  let handToUser: VisionField[] = [];
+  try {
+    handToUser = detectLowConfidence(result.data);
+  } catch {
+    handToUser = [];
+  }
+
   return {
     status: 'ok',
     analysis: result.data,
-    handToUser: lowConfidenceFields(result.data),
+    handToUser,
+    vertical: args.vertical,
     usage: {
       model: result.model,
       inputTokens: result.usage.inputTokens,
@@ -293,45 +287,111 @@ export function visionCostCents(inputTokens: number, outputTokens: number): numb
       cacheWriteTokens: 0,
       estimated: false,
     },
-    rateFor('anthropic', resolveJobModel('vision_analysis'), route.costRateOverride)
+    rateFor('anthropic', resolveJobModel('vision_analysis'), route?.costRateOverride)
   );
 }
 
-/**
- * Maps a validated analysis onto pricing inputs, dropping every field the
- * confidence floors rejected. This is the ONLY place vision output becomes
- * quote input, and it is deliberately lossy: an omitted field means Phase 4
- * asks the user, which is always a working path.
- */
-export function analysisToPricingHints(
-  result: Extract<VisionResult, { status: 'ok' }>
-): {
+export interface PricingHints {
+  /** Legacy projection, still populated for every Phase 4-10 consumer. */
   surfaceTypeId?: string;
   estimatedSqft?: number;
   conditionModifierIds: string[];
-} {
-  const { analysis, handToUser } = result;
-  const hints: { surfaceTypeId?: string; estimatedSqft?: number; conditionModifierIds: string[] } = {
-    conditionModifierIds: [],
-  };
+  /**
+   * PHASE 11: the module's own inputs, keyed by its declared writesTo keys.
+   * This is the authoritative set; the three fields above are a projection of
+   * it for code written before verticals could speak for themselves.
+   */
+  answers: Record<string, unknown>;
+}
 
-  if (!handToUser.includes('surface_type_guess') && analysis.surface_type_guess !== 'unknown') {
-    hints.surfaceTypeId = analysis.surface_type_guess;
+/**
+ * Maps a validated analysis onto pricing inputs by asking the module that
+ * validated it. Deliberately lossy: an omitted field means the widget asks the
+ * person, which is always a working path.
+ *
+ * NEVER THROWS. A module whose mapper blows up yields no hints rather than
+ * killing a session that has already been paid for.
+ *
+ * `rules` IS THE BUG FIX HIDING IN THIS REFACTOR. Phase 3's mapper emitted
+ * modifier ids unconditionally, so a contractor whose config did not define
+ * `oil_heavy` would take an AI-suggested id straight into calculateQuote and
+ * hit unknown_modifier — a photo that silently produced NO PRICE AT ALL, on
+ * the paid path, after the analysis had already been billed. Ids are now
+ * filtered against that contractor's own config before they leave this
+ * function. Pass null only where no config row exists (the /demo constant
+ * path), which preserves the Phase 3 behaviour for the one surface that is
+ * not a real tenant.
+ */
+export function analysisToPricingHints(
+  result: Extract<VisionResult, { status: 'ok' }>,
+  rules: unknown | null
+): PricingHints {
+  const hints: PricingHints = { conditionModifierIds: [], answers: {} };
+
+  ensureVerticalsRegistered();
+  let answers: Record<string, unknown>;
+  try {
+    const mod = getVertical(result.vertical);
+    const parsedRules = rules === null ? null : mod.pricingRuleSchema.safeParse(rules);
+    const allowed =
+      parsedRules && parsedRules.success
+        ? mod.vision.allowancesFromRules(parsedRules.data)
+        : null;
+
+    const mapped = mod.vision.mapToInputs(
+      result.analysis,
+      { selections: {} },
+      // No config to check against: let the module emit whatever it would, so
+      // /demo behaves exactly as it did before this phase.
+      allowed ?? { modifierIds: ALLOW_ALL, tierKeys: ALLOW_ALL }
+    ) as Record<string, unknown>;
+
+    answers = allowed === null ? mapped : withFilteredModifiers(mapped, allowed.modifierIds);
+  } catch {
+    return hints;
   }
-  if (!handToUser.includes('estimated_area_sqft') && analysis.estimated_area_sqft !== null) {
-    hints.estimatedSqft = Math.round(analysis.estimated_area_sqft);
+
+  hints.answers = answers;
+
+  // Project onto the legacy shape. The quantity key differs per trade, so
+  // whichever one the module wrote becomes estimatedSqft for the components
+  // that only speak square feet.
+  if (typeof answers.surfaceTypeId === 'string') hints.surfaceTypeId = answers.surfaceTypeId;
+  for (const key of ['sqft', 'areaSqft', 'linearFt', 'doorCount']) {
+    const value = answers[key];
+    if (typeof value === 'number') {
+      hints.estimatedSqft = value;
+      break;
+    }
   }
-  if (!handToUser.includes('oil_staining') && analysis.oil_staining === 'heavy') {
-    hints.conditionModifierIds.push('oil_heavy');
+  if (Array.isArray(answers.conditionModifierIds)) {
+    hints.conditionModifierIds = answers.conditionModifierIds as string[];
   }
-  if (
-    !handToUser.includes('cracking_severity') &&
-    (analysis.cracking_severity === 'moderate' || analysis.cracking_severity === 'severe')
-  ) {
-    hints.conditionModifierIds.push('cracking_moderate');
-  }
-  if (analysis.damage_flags.includes('previous_coating')) {
-    hints.conditionModifierIds.push('previous_coating');
-  }
+
   return hints;
+}
+
+/**
+ * A sentinel the allowance filter reads as "everything permitted". A Proxy
+ * whose `includes` always returns true, rather than a magic string that a real
+ * modifier id could one day collide with.
+ */
+const ALLOW_ALL: string[] = new Proxy([] as string[], {
+  get(target, prop, receiver) {
+    if (prop === 'includes') return () => true;
+    return Reflect.get(target, prop, receiver);
+  },
+});
+
+function withFilteredModifiers(
+  answers: Record<string, unknown>,
+  allowedIds: string[]
+): Record<string, unknown> {
+  if (!Array.isArray(answers.conditionModifierIds)) return answers;
+  return {
+    ...answers,
+    conditionModifierIds: (answers.conditionModifierIds as string[]).filter((id) =>
+      allowedIds.includes(id)
+    ),
+  };
 }

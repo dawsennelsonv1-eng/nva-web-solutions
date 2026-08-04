@@ -69,7 +69,12 @@ export type EpoxyPricingRules = z.infer<typeof epoxyPricingRuleSchema>;
 export const epoxyInputSchema = z.object({
   surfaceTypeId: z.string().min(1),
   sqft: z.number().finite(),
-  finishId: z.string().min(1),
+  /**
+   * Optional because the price never depends on it: finishTierKey is what
+   * resolves a rate. Phase 3 callers pass a PricingInput that carries the
+   * tier and no finish id, and they must keep validating.
+   */
+  finishId: z.string().min(1).optional(),
   finishTierKey: z.string().min(1),
   colourId: z.string().min(1).optional(),
   conditionModifierIds: z.array(z.string().min(1)).optional(),
@@ -251,12 +256,25 @@ const finishes: FinishOption[] = [
 // steps — epoxy's questions, declared not hard-coded
 // ---------------------------------------------------------------------------
 
+/**
+ * ORDER MATTERS AND IS NOT ARBITRARY: this is the exact sequence the Phase 4
+ * widget already ships — surface, then finish, then size. Declaring it in a
+ * different order would mean the dynamic renderer silently reshuffles the live
+ * funnel the day /demo switches paths, which is a UX change smuggled in under
+ * a refactor. The declared plan must reproduce the shipped flow exactly.
+ */
 const steps: StepDescriptor[] = [
   {
     id: 'surface',
     question: copy.step1Question,
     writesTo: 'surfaceTypeId',
     control: { kind: 'surface_select' },
+  },
+  {
+    id: 'finish',
+    question: 'Which finish do you want?',
+    writesTo: 'finishId',
+    control: { kind: 'finish_select' },
   },
   {
     id: 'size',
@@ -271,12 +289,6 @@ const steps: StepDescriptor[] = [
       configMaxKey: 'sqft_max',
       presetsFrom: 'surfaceType',
     },
-  },
-  {
-    id: 'finish',
-    question: 'Which finish do you want?',
-    writesTo: 'finishId',
-    control: { kind: 'finish_select' },
   },
   {
     id: 'colour',
@@ -342,20 +354,63 @@ const epoxyVisionResponseSchema = z.object({
   }),
 });
 
-type EpoxyVisionResult = z.infer<typeof epoxyVisionResponseSchema>;
+export type EpoxyVisionResult = z.infer<typeof epoxyVisionResponseSchema>;
+
+/**
+ * Below this we do NOT use the model's answer — the field is handed to the
+ * person with plain copy. A confidently-wrong classification produces a
+ * confidently-wrong price, and a wrong price in front of a homeowner is the
+ * most expensive failure this product has. Silence is cheaper than a guess.
+ */
+export const EPOXY_CONFIDENCE_FLOOR = 0.6;
+
+/**
+ * Area is held to a HIGHER bar than the categorical fields. Getting the finish
+ * wrong shifts the price by a rate; getting the area wrong scales the entire
+ * quote linearly, and the homeowner is the one person in the transaction who
+ * can actually measure their own garage. These two numbers are the Phase 3
+ * floors, unchanged.
+ */
+export const EPOXY_AREA_CONFIDENCE_FLOOR = 0.8;
+
+export type EpoxyVisionField =
+  | 'surface_type_guess'
+  | 'condition_grade'
+  | 'oil_staining'
+  | 'cracking_severity'
+  | 'estimated_area_sqft';
+
+/** Fields the model was not sure enough about. Ask the person for these. */
+export function epoxyLowConfidenceFields(a: EpoxyVisionResult): EpoxyVisionField[] {
+  const out: EpoxyVisionField[] = [];
+  const c = a.confidence;
+  if (a.surface_type_guess === 'unknown' || c.surface_type_guess < EPOXY_CONFIDENCE_FLOOR)
+    out.push('surface_type_guess');
+  if (a.condition_grade === 'unknown' || c.condition_grade < EPOXY_CONFIDENCE_FLOOR)
+    out.push('condition_grade');
+  if (a.oil_staining === 'unknown' || c.oil_staining < EPOXY_CONFIDENCE_FLOOR)
+    out.push('oil_staining');
+  if (a.cracking_severity === 'unknown' || c.cracking_severity < EPOXY_CONFIDENCE_FLOOR)
+    out.push('cracking_severity');
+  if (a.estimated_area_sqft === null || c.estimated_area_sqft < EPOXY_AREA_CONFIDENCE_FLOOR)
+    out.push('estimated_area_sqft');
+  return out;
+}
 
 /**
  * Canonical modifier ids this vertical knows how to infer. The contractor's
  * config decides which of them actually exist and what they cost; anything not
  * in that config is dropped before pricing sees it.
+ *
+ * THESE IDS MATCH supabase/seed.sql, not the module's own taste. Phase 3's
+ * hint mapper emitted oil_heavy / cracking_moderate / previous_coating and the
+ * seeded configs define exactly those, so renaming them here would silently
+ * stop every inferred modifier from ever applying.
  */
 const INFERRED_MODIFIERS = {
-  lightOil: 'light_oil',
-  heavyOil: 'heavy_oil',
-  cracking: 'cracking',
-  spalling: 'spalling',
+  heavyOil: 'oil_heavy',
+  cracking: 'cracking_moderate',
   previousCoating: 'previous_coating',
-  moisture: 'moisture',
 } as const;
 
 const vision: VisionModule<EpoxyInputs, EpoxyPricingRules> = {
@@ -370,7 +425,9 @@ const vision: VisionModule<EpoxyInputs, EpoxyPricingRules> = {
 
   responseSchema: epoxyVisionResponseSchema,
 
-  minConfidence: 0.6,
+  minConfidence: EPOXY_CONFIDENCE_FLOOR,
+
+  lowConfidenceFields: (parsed) => epoxyLowConfidenceFields(parsed as EpoxyVisionResult),
 
   allowancesFromRules(rules: EpoxyPricingRules): VisionAllowances {
     return {
@@ -381,36 +438,34 @@ const vision: VisionModule<EpoxyInputs, EpoxyPricingRules> = {
 
   mapToInputs(parsed, _ctx, allowed): Partial<EpoxyInputs> {
     const v = parsed as EpoxyVisionResult;
+    const unsure = epoxyLowConfidenceFields(v);
     const out: Partial<EpoxyInputs> = {};
-    const min = vision.minConfidence;
 
     // Area is only ever a SUGGESTION — the homeowner's slider still governs,
-    // and pricing re-clamps to the config bounds regardless.
-    if (v.estimated_area_sqft !== null && v.confidence.estimated_area_sqft >= min) {
+    // and pricing re-clamps to the config bounds regardless. It clears the
+    // HIGHER bar or it is not used at all.
+    if (!unsure.includes('estimated_area_sqft') && v.estimated_area_sqft !== null) {
       out.sqft = Math.round(v.estimated_area_sqft);
     }
 
     const candidates: string[] = [];
-    if (v.confidence.oil_staining >= min) {
-      if (v.oil_staining === 'light') candidates.push(INFERRED_MODIFIERS.lightOil);
-      if (v.oil_staining === 'heavy') candidates.push(INFERRED_MODIFIERS.heavyOil);
+    if (!unsure.includes('oil_staining') && v.oil_staining === 'heavy') {
+      candidates.push(INFERRED_MODIFIERS.heavyOil);
     }
-    if (v.confidence.cracking_severity >= min) {
-      if (v.cracking_severity === 'moderate' || v.cracking_severity === 'severe') {
-        candidates.push(INFERRED_MODIFIERS.cracking);
-      }
+    if (
+      !unsure.includes('cracking_severity') &&
+      (v.cracking_severity === 'moderate' || v.cracking_severity === 'severe')
+    ) {
+      candidates.push(INFERRED_MODIFIERS.cracking);
     }
-    if (v.confidence.condition_grade >= min) {
-      if (v.damage_flags.includes('spalling')) candidates.push(INFERRED_MODIFIERS.spalling);
-      if (v.damage_flags.includes('previous_coating'))
-        candidates.push(INFERRED_MODIFIERS.previousCoating);
-      if (v.damage_flags.includes('moisture_signs'))
-        candidates.push(INFERRED_MODIFIERS.moisture);
+    if (v.damage_flags.includes('previous_coating')) {
+      candidates.push(INFERRED_MODIFIERS.previousCoating);
     }
 
     // Filter against what the contractor actually configured. An id this
     // config has never heard of gets dropped here, quietly, rather than
-    // throwing unknown_modifier at a homeowner mid-quote.
+    // throwing unknown_modifier at a homeowner mid-quote — which is exactly
+    // what the Phase 3 mapper did, because it never filtered at all.
     const kept = candidates.filter((id) => allowed.modifierIds.includes(id));
     if (kept.length > 0) out.conditionModifierIds = kept;
 

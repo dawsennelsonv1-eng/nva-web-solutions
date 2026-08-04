@@ -2,6 +2,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { WidgetMode, Surface, DbDegradedReason } from '@/types';
 import type { QuoteComputation } from '@/lib/quote/pricing';
 import type { VisionField } from '@/lib/quote/vision';
+import type { StepDescriptor } from '@/lib/verticals/registry';
 
 /**
  * lib/quote/machine.ts — THE WIDGET STATE MACHINE (Zustand, vanilla).
@@ -25,6 +26,30 @@ import type { VisionField } from '@/lib/quote/vision';
  * ALL I/O IS INJECTED as ports. The store never imports a Supabase client, an
  * action, or fetch. That keeps it isomorphic, keeps Phase 4 in control of
  * transport, and means a test can drive the whole funnel with four stubs.
+ *
+ * === PHASE 11 ADDITION: DYNAMIC STEP PLANS ===
+ *
+ * Phase 4 hard-wired the step list above, which is exactly one trade's set of
+ * questions. Painting asks two more — coat count and prep level — and had
+ * nowhere to put them, so steps[] on the vertical contract was decorative.
+ * It is not any more.
+ *
+ * Pass `steps` (the module's StepDescriptor[]) to createQuoteMachine and the
+ * machine runs a PLAN: the visible subset of those steps, recomputed from the
+ * current answers on every read, walked in order by next(). Omit `steps` and
+ * every line of the Phase 4 behaviour below runs unchanged, transition table
+ * and all. That duality is deliberate and temporary — the /demo and /s/[slug]
+ * mounts still take the legacy path, and shipping a change that reds a build
+ * I cannot compile locally is worse than carrying two paths for one phase.
+ *
+ * ANSWERS ARE NOW THE SOURCE OF TRUTH. `answers` is a flat map keyed by each
+ * step's `writesTo`. The Phase 4 fields (surfaceTypeId, finishId,
+ * finishTierKey, sqft, conditionModifierIds) are kept as MIRRORS, written by
+ * setAnswer, so every existing selector and every existing component keeps
+ * reading exactly what it always read. The mirror for the primary quantity is
+ * deliberately wide — areaSqft, linearFt and doorCount all mirror onto `sqft`
+ * — because painting measures three different things and StepArea only knows
+ * how to render one slider.
  */
 
 /**
@@ -45,20 +70,34 @@ export class AnalysisDegradedSignal extends Error {
   }
 }
 
-export type QuoteStep =
-  | 'surface'
-  | 'photo'
-  | 'analyzing'
-  | 'finish'
-  | 'sqft'
+/** The steps every vertical ends on, whatever its own questions were. */
+export type TerminalQuoteStep =
   | 'quote'
   | 'capture'
   | 'unlocked'
   | 'degraded_capture'
   | 'degraded_acknowledged';
 
-/** Forward transitions. Back navigation is handled by the history stack. */
-const FORWARD: Record<QuoteStep, QuoteStep[]> = {
+/** Phase 4's epoxy-shaped plan, still the default when no steps are supplied. */
+export type LegacyQuoteStep = 'surface' | 'photo' | 'analyzing' | 'finish' | 'sqft';
+
+/**
+ * Widened in Phase 11: a dynamic plan's step ids come from the vertical
+ * module and cannot be known here. `(string & {})` keeps editor autocomplete
+ * on the known members while admitting a module's own ids.
+ */
+export type QuoteStep = LegacyQuoteStep | TerminalQuoteStep | (string & {});
+
+const TERMINAL_STEPS: string[] = [
+  'quote',
+  'capture',
+  'unlocked',
+  'degraded_capture',
+  'degraded_acknowledged',
+];
+
+/** Forward transitions for the LEGACY plan. Back navigation uses history. */
+const FORWARD: Record<string, QuoteStep[]> = {
   surface: ['photo', 'finish', 'degraded_capture'],
   photo: ['analyzing', 'finish', 'degraded_capture'],
   analyzing: ['finish', 'degraded_capture'],
@@ -71,8 +110,15 @@ const FORWARD: Record<QuoteStep, QuoteStep[]> = {
   degraded_acknowledged: [],
 };
 
-/** Steps a user may navigate back to. Terminal states are one-way. */
-const CAN_RETURN_TO: QuoteStep[] = ['surface', 'photo', 'finish', 'sqft', 'quote'];
+/** Steps a user may navigate back to in the legacy plan. Terminals are one-way. */
+const CAN_RETURN_TO: string[] = ['surface', 'photo', 'finish', 'sqft', 'quote'];
+
+/**
+ * Answer keys that mirror onto the legacy `sqft` field. Painting measures
+ * walls in square feet, trim in linear feet and cabinets in fronts; all three
+ * are "the primary quantity" as far as the slider is concerned.
+ */
+const QUANTITY_KEYS: string[] = ['sqft', 'areaSqft', 'linearFt', 'doorCount'];
 
 export interface LeadDraft {
   name: string;
@@ -96,6 +142,14 @@ export interface QuoteMachinePorts {
     handToUser: VisionField[];
     /** Phase 6: Storage path if the adapter uploaded the photo. */
     photoPath?: string | null;
+    /**
+     * PHASE 11: vertical-shaped hints, keyed by the module's own writesTo
+     * keys. Optional, so every Phase 5 adapter keeps compiling; when present
+     * it is merged into `answers` AFTER the legacy fields, letting a painting
+     * adapter hand back prepLevelId and coats without inventing a home for
+     * them among the epoxy-shaped fields above.
+     */
+    answers?: Record<string, unknown>;
   } | null>;
   /** Recomputes and persists server-side, returning the public id. photoPath
    * is passed separately (Phase 6) rather than folded into QuoteComputation,
@@ -116,7 +170,16 @@ export interface QuoteMachineState {
   step: QuoteStep;
   history: QuoteStep[];
 
-  // collected inputs
+  /**
+   * PHASE 11: the declared plan, empty in legacy mode. Never mutated after
+   * construction — visibility is recomputed, the list itself is not.
+   */
+  steps: StepDescriptor[];
+
+  /** PHASE 11: every answer, keyed by StepDescriptor.writesTo. */
+  answers: Record<string, unknown>;
+
+  // collected inputs — MIRRORS of `answers`, kept for every Phase 4 consumer
   surfaceTypeId: string | null;
   photoAttached: boolean;
   finishId: string | null;
@@ -145,6 +208,13 @@ export interface QuoteMachineState {
 export interface QuoteMachineActions {
   goTo: (step: QuoteStep) => boolean;
   back: () => boolean;
+  /** PHASE 11: advance to the next VISIBLE step of the plan. */
+  next: () => boolean;
+  /** PHASE 11: the currently visible plan, recomputed from answers. */
+  visiblePlan: () => StepDescriptor[];
+  /** PHASE 11: write one answer and mirror it onto the legacy fields. */
+  setAnswer: (key: string, value: unknown) => void;
+  setAnswers: (patch: Record<string, unknown>) => void;
   selectSurfaceType: (id: string) => void;
   attachPhoto: (args: { imageBase64: string; mediaType: string }) => Promise<void>;
   skipPhoto: () => void;
@@ -163,7 +233,8 @@ export interface QuoteMachineActions {
 export type QuoteMachine = QuoteMachineState & QuoteMachineActions;
 
 export interface SerializedMachine {
-  v: 1;
+  /** v1 = Phase 4. v2 adds `answers`; a v1 payload still restores cleanly. */
+  v: 1 | 2;
   step: QuoteStep;
   history: QuoteStep[];
   surfaceTypeId: string | null;
@@ -175,6 +246,7 @@ export interface SerializedMachine {
   degraded: boolean;
   degradedReason: DbDegradedReason | null;
   quotePublicId: string | null;
+  answers?: Record<string, unknown>;
 }
 
 export interface CreateMachineArgs {
@@ -185,19 +257,43 @@ export interface CreateMachineArgs {
   sessionId?: string | null;
   ports?: QuoteMachinePorts;
   restore?: SerializedMachine | null;
+  /**
+   * PHASE 11. Supply the vertical module's steps to run a dynamic plan.
+   * Omit for the Phase 4 behaviour, unchanged.
+   */
+  steps?: StepDescriptor[];
+}
+
+function isVisible(step: StepDescriptor, answers: Record<string, unknown>): boolean {
+  if (!step.showIf) return true;
+  try {
+    return step.showIf(answers);
+  } catch {
+    // A module predicate that throws must not take out the funnel. Showing a
+    // step the visitor could have skipped costs one tap; crashing costs the
+    // lead, and lead capture never stops.
+    return true;
+  }
 }
 
 export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachine> {
   const ports = args.ports ?? {};
   const r = args.restore;
+  const plan = args.steps ?? [];
+  const dynamic = plan.length > 0;
+
+  const restoredAnswers = r?.answers ?? {};
+  const firstVisible = plan.find((s) => isVisible(s, restoredAnswers));
 
   const initial: QuoteMachineState = {
     mode: args.mode,
     surface: args.surface,
     prototypeId: args.prototypeId ?? null,
     sessionId: args.sessionId ?? null,
-    step: r?.step ?? 'surface',
+    step: r?.step ?? (dynamic ? firstVisible?.id ?? 'quote' : 'surface'),
     history: r?.history ?? [],
+    steps: plan,
+    answers: { ...restoredAnswers },
     surfaceTypeId: r?.surfaceTypeId ?? null,
     photoAttached: r?.photoAttached ?? false,
     finishId: r?.finishId ?? null,
@@ -219,12 +315,78 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
   return createStore<QuoteMachine>()((set, get) => ({
     ...initial,
 
+    visiblePlan: () => {
+      const s = get();
+      return s.steps.filter((st) => isVisible(st, s.answers));
+    },
+
+    /**
+     * Writes an answer and mirrors it onto the Phase 4 fields. Every existing
+     * selector reads those fields, so this is what lets painting drive
+     * components written for epoxy without either one knowing about the other.
+     */
+    setAnswer: (key, value) => {
+      const patch: Record<string, unknown> = {
+        answers: { ...get().answers, [key]: value },
+      };
+      if (key === 'surfaceTypeId' && (typeof value === 'string' || value === null)) {
+        patch.surfaceTypeId = value;
+      }
+      if (key === 'finishId' && (typeof value === 'string' || value === null)) {
+        patch.finishId = value;
+      }
+      if (key === 'finishTierKey' && (typeof value === 'string' || value === null)) {
+        patch.finishTierKey = value;
+      }
+      if (key === 'conditionModifierIds' && Array.isArray(value)) {
+        patch.conditionModifierIds = value;
+      }
+      if (QUANTITY_KEYS.includes(key) && typeof value === 'number') {
+        patch.sqft = value;
+      }
+      set(patch as Partial<QuoteMachine>);
+    },
+
+    setAnswers: (patchAnswers) => {
+      for (const [k, v] of Object.entries(patchAnswers)) get().setAnswer(k, v);
+    },
+
     goTo: (step) => {
-      const from = get().step;
-      if (!FORWARD[from].includes(step)) return false;
-      set({ step, history: [...get().history, from], error: null });
+      const s = get();
+      const from = s.step;
+
+      if (s.steps.length > 0) {
+        // Dynamic plan: any visible step or terminal is reachable. ORDER is
+        // enforced by next(); goTo is how a component jumps deliberately.
+        const reachable = [
+          ...s.steps.filter((st) => isVisible(st, s.answers)).map((st) => st.id),
+          ...TERMINAL_STEPS,
+        ];
+        if (!reachable.includes(step) || step === from) return false;
+        set({ step, history: [...s.history, from], error: null });
+        ports.touchSession?.({ step, abandoned: false });
+        return true;
+      }
+
+      const allowed = FORWARD[from];
+      if (!allowed || !allowed.includes(step)) return false;
+      set({ step, history: [...s.history, from], error: null });
       ports.touchSession?.({ step, abandoned: false });
       return true;
+    },
+
+    /**
+     * Advance one step along the visible plan. Past the last question every
+     * vertical ends in the same place: a price, then the capture form.
+     * Verticals declare their questions; they never declare their ending.
+     */
+    next: () => {
+      const s = get();
+      if (s.steps.length === 0) return false;
+      const visible = s.steps.filter((st) => isVisible(st, s.answers));
+      const idx = visible.findIndex((st) => st.id === s.step);
+      const nextStep = idx >= 0 && idx + 1 < visible.length ? visible[idx + 1] : undefined;
+      return get().goTo(nextStep ? nextStep.id : 'quote');
     },
 
     /**
@@ -233,25 +395,38 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
      * photo must land back on 'surface', not on a 'photo' step they never saw.
      */
     back: () => {
-      const hist = [...get().history];
+      const s = get();
+      const returnable =
+        s.steps.length > 0 ? [...s.steps.map((st) => st.id), 'quote'] : CAN_RETURN_TO;
+      const hist = [...s.history];
       let target = hist.pop();
-      while (target && !CAN_RETURN_TO.includes(target)) target = hist.pop();
+      while (target && !returnable.includes(target)) target = hist.pop();
       if (!target) return false;
       set({ step: target, history: hist, error: null });
       return true;
     },
 
-    selectSurfaceType: (id) => set({ surfaceTypeId: id }),
+    selectSurfaceType: (id) => {
+      if (get().steps.length > 0) get().setAnswer('surfaceTypeId', id);
+      else set({ surfaceTypeId: id });
+    },
 
     attachPhoto: async ({ imageBase64, mediaType }) => {
+      const advance = () => {
+        if (get().steps.length > 0) get().next();
+        else get().goTo('finish');
+      };
+
       if (!ports.analyze) {
         set({ photoAttached: true });
-        get().goTo('finish');
+        advance();
         return;
       }
       set({ photoAttached: true, busy: true, error: null });
-      get().goTo('photo');
-      get().goTo('analyzing');
+      if (get().steps.length === 0) {
+        get().goTo('photo');
+        get().goTo('analyzing');
+      }
       let wentDegraded = false;
       try {
         const hints = await ports.analyze({ imageBase64, mediaType });
@@ -263,6 +438,9 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
             analysisHandToUser: hints.handToUser,
             photoPath: hints.photoPath ?? get().photoPath,
           });
+          // Vertical-shaped hints last: a module that knows its own keys wins
+          // over the epoxy-shaped fields above.
+          if (hints.answers) get().setAnswers(hints.answers);
         }
       } catch (e) {
         if (e instanceof AnalysisDegradedSignal) {
@@ -275,27 +453,45 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
         }
       } finally {
         set({ busy: false });
-        // enterDegraded already moved the step; do not also push 'finish'.
-        if (!wentDegraded) get().goTo('finish');
+        // enterDegraded already moved the step; do not also advance.
+        if (!wentDegraded) advance();
       }
     },
 
     skipPhoto: () => {
       set({ photoAttached: false });
-      get().goTo('finish');
+      if (get().steps.length > 0) get().next();
+      else get().goTo('finish');
     },
 
-    selectFinish: ({ finishId, finishTierKey }) => set({ finishId, finishTierKey }),
+    selectFinish: ({ finishId, finishTierKey }) => {
+      if (get().steps.length > 0) {
+        get().setAnswer('finishId', finishId);
+        get().setAnswer('finishTierKey', finishTierKey);
+      } else {
+        set({ finishId, finishTierKey });
+      }
+    },
 
-    setSqft: (sqft) => set({ sqft }),
+    setSqft: (sqft) => {
+      const s = get();
+      if (s.steps.length > 0) {
+        // Write back to whichever quantity key this vertical's visible plan
+        // actually declared, so a trim run does not land in areaSqft.
+        const quantityStep = s.steps
+          .filter((st) => isVisible(st, s.answers))
+          .find((st) => QUANTITY_KEYS.includes(st.writesTo));
+        get().setAnswer(quantityStep ? quantityStep.writesTo : 'sqft', sqft);
+        return;
+      }
+      set({ sqft });
+    },
 
     toggleModifier: (id) => {
       const cur = get().conditionModifierIds;
-      set({
-        conditionModifierIds: cur.includes(id)
-          ? cur.filter((m) => m !== id)
-          : [...cur, id],
-      });
+      const nextIds = cur.includes(id) ? cur.filter((m) => m !== id) : [...cur, id];
+      if (get().steps.length > 0) get().setAnswer('conditionModifierIds', nextIds);
+      else set({ conditionModifierIds: nextIds });
     },
 
     setComputation: (c) => set({ computation: c }),
@@ -377,7 +573,7 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
     serialize: () => {
       const s = get();
       return {
-        v: 1,
+        v: 2,
         step: s.step,
         history: s.history,
         surfaceTypeId: s.surfaceTypeId,
@@ -389,10 +585,11 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
         degraded: s.degraded,
         degradedReason: s.degradedReason,
         quotePublicId: s.quotePublicId,
+        answers: s.answers,
       };
     },
 
-    reset: () => set({ ...initial, startedAt: Date.now() }),
+    reset: () => set({ ...initial, answers: {}, startedAt: Date.now() }),
   }));
 }
 

@@ -232,6 +232,14 @@ export interface VisionModule<TInputs, TRules> {
   responseSchema: ZodTypeAny;
   /** Below this, a field is treated as unknown. */
   minConfidence: number;
+  /**
+   * Which fields the model was not sure enough about, by the vertical's OWN
+   * rules. Core cannot compute this: epoxy holds estimated area to a higher
+   * bar than its categorical fields, painting does the same for a different
+   * set of field names, and roofing will have its own. Core only needs the
+   * list, so it can tell the widget which questions still belong to the person.
+   */
+  lowConfidenceFields(parsed: unknown): string[];
   allowancesFromRules(rules: TRules): VisionAllowances;
   /** Pure. Must never throw — return fewer fields instead. */
   mapToInputs(
@@ -288,6 +296,7 @@ export interface VerticalModule<TInputs = unknown, TRules = unknown> {
   photoAnalysisPrompt: string;
 }
 
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 export type AnyVerticalModule = VerticalModule<any, any>;
 
 // ---------------------------------------------------------------------------
