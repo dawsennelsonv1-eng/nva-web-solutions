@@ -296,8 +296,7 @@ export interface VerticalModule<TInputs = unknown, TRules = unknown> {
   photoAnalysisPrompt: string;
 }
 
-/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-export type AnyVerticalModule = VerticalModule<any, any>;
+export type AnyVerticalModule = VerticalModule<unknown, unknown>;
 
 // ---------------------------------------------------------------------------
 // helpers modules use
