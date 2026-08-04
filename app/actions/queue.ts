@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import { getQueueDb } from '@/lib/queue/db';
 import { getTool } from '@/lib/queue/tools';
 
 /**
@@ -61,7 +61,7 @@ export async function castVote(formData: FormData): Promise<ActionResult> {
   }
 
   try {
-    const db = getSupabaseAdminClient();
+    const db = getQueueDb();
     const { error } = await db.from('tool_votes').insert({
       tool_id: toolId,
       voter_hash: hash,
@@ -108,7 +108,7 @@ export async function submitConciergeRequest(formData: FormData): Promise<Action
   if (!trade || !city) return { ok: false, message: 'Trade and city are both needed.' };
 
   try {
-    const db = getSupabaseAdminClient();
+    const db = getQueueDb();
     const { error } = await db.from('concierge_requests').insert({
       trade,
       city,
@@ -155,7 +155,7 @@ export async function addBuildLogEntry(formData: FormData): Promise<ActionResult
   if (toolId && !getTool(toolId)) return { ok: false, message: 'Unknown tool.' };
 
   try {
-    const db = getSupabaseAdminClient();
+    const db = getQueueDb();
     const { error } = await db.from('build_log').insert({
       occurred_on: occurredOn,
       tool_id: toolId || null,

@@ -1,5 +1,6 @@
 import 'server-only';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import { getQueueDb } from '@/lib/queue/db';
 import { getRegisteredVerticals } from '@/lib/verticals/manifest';
 import { TOOLS, VOTE_DISPLAY_FLOOR, type DeclaredStatus, type Tool } from '@/lib/queue/tools';
 
@@ -60,7 +61,7 @@ export interface QueueSections {
 
 async function fetchVoteCounts(): Promise<Map<string, number> | null> {
   try {
-    const db = getSupabaseAdminClient();
+    const db = getQueueDb();
     const { data, error } = await db.from('tool_vote_counts').select('tool_id, votes');
     if (error || !data) return null;
     const map = new Map<string, number>();
@@ -166,7 +167,7 @@ export interface LogEntry {
 
 export async function getBuildLog(limit = 12): Promise<LogEntry[]> {
   try {
-    const db = getSupabaseAdminClient();
+    const db = getQueueDb();
     const { data, error } = await db
       .from('build_log')
       .select('occurred_on, tool_id, entry')
@@ -193,7 +194,7 @@ export interface BuildMonth {
 
 export async function getBuildMonths(): Promise<BuildMonth[]> {
   try {
-    const db = getSupabaseAdminClient();
+    const db = getQueueDb();
     const { data, error } = await db
       .from('build_months')
       .select('month, tool_id, won_by_vote, entered_build_on, shipped_on')

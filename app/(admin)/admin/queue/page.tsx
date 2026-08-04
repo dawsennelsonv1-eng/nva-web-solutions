@@ -1,4 +1,4 @@
-import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import { getQueueDb } from '@/lib/queue/db';
 import { getQueueSections } from '@/lib/queue/data';
 import { TOOLS, getTool } from '@/lib/queue/tools';
 import { addBuildLogEntry } from '@/app/actions/queue';
@@ -42,7 +42,7 @@ interface VoteRow {
 
 async function fetchVotes(): Promise<VoteRow[] | null> {
   try {
-    const db = getSupabaseAdminClient();
+    const db = getQueueDb();
     const { data, error } = await db
       .from('tool_votes')
       .select('tool_id, trade, city, email, created_at')
@@ -57,7 +57,7 @@ async function fetchVotes(): Promise<VoteRow[] | null> {
 
 async function fetchConcierge() {
   try {
-    const db = getSupabaseAdminClient();
+    const db = getQueueDb();
     const { data, error } = await db
       .from('concierge_requests')
       .select('trade, city, wants, email, created_at')
