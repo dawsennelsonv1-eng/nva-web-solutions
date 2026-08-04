@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MotionProvider } from '@/lib/motion';
 import { calculateQuote, type QuoteComputation } from '@/lib/quote/pricing';
+import { priceQuote } from '@/lib/quote/price-quote';
+import type { StepDescriptor } from '@/lib/verticals/registry';
 import type { VisionField } from '@/lib/quote/vision';
 import { track } from '@/lib/analytics.client';
 import type { DbDegradedReason, Surface, WidgetMode } from '@/types';
@@ -42,6 +44,26 @@ import { StyleToggle } from './StyleToggle';
  *
  * MODE IS STILL A REQUIRED PROP with no default and no route inference
  * (R-123) — that part of Phase 4 was correct and is unchanged.
+ *
+ * === PHASE 11: TWO RENDER PATHS ===
+ *
+ * Supply `config.steps` (a vertical module's StepDescriptor[]) and this file
+ * renders the module's DECLARED plan: it walks the visible steps in order and
+ * picks a control per step. Omit it and every line of the Phase 4 render below
+ * runs unchanged, because /demo and /s/[slug] still mount it that way and a
+ * required new field would red a build I cannot compile locally.
+ *
+ * WHAT THE DYNAMIC PATH DOES NOT YET DO, stated plainly rather than buried:
+ * three of the Phase 4 components are COMPOSITES that each own two of the
+ * module's declared steps — StepSurface bundles the surface choice with the
+ * photo, StepFinish bundles finish with colour, StepArea bundles the quantity
+ * slider with the condition modifiers. So a declared `photo`, `colour_select`
+ * or `multi_select` step is ABSORBED by its composite rather than rendered on
+ * its own, and the dynamic renderer skips it. Painting works because the two
+ * things epoxy never had — a coat stepper and a prep-level choice — are the
+ * two kinds that get real generic renderers here. Decomposing the composites
+ * is a separate, larger job and does not belong in the same push as the
+ * contract change.
  */
 
 export interface WidgetConfig {
@@ -55,6 +77,11 @@ export interface WidgetConfig {
   conditionModifiers: { id: string; label: string }[];
   contractorName: string;
   contractorPhone: string | null;
+  /**
+   * PHASE 11. The vertical module's declared steps. When present the widget
+   * renders the module's plan; when absent it renders the Phase 4 flow.
+   */
+  steps?: StepDescriptor[];
 }
 
 export interface QuoteWidgetPorts {
@@ -65,6 +92,8 @@ export interface QuoteWidgetPorts {
     conditionModifierIds: string[];
     handToUser: VisionField[];
     photoPath?: string | null;
+    /** PHASE 11: vertical-shaped hints keyed by the module's writesTo keys. */
+    answers?: Record<string, unknown>;
   } | null>;
   persistQuote?: (c: QuoteComputation, photoPath: string | null) => Promise<string | null>;
   submitLead?: (draft: {
@@ -94,6 +123,15 @@ export interface QuoteWidgetProps {
   entryPoint?: string;
 }
 
+/** Kinds the dynamic renderer draws itself. Everything else is absorbed. */
+const RENDERED_KINDS = [
+  'surface_select',
+  'quantity',
+  'finish_select',
+  'stepper',
+  'single_select',
+];
+
 export function QuoteWidget(props: QuoteWidgetProps) {
   return (
     <MotionProvider>
@@ -102,6 +140,7 @@ export function QuoteWidget(props: QuoteWidgetProps) {
         surface={props.surface}
         prototypeId={props.prototypeId ?? null}
         sessionId={props.sessionId ?? null}
+        steps={props.config.steps}
         ports={{
           analyze: props.ports?.analyze,
           persistQuote: props.ports?.persistQuote,
@@ -132,6 +171,7 @@ function WidgetBody({
   const finishId = useQuoteMachine((s) => s.finishId);
   const finishTierKey = useQuoteMachine((s) => s.finishTierKey);
   const modifierIds = useQuoteMachine((s) => s.conditionModifierIds);
+  const answers = useQuoteMachine((s) => s.answers);
   const degraded = useQuoteMachine((s) => s.degraded);
   const busy = useQuoteMachine((s) => s.busy);
   const error = useQuoteMachine((s) => s.error);
@@ -139,6 +179,8 @@ function WidgetBody({
 
   const [colourId, setColourId] = useState<string | null>(null);
   const [photoNote, setPhotoNote] = useState<string | null>(null);
+
+  const dynamic = (config.steps?.length ?? 0) > 0;
 
   const evtCtx = useMemo(
     () => ({ surface, mode, sessionId: sessionId ?? undefined }),
@@ -177,7 +219,32 @@ function WidgetBody({
 
   const effectiveSqft = sqft ?? Math.round((config.sqftMin + config.sqftMax) / 8);
 
+  /**
+   * THE PRICE. Legacy mode calls the area x tier kernel directly, exactly as
+   * Phase 4 did. Dynamic mode asks the MODULE to price its own answers, which
+   * is the whole point of the v2 contract — this file no longer knows any
+   * trade's formula.
+   */
   const computation = useMemo<QuoteComputation | null>(() => {
+    if (dynamic) {
+      try {
+        const computed = priceQuote({
+          verticalId: config.vertical,
+          rawInputs: {
+            ...answers,
+            sqftMin: config.sqftMin,
+            sqftMax: config.sqftMax,
+          },
+          rawRules: config.rules,
+        });
+        // The kernel-narrowed alias differs only in the type of its `inputs`
+        // echo, which nothing downstream reads. Cast rather than widen every
+        // Phase 4-6 signature in a push I cannot compile locally.
+        return computed as unknown as QuoteComputation;
+      } catch {
+        return null;
+      }
+    }
     if (!finishTierKey || !surfaceTypeId) return null;
     try {
       return calculateQuote(
@@ -194,7 +261,7 @@ function WidgetBody({
     } catch {
       return null;
     }
-  }, [effectiveSqft, surfaceTypeId, finishTierKey, modifierIds, config]);
+  }, [dynamic, answers, effectiveSqft, surfaceTypeId, finishTierKey, modifierIds, config]);
 
   useEffect(() => {
     store.getState().setComputation(computation);
@@ -214,8 +281,28 @@ function WidgetBody({
     [store, evtCtx]
   );
 
+  /** The visible plan, minus the kinds a composite already owns. */
+  const plan = useMemo<StepDescriptor[]>(() => {
+    if (!dynamic) return [];
+    return store
+      .getState()
+      .visiblePlan()
+      .filter((s) => RENDERED_KINDS.includes(s.control.kind));
+    // answers is the dependency that actually moves visibility
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dynamic, answers, store]);
+
+  const current = plan.find((s) => s.id === step) ?? null;
+  const isLastQuestion = plan.length > 0 && plan[plan.length - 1]?.id === step;
+
+  const advance = useCallback(() => {
+    const s = store.getState();
+    if (isLastQuestion) void s.commitQuote();
+    else s.next();
+  }, [store, isLastQuestion]);
+
   return (
-    <section className="mx-auto w-full max-w-md bg-concrete p-4 text-ink" aria-label="Instant floor quote">
+    <section className="mx-auto w-full max-w-md bg-concrete p-4 text-ink" aria-label="Instant quote">
       {showStyleToggle ? (
         <div className="mb-4 flex justify-end">
           <StyleToggle enabled />
@@ -242,6 +329,116 @@ function WidgetBody({
             })
           }
         />
+      ) : dynamic ? (
+        <>
+          {current?.control.kind === 'surface_select' && (
+            <StepSurface
+              question={current.question}
+              options={config.surfaceTypes}
+              selected={surfaceTypeId}
+              onSelect={(id) => {
+                store.getState().selectSurfaceType(id);
+                track('surface_type_selected', { surface_type: id }, evtCtx);
+              }}
+              onPhotoReady={(a) => {
+                setPhotoNote(null);
+                track('photo_selected', { input_method: 'file', original_bytes: a.originalBytes, original_type: 'image/*' }, evtCtx);
+                void handlePhoto(a);
+              }}
+              onSkipPhoto={() => {
+                track('photo_skipped', { step: 1 }, evtCtx);
+                store.getState().skipPhoto();
+              }}
+              analyzing={busy}
+              photoDisabledNote={photoNote}
+            />
+          )}
+
+          {current?.control.kind === 'finish_select' && (
+            <StepFinish
+              options={config.finishes}
+              selectedFinishId={finishId}
+              selectedColourId={colourId}
+              onSelect={({ finishId: fid, finishTierKey: tier, colourId: cid }) => {
+                setColourId(cid);
+                store.getState().selectFinish({ finishId: fid, finishTierKey: tier });
+                store.getState().setAnswer('colourId', cid);
+                track('finish_selected', { finish_id: fid, finish_tier: tier }, evtCtx);
+              }}
+            />
+          )}
+
+          {current?.control.kind === 'quantity' && (
+            <StepArea
+              sqft={effectiveSqft}
+              sqftMin={config.sqftMin}
+              sqftMax={config.sqftMax}
+              onSqftChange={(v) => store.getState().setSqft(v)}
+              onHelperPick={(v) => track('sqft_changed', { sqft: v, method: 'not_sure_helper' }, evtCtx)}
+              typicalSqft={surfaceOption?.typicalSqft ?? []}
+              computation={computation}
+              modifiers={config.conditionModifiers.map((m) => ({ ...m, active: modifierIds.includes(m.id) }))}
+              onToggleModifier={(id) => store.getState().toggleModifier(id)}
+              onExpandBreakdown={() => track('breakdown_expanded', {}, evtCtx)}
+              onContinue={advance}
+            />
+          )}
+
+          {current?.control.kind === 'stepper' && (
+            <StepperControl
+              step={current}
+              value={typeof answers[current.writesTo] === 'number' ? (answers[current.writesTo] as number) : current.control.min}
+              onChange={(v) => store.getState().setAnswer(current.writesTo, v)}
+              onContinue={advance}
+            />
+          )}
+
+          {current?.control.kind === 'single_select' && (
+            <ChoiceControl
+              step={current}
+              selected={typeof answers[current.writesTo] === 'string' ? (answers[current.writesTo] as string) : null}
+              onSelect={(id) => {
+                store.getState().setAnswer(current.writesTo, id);
+                advance();
+              }}
+            />
+          )}
+
+          {(step === 'quote' || step === 'capture' || step === 'unlocked') && computation && (
+            <StepCapture
+              lowCents={computation.lowCents}
+              highCents={computation.highCents}
+              unlocked={step === 'unlocked'}
+              busy={busy}
+              error={error}
+              contractorName={config.contractorName}
+              contractorPhone={config.contractorPhone}
+              quoteUrl={quotePublicId && quoteBaseUrl ? quoteBaseUrl + '/q/' + quotePublicId : null}
+              onViewed={() => track('capture_form_viewed', {}, evtCtx)}
+              onSubmit={(fields: CaptureFields) => void store.getState().submitCapture(fields)}
+            />
+          )}
+
+          {current && current.control.kind !== 'quantity' && current.control.kind !== 'single_select' ? (
+            <button
+              type="button"
+              onClick={advance}
+              className="mt-4 min-h-[3rem] w-full rounded-milled bg-hazard px-4 font-body text-base font-semibold text-sheet"
+            >
+              Continue
+            </button>
+          ) : null}
+
+          {current && plan[0]?.id !== step ? (
+            <button
+              type="button"
+              onClick={() => store.getState().back()}
+              className="mt-4 font-data text-sm text-rule underline underline-offset-4 hover:text-ink"
+            >
+              Back
+            </button>
+          ) : null}
+        </>
       ) : (
         <>
           {(step === 'surface' || step === 'photo' || step === 'analyzing') && (
@@ -343,5 +540,119 @@ function WidgetBody({
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * Generic small-integer control — painting's coat count, roofing's layer
+ * count. Targets are 3rem so a thumb hits them at 360px, and the value is
+ * announced live so it is not a mystery to a screen reader.
+ */
+function StepperControl({
+  step,
+  value,
+  onChange,
+  onContinue,
+}: {
+  step: StepDescriptor;
+  value: number;
+  onChange: (v: number) => void;
+  onContinue: () => void;
+}) {
+  if (step.control.kind !== 'stepper') return null;
+  const { min, max, unitLabel } = step.control;
+  const clamp = (v: number) => Math.min(max, Math.max(min, v));
+
+  return (
+    <div className="space-y-4">
+      <h2 className="font-display font-condensed text-xl font-bold">{step.question}</h2>
+      {step.help ? <p className="font-body text-sm text-rule">{step.help}</p> : null}
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => onChange(clamp(value - 1))}
+          disabled={value <= min}
+          aria-label={'Fewer ' + unitLabel}
+          className="min-h-[3rem] min-w-[3rem] rounded-milled border border-rule bg-sheet font-data text-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40"
+        >
+          −
+        </button>
+        <output
+          aria-live="polite"
+          className="flex-1 rounded-milled border border-rule bg-sheet py-3 text-center font-data text-lg"
+        >
+          {value} {unitLabel}
+        </output>
+        <button
+          type="button"
+          onClick={() => onChange(clamp(value + 1))}
+          disabled={value >= max}
+          aria-label={'More ' + unitLabel}
+          className="min-h-[3rem] min-w-[3rem] rounded-milled border border-rule bg-sheet font-data text-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40"
+        >
+          +
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={onContinue}
+        className="min-h-[3rem] w-full rounded-milled bg-hazard px-4 font-body text-base font-semibold text-sheet"
+      >
+        Continue
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Generic one-of-N control — painting's prep level. Full-width rows rather
+ * than a select, for the same reason StepSurface uses tiles: a dropdown is the
+ * first signal that this is a form.
+ */
+function ChoiceControl({
+  step,
+  selected,
+  onSelect,
+}: {
+  step: StepDescriptor;
+  selected: string | null;
+  onSelect: (id: string) => void;
+}) {
+  if (step.control.kind !== 'single_select') return null;
+  const options = step.control.options;
+
+  return (
+    <div className="space-y-4">
+      <h2 className="font-display font-condensed text-xl font-bold">{step.question}</h2>
+      {step.help ? <p className="font-body text-sm text-rule">{step.help}</p> : null}
+
+      <div className="space-y-2" role="radiogroup" aria-label={step.question}>
+        {options.map((o) => {
+          const active = o.id === selected;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onSelect(o.id)}
+              className={
+                'block w-full rounded-milled border px-4 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ' +
+                (active ? 'border-hazard bg-hazard text-sheet' : 'border-rule bg-sheet text-ink')
+              }
+            >
+              <span className="block font-body text-base font-semibold">{o.label}</span>
+              {o.helpText ? (
+                <span className={'mt-0.5 block font-body text-sm ' + (active ? 'text-sheet/80' : 'text-rule')}>
+                  {o.helpText}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
