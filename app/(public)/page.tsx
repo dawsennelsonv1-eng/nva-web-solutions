@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { CalibrationCheck } from '@/components/site/CalibrationCheck';
 import { ProofOfOperation } from '@/components/site/ProofOfOperation';
+import { Showcase } from '@/components/site/Showcase';
 import { Faq, Integration, Machinery, Terms } from '@/components/site/Sections';
 import { Plate } from '@/components/ui/Plate';
 import { liveInstalls } from '@/lib/site/metrics';
@@ -13,17 +15,26 @@ import { liveInstalls } from '@/lib/site/metrics';
  * below the hero exists to get him to touch it, or to answer the question he
  * has immediately after he does.
  *
- * Order: hero (the instrument) -> integration (kills "I can't code") ->
- * machinery (the model itself, because a man sold to badly is starved of
- * anyone showing him how the thing works) -> proof of operation (counted, not
- * claimed) -> terms (where the badge row would have gone) -> FAQ.
+ * Order: hero (the instrument) -> showcase (the other things it drives, as
+ * things he can touch) -> integration (kills "I can't code") -> machinery (the
+ * model itself, because a man sold to badly is starved of anyone showing him
+ * how the thing works) -> proof of operation (counted, not claimed) -> terms
+ * (where the badge row would have gone) -> FAQ.
+ *
+ * THE SHOWCASE SITS SECOND, DIRECTLY UNDER THE HERO, and that placement is the
+ * decision. A visitor who has just dragged a rule and watched a garage floor
+ * price itself has exactly one question — "does it do MY trade" — and the
+ * showcase plus the queue strip is the answer to it. Putting Integration there
+ * instead answers a question he has not asked yet.
  *
  * THE HEADLINE CONTAINS A REAL NUMBER AND DOES NOT MOVE. No typewriter, no
  * reveal, no fade. It is set once, it is the largest thing on the page, and it
  * is in the initial HTML.
  *
  * NOTHING ON THIS PAGE OBSERVES SCROLL. There is no IntersectionObserver, no
- * stagger, no parallax, and no hover-lift anywhere in the tree.
+ * stagger, no parallax, and no hover-lift anywhere in the tree. The motion
+ * added in 13D is confined to the pricing engine demonstrating itself — see
+ * CalibrationCheck and MiniPricer.
  */
 
 export const metadata: Metadata = {
@@ -90,9 +101,27 @@ export default async function HomePage() {
             $500 to set up, $250 a month, and we take none of the job. No call booked, no email
             asked for.
           </p>
+
+          {/* THE PERSISTENT NICHE ENTRY POINT (13D Part 4.3).
+              A text link on a rule, not a button and not a banner. A man whose
+              trade is not epoxy needs a way out of this hero within one screen
+              of arriving, and he needs it before he concludes the whole site is
+              about garage floors. It is set in mono at the small step so it
+              reads as a wayfinding mark on an instrument rather than a second
+              call to action competing with the widget above it — the single
+              hazard action per viewport is already spent inside the widget. */}
+          <p className="mt-4 border-t border-rule pt-3">
+            <Link
+              href="/categories"
+              className="font-data text-2xs uppercase tracking-[0.08em] text-ink underline underline-offset-4"
+            >
+              Not epoxy? Check for tools in my niche →
+            </Link>
+          </p>
         </div>
       </section>
 
+      <Showcase />
       <Integration />
       <Machinery />
       <ProofOfOperation />
