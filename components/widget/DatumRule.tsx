@@ -134,10 +134,33 @@ export function DatumRule({
         </div>
 
         {/* the indicator: a machined block riding the scale, not a floating dot */}
+        {/* 13D: the left-property transition that was on this element (a
+            step-duration ease-out) is REMOVED, for two reasons that point the
+            same way. Its class name is described rather than written out
+            because Tailwind scans comments too, and naming it here would emit
+            the dead rule this change exists to delete.
+
+            Correctness: this file's own header says the indicator "moves
+            because the user is moving it — that is direct manipulation, not
+            animation." A 180ms transition on a dragged control contradicts
+            that. It made the indicator lag roughly a fifth of a second behind
+            the thumb, which on an instrument reads as the scale being loose.
+
+            Performance: `left` is a layout property. Transitioning it meant
+            the browser recomputed layout for this element on every frame of
+            every drag, on top of the frames the drag itself produces. 13D
+            requires 60fps with the slider under a thumb on a mid-range
+            Android, and this was the one place in the widget paying layout
+            cost per frame for no visible benefit.
+
+            The indicator now snaps to wherever the finger is. `left` is still
+            used for POSITION — that write happens once per input event, not
+            once per frame of an interpolation, and it is the same write the
+            DOM fast-path above was already making. */}
         <div
           ref={indicatorRef}
           aria-hidden
-          className="pointer-events-none absolute top-0 transition-[left] duration-step ease-out"
+          className="pointer-events-none absolute top-0"
           style={{ left: pct(value) + '%' }}
         >
           <div className="-translate-x-1/2">
@@ -163,3 +186,4 @@ export function DatumRule({
     </div>
   );
 }
+

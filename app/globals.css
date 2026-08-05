@@ -234,4 +234,52 @@
     transform: translateY(1px);
     border-color: rgb(var(--c-ink));
   }
+
+  /* ------------------------------------------------------------------------
+     THE RECALCULATION FLASH — added in 13D, Part 1.
+
+     When a finish or a condition modifier is chosen, the breakdown lines that
+     moved as a result are marked for one beat so the contractor can see WHICH
+     line his choice changed. This is the product showing its work, not
+     decoration: without it the total changes and the cause is invisible.
+
+     IT IS OPACITY ONLY. The mark is a separate absolutely-positioned overlay
+     inside the row, so nothing about the row's own paint changes and the
+     browser can composite the whole thing on the GPU. Animating the row's
+     background-color instead would repaint the table on every frame, which is
+     the difference between 60fps and a visible hitch on a mid-range Android.
+
+     IT IS NOT SCROLL-TRIGGERED. It fires on a tap, and only on a tap. The
+     square-footage rule deliberately does NOT flash — during a drag every
+     line changes on every frame, and a table strobing under his thumb would
+     be noise rather than information.
+
+     520ms is longer than any other duration in the system on purpose: it has
+     to survive the eye travelling from the control he pressed down to the
+     line that moved. It gets no token because it is one effect in one place,
+     and a --t-flash token would invite a second use.
+     -------------------------------------------------------------------- */
+  .flash-line {
+    animation: datum-flash 520ms linear forwards;
+  }
 }
+
+@keyframes datum-flash {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Reduced motion removes the flash entirely rather than shortening it. A
+   0ms flash is a single-frame strobe, which is worse than no flash at all
+   for exactly the users who asked for less movement. */
+@media (prefers-reduced-motion: reduce) {
+  .flash-line {
+    animation: none;
+    opacity: 0;
+  }
+}
+
