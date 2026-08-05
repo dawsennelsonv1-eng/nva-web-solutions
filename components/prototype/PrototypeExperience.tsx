@@ -8,6 +8,7 @@ import { analyzePhotoAction, persistQuoteAction, touchSessionAction } from '@/ap
 import { submitPrototypeLead } from '@/app/actions/prototypeLead';
 import { AnalysisDegradedSignal } from '@/lib/quote/machine';
 import type { QuoteComputation } from '@/lib/quote/pricing';
+import type { StepDescriptor } from '@/lib/verticals/registry';
 import type { DbDegradedReason, Surface } from '@/types';
 
 /**
@@ -44,6 +45,7 @@ export function PrototypeExperience({
   conditionModifiers,
   styleVariant,
   initialDegraded,
+  steps,
 }: {
   prototypeId: string;
   surface: Extract<Surface, 'prototype'>;
@@ -59,6 +61,14 @@ export function PrototypeExperience({
   conditionModifiers: { id: string; label: string }[];
   styleVariant: 'light' | 'dark-industrial';
   initialDegraded: { degraded: boolean; reason: string | null };
+  /**
+   * PHASE 11. The vertical module's declared questions. Optional so any caller
+   * that has not been updated still renders the Phase 4 flow rather than
+   * failing to compile — but PrototypeView always supplies it now, which is
+   * what makes a painting prototype ask about coats and prep instead of
+   * silently pricing as if it were a floor.
+   */
+  steps?: StepDescriptor[];
 }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const usedAiRef = useRef(false);
@@ -95,6 +105,10 @@ export function PrototypeExperience({
       conditionModifierIds: res.hints.conditionModifierIds,
       handToUser: res.hints.handToUser,
       photoPath: res.photoPath ?? null,
+      // PHASE 11: the module's own inputs, keyed by its writesTo keys. The
+      // three fields above are a projection of this for Phase 4 components;
+      // this is the set that carries a painting prep level or coat count.
+      answers: res.hints.answers,
     };
   }
 
@@ -146,7 +160,7 @@ export function PrototypeExperience({
     // quote_step_viewed (which already fires for aggregate funnel analytics
     // across every surface). This one exists so Dawsen can query THIS
     // prototype_id's progress specifically, live, mid-phone-call.
-    const stepNumber = STEP_NUMBERS[args.step];
+    const stepNumber = stepNumberFor(args.step, steps);
     if (stepNumber && !stepReachedRef.current.has(stepNumber)) {
       stepReachedRef.current.add(stepNumber);
       track('prototype_step_reached', { step: stepNumber }, { surface, mode: 'prototype', sessionId: sessionId as string, prototypeId });
@@ -173,6 +187,7 @@ export function PrototypeExperience({
         conditionModifiers,
         contractorName,
         contractorPhone,
+        steps,
       }}
       ports={{
         analyze: analyzeAdapter,
@@ -191,3 +206,26 @@ const STEP_NUMBERS: Record<string, number> = {
   capture: 4, unlocked: 4,
   degraded_capture: 4, degraded_acknowledged: 4,
 };
+
+/**
+ * "How far he got", as a number from 1 to 4, for ANY vertical.
+ *
+ * The table above is epoxy's five step ids and nothing else, which was correct
+ * when epoxy was the only trade. Painting's plan has ids the table has never
+ * heard of ('area', 'coats', 'prep'), and an unmapped id means the event never
+ * fires — the admin watching a live prototype mid-phone-call would see a
+ * painting visitor simply stop reporting progress.
+ *
+ * So: known ids keep their exact Phase 8 numbers, and anything else is placed
+ * by its POSITION in the declared plan, squeezed into buckets 1-3 with the
+ * terminals still at 4. Coarse on purpose — the question this answers is "did
+ * he get near the end", not "which control did he touch".
+ */
+function stepNumberFor(step: string, steps: StepDescriptor[] | undefined): number | undefined {
+  const known = STEP_NUMBERS[step];
+  if (known) return known;
+  if (!steps || steps.length === 0) return undefined;
+  const idx = steps.findIndex((s) => s.id === step);
+  if (idx < 0) return undefined;
+  return 1 + Math.min(2, Math.floor((idx * 3) / steps.length));
+}

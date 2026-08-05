@@ -83,6 +83,7 @@ export function PrototypeView({ resolved }: { resolved: ResolvedPrototype }) {
             id: f.id, label: f.label, tierKey: f.tierKey, colours: f.colours,
           }))}
           surfaceTypes={vertical.surfaceTypes}
+          steps={vertical.steps}
           conditionModifiers={rawConditionModifiers.map((m) => ({ id: m.id, label: m.label }))}
           styleVariant={styleVariant}
           initialDegraded={{ degraded: entitlement.degraded, reason: entitlement.degradedReason }}

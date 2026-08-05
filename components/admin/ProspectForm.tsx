@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { scoreProspect, type ScorecardInput, type QualificationBand } from '@/lib/prospects/scorecard';
 import { upsertProspectAction } from '@/app/actions/prospects';
 import type { ProspectStatus } from '@/types';
+import { getRegisteredVerticals } from '@/lib/verticals/manifest';
 
 /**
  * components/admin/ProspectForm.tsx — the qualification scorecard as a
@@ -17,6 +18,22 @@ import type { ProspectStatus } from '@/types';
  * 360PX FIRST: single column throughout, no side-by-side layout, every
  * touch target at least 44px tall — this gets used mid-sales-call.
  */
+
+/**
+ * PHASE 11. Read from the registry rather than hardcoded, so this list can
+ * never disagree with what the product can actually build. A vertical that is
+ * not registered cannot be staged — which is the correct failure: it means the
+ * admin can only sell what the widget can quote.
+ *
+ * Computed at module scope, once. getRegisteredVerticals() is pure and the
+ * registry does not change at runtime, so there is nothing to recompute per
+ * render and nothing to put in state.
+ */
+const VERTICAL_OPTIONS = getRegisteredVerticals().map((v) => ({
+  id: v.id,
+  label: v.copy.adminVerticalLabel,
+  tradeNoun: v.copy.tradeNoun,
+}));
 
 const BAND_STYLE: Record<QualificationBand, string> = {
   strong: 'border-cure/40 bg-cure/5 text-cure',
@@ -42,7 +59,7 @@ export interface ProspectFormValues {
 
 const EMPTY: ProspectFormValues = {
   businessName: '', contactName: '', phone: '', email: '', city: '', state: '', websiteUrl: '',
-  vertical: 'epoxy', qualificationNotes: '', status: 'new',
+  vertical: VERTICAL_OPTIONS[0]?.id ?? 'epoxy', qualificationNotes: '', status: 'new',
   scorecard: {
     hasGoogleAds: false, googleReviewCount: 0, searchRank: 'unknown',
     estimatedMonthlyTraffic: 0, hasQuoteOrPricingTool: null, siteLooksAbandoned: null,
@@ -101,6 +118,39 @@ export function ProspectForm({ initial }: { initial?: ProspectFormValues }) {
 
       <fieldset className="space-y-3">
         <legend className="font-data text-xs uppercase tracking-wide text-rule">Business</legend>
+
+        <div className="space-y-2">
+          <span id="vertical-label" className="block font-data text-xs uppercase tracking-wide text-rule">
+            Trade
+          </span>
+          <div className="space-y-2" role="radiogroup" aria-labelledby="vertical-label">
+            {VERTICAL_OPTIONS.map((v) => {
+              const active = v.id === values.vertical;
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setValues((s) => ({ ...s, vertical: v.id }))}
+                  className={
+                    'block min-h-[3rem] w-full rounded-milled border px-4 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ' +
+                    (active ? 'border-hazard bg-hazard text-sheet' : 'border-rule bg-sheet text-ink')
+                  }
+                >
+                  <span className="block font-body text-base font-semibold">{v.label}</span>
+                  <span className={'block font-data text-xs ' + (active ? 'text-sheet/80' : 'text-rule')}>
+                    {v.tradeNoun}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="font-data text-xs text-rule">
+            Sets which quoting widget gets staged. It can be changed until the prototype is built.
+          </p>
+        </div>
+
         <Field label="Business name" value={values.businessName} onChange={(v) => setValues((s) => ({ ...s, businessName: v }))} required />
         <Field label="Contact name" value={values.contactName} onChange={(v) => setValues((s) => ({ ...s, contactName: v }))} />
         <Field label="Phone" type="tel" value={values.phone} onChange={(v) => setValues((s) => ({ ...s, phone: v }))} />

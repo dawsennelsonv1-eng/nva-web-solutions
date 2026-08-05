@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { track } from '@/lib/analytics.client';
 import type { WidgetConfig } from '@/components/widget/QuoteWidget';
+import type { StepDescriptor } from '@/lib/verticals/registry';
 import type { Surface } from '@/types';
 
 /**
@@ -46,6 +47,7 @@ export function LaunchGate({
   conditionModifiers,
   styleVariant,
   initialDegraded,
+  steps,
 }: {
   prototypeId: string;
   surface: Extract<Surface, 'prototype'>;
@@ -61,6 +63,12 @@ export function LaunchGate({
   conditionModifiers: { id: string; label: string }[];
   styleVariant: 'light' | 'dark-industrial';
   initialDegraded: { degraded: boolean; reason: string | null };
+  /**
+   * PHASE 11. Passed straight through. This component's whole job is keeping
+   * the widget bundle out of first paint, and a plain array of step
+   * descriptors is data, not code — forwarding it costs the LCP nothing.
+   */
+  steps?: StepDescriptor[];
 }) {
   const [launched, setLaunched] = useState(false);
   const evtCtx = { surface, mode: 'prototype' as const };
@@ -90,6 +98,7 @@ export function LaunchGate({
         conditionModifiers={conditionModifiers}
         styleVariant={styleVariant}
         initialDegraded={initialDegraded}
+        steps={steps}
       />
     );
   }

@@ -1,5 +1,6 @@
 import { registerVertical, listVerticals } from '@/lib/verticals/registry';
 import { epoxyVertical } from '@/lib/verticals/epoxy';
+import { paintingVertical } from '@/lib/verticals/painting';
 
 /**
  * THE ONE REGISTRATION POINT. This file belongs to the vertical surface, not
@@ -11,14 +12,13 @@ import { epoxyVertical } from '@/lib/verticals/epoxy';
  * Idempotent on purpose: Next.js dev-mode HMR and route-level re-imports may
  * evaluate modules more than once per process.
  *
- * PAINTING IS TEMPORARILY OUT. The Phase 1 stub satisfied the v1 contract and
- * cannot satisfy v2, and an unbuilt module is worse than an absent one — an
- * admin dropdown listing a vertical that cannot price is a broken promise on a
- * contractor's screen. The real module lands in the next Phase 11 turn and
- * restores these two lines:
- *
- *   import { paintingVertical } from '@/lib/verticals/painting';
- *   registerVertical(paintingVertical);
+ * PAINTING IS LIVE as of Phase 11. It was deliberately held out of this file
+ * for several pushes while the module could price but the widget could not yet
+ * render its questions — an admin dropdown offering a vertical that cannot
+ * quote is a broken promise on a contractor's screen, and the public hub reads
+ * its live-verticals count straight off this registry. It is registered here
+ * only now that PrototypeView -> LaunchGate -> PrototypeExperience threads the
+ * declared step plan all the way to the widget.
  */
 
 let registered = false;
@@ -27,6 +27,7 @@ export function ensureVerticalsRegistered(): void {
   if (registered) return;
   registered = true;
   registerVertical(epoxyVertical);
+  registerVertical(paintingVertical);
 }
 
 export function getRegisteredVerticals() {
