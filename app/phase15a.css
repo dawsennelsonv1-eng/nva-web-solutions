@@ -372,22 +372,33 @@
 }
 
 /* Scrim: vertical legibility gradient plus a centred pool of extra darkness
-   directly behind the type. This is what keeps the headline readable in
-   daylight regardless of how bright the supplied photograph turns out. */
+   directly behind the type.
+
+   SOFTENED IN 15A.5, because the grade now lives in the photograph itself.
+   The supplied shot averaged 142/255 and needed a heavy scrim; the graded
+   file averages 49, and stacking the old values on top of it crushed the
+   floor to near-black and threw away the reflections that make it look
+   expensive. These values land the type background near 42 against #F4F2ED —
+   about 12:1, which holds in direct sunlight — while the floor stays legible
+   as a floor.
+
+   If you ever swap in a brighter photograph, raise these rather than
+   re-grading in CSS filters: a filter on this layer would re-rasterise the
+   whole hero every frame the media drifts. */
 .hero-scrim {
   position: absolute;
   inset: 0;
   background:
     radial-gradient(
-      62% 46% at 50% 52%,
-      rgba(7, 9, 13, 0.45),
+      62% 46% at 50% 50%,
+      rgba(7, 9, 13, 0.3),
       rgba(7, 9, 13, 0) 72%
     ),
     linear-gradient(
       180deg,
-      rgba(7, 9, 13, 0.62) 0%,
-      rgba(7, 9, 13, 0.28) 42%,
-      rgba(7, 9, 13, 0.68) 100%
+      rgba(7, 9, 13, 0.5) 0%,
+      rgba(7, 9, 13, 0.14) 42%,
+      rgba(7, 9, 13, 0.56) 100%
     );
 }
 
