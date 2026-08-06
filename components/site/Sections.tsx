@@ -76,9 +76,9 @@ export function Machinery() {
           Here is the pricing model itself
         </h2>
         <p className="mt-2 max-w-[60ch] text-base">
-          This is the whole calculation, not a description of one. It is the configuration the
-          widget above is running. Yours is your own — you set every number in this table, and you
-          can change any of them from the dashboard.
+          This is the whole calculation, not a description of one. It is the configuration
+          your quoting tool runs on. Yours is your own — you set every number in this
+          table, and you can change any of them from the dashboard.
         </p>
 
         <div className="mt-6 overflow-x-auto">

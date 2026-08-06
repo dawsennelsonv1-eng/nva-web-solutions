@@ -124,6 +124,21 @@
   background: var(--n15-base);
   transform: translateZ(0);
 }
+
+/* THE GROUND, AND WHY IT IS A CLASS NOW (15A.3).
+   app/(public)/layout.tsx wraps every public route in an opaque block. A
+   z-index:-1 fixed element paints BEFORE the backgrounds of in-flow block
+   descendants, so that wrapper was painting straight over the field — it has
+   not been visible since 15A shipped. This keeps the identical Cure Gray
+   ground for every route, and goes transparent only for a subtree that
+   actually contains a field. Only the homepage mounts one. Where :has() is
+   unsupported the wrapper stays opaque, which is exactly today's rendering. */
+.public-ground {
+  background-color: rgb(var(--c-concrete));
+}
+.public-ground:has(.gf) {
+  background-color: transparent;
+}
 .gf-wrap {
   position: absolute;
   inset: -12%;
@@ -307,9 +322,18 @@
 
 /* Placeholder while the photograph is sourced: a lit resin floor built from
    gradients — copper pour low right, steel spill low left, a faint sealer
-   glow at the horizon, over a dark ground. The ::after sheen is a hairline
-   diagonal texture that reads as a machine-trowelled surface. It is a real
-   composition, not a grey box; the site is shippable on it. */
+   glow at the horizon. The ::after sheen is a hairline diagonal texture that
+   reads as a machine-trowelled surface.
+
+   THE BASE LAYER IS TRANSLUCENT (15A.3), and that is the point: the gradient
+   field drifts visibly THROUGH the hero, so the banner is genuinely alive
+   rather than a still image sitting in front of a field nobody can see. Every
+   stop stays dark — 0.72 to 0.84 alpha over a #0a0d12 field — so the scrim
+   and the type contrast are unaffected.
+
+   When the photograph lands it is opaque and covers this, which is correct:
+   the photo becomes the hero's depth and the field carries the rest of the
+   page. */
 .hero-ph {
   position: absolute;
   inset: 0;
@@ -329,7 +353,12 @@
       rgba(var(--n15-teal), 0.16),
       rgba(var(--n15-teal), 0) 60%
     ),
-    linear-gradient(180deg, #0c1016 0%, #12161d 52%, #0a0d12 100%);
+    linear-gradient(
+      180deg,
+      rgba(12, 16, 22, 0.84) 0%,
+      rgba(18, 22, 29, 0.72) 52%,
+      rgba(10, 13, 18, 0.84) 100%
+    );
 }
 .hero-ph::after {
   content: '';
