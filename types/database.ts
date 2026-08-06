@@ -202,6 +202,31 @@ export type LeadRow = {
   status: DbLeadStatus;
   notes: string | null;
   created_at: string;
+
+  /* ------------------------------------------------------------------------
+     ADDED AFTER 0005. This file's header says it matches migrations 0001-0005
+     and that when the SQL and this file disagree, the SQL wins and this file
+     is the defect. These three columns are that defect being paid off:
+
+       assigned_to   0014_companies.sql   which member owns this lead
+       trade         0015_lead_trade.sql  what work a contractor lead wants
+       render_path   0016_lead_render.sql the finish render he was shown
+
+     They are added here rather than worked around at the call site because
+     the workaround has now been needed three separate times, and each one
+     spends a build to discover. A missing column does not fail loudly — it
+     resolves the property to `never`, which reads as an unrelated type error
+     several lines from the real cause.
+
+     THIS IS STILL A PATCH, NOT A FIX. The file remains hand-written and the
+     next migration will desynchronise it again. The actual fix is one command:
+       npx supabase gen types typescript --project-id <ref> > types/database.ts
+     which also deletes lib/queue/db.ts, lib/companies/db.ts's cast and
+     widenedAdmin() in lib/site/metrics.ts.
+     --------------------------------------------------------------------- */
+  assigned_to: string | null;
+  trade: string | null;
+  render_path: string | null;
 };
 export type LeadInsert = Partial<LeadRow> & {
   source: DbLeadSource;
@@ -584,3 +609,4 @@ export type Database = {
     CompositeTypes: Record<string, never>;
   };
 };
+

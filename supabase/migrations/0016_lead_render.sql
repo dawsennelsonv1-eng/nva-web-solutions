@@ -1,0 +1,45 @@
+-- ============================================================================
+-- 0016_lead_render.sql — THE RENDER, ATTACHED TO THE LEAD (Phase 14)
+--
+-- WHAT THIS CLOSES. The visualiser draws the homeowner's floor with his chosen
+-- finish on it, stores that image in the floor-photos bucket, and then — until
+-- now — lost the path. The contractor received a name, a phone number and a
+-- price range for a job the homeowner had already pictured, and no way to see
+-- what he pictured.
+--
+-- THE RECORD IS THE POINT, not the convenience. A render is a picture of an
+-- intention, and the argument it can cause is specific: the homeowner says the
+-- floor does not match what he was shown. Without this column the only
+-- evidence of what was shown is memory. With it, the contractor can open the
+-- exact image the homeowner was looking at when he said yes.
+--
+-- SEPARATE FROM quotes.photo_path, DELIBERATELY. That column holds the
+-- ORIGINAL photograph — what the slab actually looked like. This holds the
+-- EDITED one. Collapsing them would destroy the comparison that makes either
+-- useful, and would leave nobody able to tell which of the two a given path
+-- points at.
+--
+-- ON THE LEAD RATHER THAN ON THE QUOTE, because a lead can exist without a
+-- quote. DATA_MODEL.md is explicit that a degraded capture writes a lead with
+-- a null quote_id — no price was calculated — and a homeowner can still have
+-- asked to see his floor before the AI went down. Hanging the render off the
+-- quote would lose it in exactly the sessions where the contractor most needs
+-- something to talk about.
+--
+-- NULLABLE, and most rows will stay null: the preview is opt-in, it needs an
+-- uploaded photo, and it can fail without touching the quote.
+-- ============================================================================
+
+alter table public.leads
+  add column render_path text;
+
+-- ----------------------------------------------------------------------------
+-- RLS: nothing to add. A column inherits its row's policies — 0003 sealed the
+-- table, 0014 added the member policies, and leads_member_read continues to
+-- decide who may see the row this column sits on.
+--
+-- anon retains INSERT on leads (0003) and therefore writes this column, which
+-- is correct: the capture form is anonymous by definition. The path is written
+-- by the server action from a value the render produced, never echoed back
+-- from the browser as a free-form string — see app/actions/lead.ts.
+-- ----------------------------------------------------------------------------

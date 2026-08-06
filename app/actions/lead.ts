@@ -44,6 +44,19 @@ const captureSchema = z.object({
   degradedReason: z.enum(['cap_reached', 'subscription_suspended', 'ai_unavailable']).nullable(),
   quotePublicId: z.string().nullable(),
   timeInWidgetMs: z.number().nonnegative().optional(),
+  /**
+   * Storage path of the finish render the homeowner was shown, if he asked for
+   * one. Phase 14.
+   *
+   * BOUNDED AND OPTIONAL. It arrives from the browser, so it is attacker-
+   * controlled like every other field here — but unlike name or phone it is
+   * never displayed to the homeowner and never used to fetch anything the
+   * caller does not already have. The worst a forged value can do is put a
+   * wrong path on one lead, which the contractor sees as a broken image rather
+   * than as anything dangerous. The length cap stops it being used as a text
+   * sink; the bucket's own RLS decides who may actually read a path.
+   */
+  renderPath: z.string().trim().max(300).nullable().optional(),
 });
 
 export type SubmitDemoLeadInput = z.infer<typeof captureSchema>;
@@ -198,6 +211,7 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
         timeline: input.timeline,
         was_degraded: input.wasDegraded,
         degraded_reason: input.wasDegraded ? input.degradedReason : null,
+        render_path: input.renderPath ?? null,
         delivery_status: { bot_signal: { fast_submit: fastSubmit, time_in_widget_ms: input.timeInWidgetMs ?? null } },
       })
       .select('id, created_at')
@@ -263,3 +277,4 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
     },
   };
 }
+
