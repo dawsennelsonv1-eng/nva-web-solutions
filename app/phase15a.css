@@ -1,0 +1,449 @@
+/* ============================================================================
+   PHASE 15A — CINEMATIC LAYER
+   ----------------------------------------------------------------------------
+   This file is DELIBERATELY SEPARATE from globals.css. globals.css was pasted
+   into the phase truncated (it cuts off inside @keyframes datum-flash), and
+   rewriting a file whose tail I have not seen is exactly the class of mistake
+   the repo rules exist to prevent. Nothing here edits or overrides the old
+   token system — admin, the widget, and the untouched lower sections keep
+   rendering exactly as they did. The 15A surfaces (gradient field, hero) are
+   styled entirely by the classes below, none of which depend on
+   tailwind.config.ts, so this phase compiles without that file being pasted.
+
+   The old system is retired from the surfaces this phase owns, not deleted:
+   Archivo/Plex faces and their tokens still serve the legacy sections and
+   admin until 15B replaces them.
+
+   FONTS (Part 1) — self-hosted, subsetted with fonttools pyftsubset from the
+   upstream Google Fonts sources, MEASURED not estimated:
+
+     instrument-serif-400.woff2   22,808   display — hero + section headings
+     geist-400.woff2              17,404   body
+     geist-500.woff2              17,428   UI: eyebrow, CTA, labels
+     geist-600.woff2              17,436   FIGURES — prices, quoted numbers
+     TOTAL                        75,076 = 73.3 KB   (budget 140 KB)
+
+   WHY THESE TWO:
+   - Instrument Serif is the editorial display serif the reference aesthetic
+     (photography/architecture studio) actually uses: high contrast, elegant
+     at 60px+ on a phone, and it costs one 22 KB file because one weight is
+     the whole voice.
+   - Geist carries body, UI and numerals. Its lining figures are heavy and
+     confident, and — VERIFIED in the shipped subset, not assumed — it keeps
+     the `tnum` OpenType feature, so digits update with zero horizontal shift.
+     Satoshi/Cabinet/Clash (Fontshare) were considered but are not
+     redistributable through a source I can pull and subset reproducibly;
+     Bricolage was rejected as too characterful next to a display serif.
+
+   Subset range: ASCII + NBSP + ° © × – — ' ' " " • … → −. If copy later needs
+   accented Latin (é, à for FR surfaces) these files must be re-subset first.
+
+   FIGURES: use the .figures utility (bottom of file) on any price or quoted
+   number from 15B on. It is Geist 600 with tabular lining figures forced.
+   ========================================================================= */
+
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/fonts/instrument-serif-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/geist-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/geist-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/geist-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ----------------------------------------------------------------------------
+   15A TOKENS — namespaced --n15-* so nothing collides with the legacy schema.
+   Palette is drawn from the product's own material: a metallic epoxy pour.
+   Deep blue-black resin ground, a copper pour, steel blue and sealer teal as
+   the moving colour. Copper is the single action colour.
+--------------------------------------------------------------------------- */
+:root {
+  --n15-serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --n15-sans: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --n15-base: #0a0d12;      /* resin ground — the field's floor              */
+  --n15-ink: 244 242 237;   /* warm off-white text on dark, as R G B        */
+  --n15-copper: #c9702f;    /* the pour — action colour, caret, CTA          */
+  --n15-copper-deep: #a4551c;
+  --n15-steel: 38 72 112;   /* steel blue drift                              */
+  --n15-teal: 22 84 70;     /* sealer teal drift                             */
+}
+
+/* ----------------------------------------------------------------------------
+   PART 2 — THE GRADIENT FIELD
+
+   TECHNIQUE: pure CSS. Three oversized radial-gradient discs whose softness
+   comes from transparent colour stops, NOT filter:blur — a blurred layer
+   re-rasterises whenever its scale animates, which is a per-frame paint on a
+   mid-range GPU; a soft gradient rasterises once and composites forever.
+   Every animated property in this file is transform (or opacity). Nothing in
+   the ambient loop or the input response triggers layout or paint, which is
+   the entire basis of the 60fps claim.
+
+   LAYERING: the field is position:fixed at z-index:-1. It paints ABOVE the
+   page canvas background (the legacy body bg-concrete propagates to the
+   canvas) and BELOW all content, so it runs behind the whole document without
+   touching globals.css. The legacy lower sections are parked on their own
+   opaque .bg-concrete slab in page.tsx until 15B restyles them.
+
+   INPUT: GradientField.tsx writes two unitless CSS variables, --n15-x and
+   --n15-y (each −1…1, lerp-smoothed in rAF), onto <html>. The field wrapper
+   and the hero media both consume them in calc() transforms — one writer,
+   many readers, all compositor-only.
+
+   PAUSE: CSS keyframes get animation-play-state:paused when the tab is
+   hidden (html.tab-hidden, toggled on visibilitychange), and the rAF loop
+   stops by itself. Reduced motion: keyframes and caret off, JS never starts;
+   the static composition below is the designed resting state, not a fallback.
+--------------------------------------------------------------------------- */
+.gf {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: var(--n15-base);
+  transform: translateZ(0);
+}
+.gf-wrap {
+  position: absolute;
+  inset: -12%;
+  transform: translate3d(
+    calc(var(--n15-x, 0) * 2.2%),
+    calc(var(--n15-y, 0) * 1.6%),
+    0
+  );
+  will-change: transform;
+}
+.gf-blob {
+  position: absolute;
+  border-radius: 50%;
+}
+.gf-i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  will-change: transform;
+}
+.gf-a {
+  width: 88vmax;
+  height: 88vmax;
+  left: -22vmax;
+  top: 38%;
+}
+.gf-a .gf-i {
+  background: radial-gradient(
+    closest-side,
+    rgba(201, 112, 47, 0.3),
+    rgba(201, 112, 47, 0) 70%
+  );
+  animation: n15-drift-a 38s ease-in-out infinite alternate;
+}
+.gf-b {
+  width: 74vmax;
+  height: 74vmax;
+  right: -26vmax;
+  top: -18vmax;
+}
+.gf-b .gf-i {
+  background: radial-gradient(
+    closest-side,
+    rgba(var(--n15-steel), 0.32),
+    rgba(var(--n15-steel), 0) 70%
+  );
+  animation: n15-drift-b 46s ease-in-out infinite alternate;
+}
+.gf-c {
+  width: 66vmax;
+  height: 66vmax;
+  left: 28%;
+  bottom: -30vmax;
+}
+.gf-c .gf-i {
+  background: radial-gradient(
+    closest-side,
+    rgba(var(--n15-teal), 0.26),
+    rgba(var(--n15-teal), 0) 70%
+  );
+  animation: n15-drift-c 31s ease-in-out infinite alternate;
+}
+
+@keyframes n15-drift-a {
+  from {
+    transform: translate3d(-3%, 2%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(5%, -4%, 0) scale(1.12);
+  }
+}
+@keyframes n15-drift-b {
+  from {
+    transform: translate3d(2%, -2%, 0) scale(1.08);
+  }
+  to {
+    transform: translate3d(-5%, 4%, 0) scale(0.96);
+  }
+}
+@keyframes n15-drift-c {
+  from {
+    transform: translate3d(-4%, 0%, 0) scale(0.98);
+  }
+  to {
+    transform: translate3d(4%, -5%, 0) scale(1.1);
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   PART 3 — THE HERO
+--------------------------------------------------------------------------- */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100svh; /* mobile URL bar: full height without a scroll        */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 4rem 1.25rem 4.5rem;
+  color: rgb(var(--n15-ink));
+}
+
+/* Media stack: parallax wrapper (input vars) > zoom layer (keyframe scale)
+   > photograph or placeholder. Two nested layers because a CSS variable
+   transform and a keyframe transform on the SAME element would fight —
+   the animation wins and the parallax dies. The wrapper bleeds -6% so the
+   parallax never exposes an edge. */
+.hero-media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.hero-media-par {
+  position: absolute;
+  inset: -6%;
+  transform: translate3d(
+    calc(var(--n15-x, 0) * -14px),
+    calc(var(--n15-y, 0) * -9px),
+    0
+  );
+  will-change: transform;
+}
+.hero-media-zoom {
+  position: absolute;
+  inset: 0;
+  animation: n15-hero-zoom 26s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes n15-hero-zoom {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.09);
+  }
+}
+.hero-img {
+  object-fit: cover;
+}
+
+/* Placeholder while the photograph is sourced: a lit resin floor built from
+   gradients — copper pour low right, steel spill low left, a faint sealer
+   glow at the horizon, over a dark ground. The ::after sheen is a hairline
+   diagonal texture that reads as a machine-trowelled surface. It is a real
+   composition, not a grey box; the site is shippable on it. */
+.hero-ph {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      110% 85% at 72% 108%,
+      rgba(201, 112, 47, 0.34),
+      rgba(201, 112, 47, 0) 62%
+    ),
+    radial-gradient(
+      95% 75% at 14% 102%,
+      rgba(var(--n15-steel), 0.3),
+      rgba(var(--n15-steel), 0) 58%
+    ),
+    radial-gradient(
+      70% 55% at 50% 0%,
+      rgba(var(--n15-teal), 0.16),
+      rgba(var(--n15-teal), 0) 60%
+    ),
+    linear-gradient(180deg, #0c1016 0%, #12161d 52%, #0a0d12 100%);
+}
+.hero-ph::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    112deg,
+    rgba(255, 255, 255, 0.028) 0 1px,
+    transparent 1px 7px
+  );
+}
+
+/* Scrim: vertical legibility gradient plus a centred pool of extra darkness
+   directly behind the type. This is what keeps the headline readable in
+   daylight regardless of how bright the supplied photograph turns out. */
+.hero-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      62% 46% at 50% 52%,
+      rgba(7, 9, 13, 0.45),
+      rgba(7, 9, 13, 0) 72%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(7, 9, 13, 0.62) 0%,
+      rgba(7, 9, 13, 0.28) 42%,
+      rgba(7, 9, 13, 0.68) 100%
+    );
+}
+
+.hero-inner {
+  position: relative;
+  max-width: 62rem;
+  text-align: center;
+}
+
+.hero-eyebrow {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.75rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.62);
+}
+
+.hero-h {
+  margin-top: 1.1rem;
+  font-family: var(--n15-serif);
+  font-weight: 400;
+  font-size: clamp(2.5rem, 10.5vw, 5.75rem);
+  line-height: 1.04;
+  letter-spacing: -0.01em;
+}
+
+/* THE RESERVED LINE. The cycling message must never move the CTA: three
+   display lines are reserved at phone widths (the longest message wraps to
+   three at 360px), two from 700px up. The hero is a centred flex column, so
+   the reserve is invisible — it just holds the geometry still. */
+.hero-line {
+  display: block;
+  min-height: calc(3 * 1.04em);
+}
+@media (min-width: 700px) {
+  .hero-line {
+    min-height: calc(2 * 1.04em);
+  }
+}
+
+.hero-caret {
+  display: inline-block;
+  width: 3px;
+  height: 0.78em;
+  margin-left: 0.1em;
+  vertical-align: baseline;
+  transform: translateY(0.08em);
+  background: var(--n15-copper);
+  animation: n15-caret 1.1s steps(2, start) infinite;
+}
+@keyframes n15-caret {
+  to {
+    visibility: hidden;
+  }
+}
+
+.hero-sub {
+  margin: 1.4rem auto 0;
+  max-width: 36rem;
+  font-family: var(--n15-sans);
+  font-weight: 400;
+  font-size: clamp(1rem, 2.6vw, 1.125rem);
+  line-height: 1.55;
+  color: rgba(var(--n15-ink), 0.78);
+}
+
+.hero-cta {
+  display: inline-block;
+  margin-top: 2.1rem;
+  padding: 0.9rem 2rem;
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  color: #150e07;
+  background: linear-gradient(180deg, #d9812f, var(--n15-copper-deep));
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 10px 28px rgba(201, 112, 47, 0.28);
+  transition: transform 120ms ease;
+}
+.hero-cta:active {
+  transform: scale(0.97);
+}
+
+/* Utility for every price and quoted number from 15B on: Geist 600 with
+   tabular lining figures. Digits change, nothing shifts. */
+.figures {
+  font-family: var(--n15-sans);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Visually hidden — screen readers get the three messages as one static
+   sentence instead of a strobing live region. */
+.sr15a {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Tab hidden: every ambient keyframe pauses. Toggled by GradientField. */
+.tab-hidden .gf-i,
+.tab-hidden .hero-media-zoom {
+  animation-play-state: paused;
+}
+
+/* Reduced motion: the field and hero hold their designed static composition;
+   message one renders complete (it is in the server HTML) and the JS cycle
+   never starts. */
+@media (prefers-reduced-motion: reduce) {
+  .gf-i,
+  .hero-media-zoom {
+    animation: none;
+  }
+  .hero-caret {
+    display: none;
+  }
+}
