@@ -129,6 +129,20 @@ export interface LeadDraft {
   wasDegraded: boolean;
   degradedReason: DbDegradedReason | null;
   quotePublicId: string | null;
+  /**
+   * Storage path of the finish render the homeowner was shown, if he asked to
+   * see one. Phase 14.
+   *
+   * OPTIONAL, and that is the design decision rather than laziness. Every
+   * existing implementer of the submitLead port — DemoExperience,
+   * PrototypeExperience — compiles unchanged and simply never sets it. Making
+   * it required would have forced an edit to every adapter for a field most of
+   * them have no way to produce, and a required field nobody sets is a
+   * required field somebody fills with a lie.
+   *
+   * Set by the machine from its own state, never by the capture form.
+   */
+  renderPath?: string | null;
 }
 
 export interface QuoteMachinePorts {
@@ -191,6 +205,13 @@ export interface QuoteMachineState {
   analysisHandToUser: VisionField[];
   /** Phase 6: Storage path of the uploaded photo, if analysis produced one. */
   photoPath: string | null;
+  /**
+   * Phase 14: Storage path of the finish RENDER, which is a different image
+   * from photoPath. photoPath is the slab as it is; this is the slab with the
+   * chosen finish drawn on it. Kept apart because the pair is the comparison —
+   * one path holding either would leave nobody able to tell which.
+   */
+  renderPath: string | null;
   computation: QuoteComputation | null;
   quotePublicId: string | null;
 
@@ -220,6 +241,12 @@ export interface QuoteMachineActions {
   skipPhoto: () => void;
   selectFinish: (args: { finishId: string; finishTierKey: string }) => void;
   setSqft: (sqft: number) => void;
+  /**
+   * Record the finish render's storage path. Called by the widget when the
+   * visualiser returns, so the path is in machine state before capture rather
+   * than being passed down through the form.
+   */
+  setRenderPath: (path: string | null) => void;
   toggleModifier: (id: string) => void;
   setComputation: (c: QuoteComputation | null) => void;
   commitQuote: () => Promise<void>;
@@ -302,6 +329,7 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
     conditionModifierIds: r?.conditionModifierIds ?? [],
     analysisHandToUser: [],
     photoPath: null,
+    renderPath: null,
     computation: null,
     quotePublicId: r?.quotePublicId ?? null,
     degraded: r?.degraded ?? false,
@@ -473,6 +501,8 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
       }
     },
 
+    setRenderPath: (path) => set({ renderPath: path }),
+
     setSqft: (sqft) => {
       const s = get();
       if (s.steps.length > 0) {
@@ -543,6 +573,7 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
         wasDegraded: s.degraded,
         degradedReason: s.degraded ? s.degradedReason : null,
         quotePublicId: s.quotePublicId,
+        renderPath: s.renderPath,
       };
       set({ busy: true, error: null });
       try {
@@ -597,3 +628,4 @@ export function createQuoteMachine(args: CreateMachineArgs): StoreApi<QuoteMachi
 export function timeInWidgetMs(state: QuoteMachineState): number {
   return Date.now() - state.startedAt;
 }
+

@@ -113,10 +113,15 @@ export function DemoExperience({
     wasDegraded: boolean;
     degradedReason: DbDegradedReason | null;
     quotePublicId: string | null;
+    /** Phase 14: the finish render the homeowner was shown, if any. */
+    renderPath?: string | null;
   }) {
     const result = await submitDemoLead({
       surface,
       sessionId: sessionId as string,
+      // Passed through so the contractor receives the picture the homeowner
+      // was actually looking at when he gave his details.
+      renderPath: draft.renderPath ?? null,
       name: draft.name,
       phone: draft.phone,
       email: draft.email,
@@ -201,3 +206,4 @@ export function DemoExperience({
     </AnimatePresence>
   );
 }
+

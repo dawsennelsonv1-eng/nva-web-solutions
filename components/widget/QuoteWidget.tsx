@@ -202,7 +202,13 @@ function WidgetBody({
    * the contractor receives the picture the homeowner was actually shown.
    */
   const [photo, setPhoto] = useState<{ base64: string; mediaType: string } | null>(null);
-  const [renderPath, setRenderPath] = useState<string | null>(null);
+  // The render path goes into MACHINE state, not component state: the lead
+  // draft is assembled inside the machine at submit time, so a path held only
+  // here would never reach it.
+  const recordRenderPath = useCallback(
+    (path: string | null) => store.getState().setRenderPath(path),
+    [store]
+  );
 
   /**
    * LABELS FOR THE RENDER PROMPT, read off the catalogue rather than typed.
@@ -460,7 +466,7 @@ function WidgetBody({
                 surfaceLabel={selectedSurfaceLabel}
                 sessionId={sessionId ?? 'unknown'}
                 prototypeId={prototypeId}
-                onRendered={setRenderPath}
+                onRendered={recordRenderPath}
               />
             </>
           )}
@@ -584,7 +590,7 @@ function WidgetBody({
                 surfaceLabel={selectedSurfaceLabel}
                 sessionId={sessionId ?? 'unknown'}
                 prototypeId={prototypeId}
-                onRendered={setRenderPath}
+                onRendered={recordRenderPath}
               />
             </>
           )}
