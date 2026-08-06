@@ -215,16 +215,56 @@
 /* ----------------------------------------------------------------------------
    PART 3 — THE HERO
 --------------------------------------------------------------------------- */
+/* HEIGHT IS SET MOBILE-FIRST AND CHANGED IN 15A.2.
+   The original rule was a flat 100svh at every width. On a phone that is a
+   very tall, very narrow column — the banner read as a portrait poster rather
+   than a banner, and the eye had to travel too far from headline to CTA.
+
+   Phone now gets 64svh, floored at 420px so the type never crowds the CTA on
+   a short screen. That is roughly a 4:3 landscape block at 360px wide, which
+   is the proportion that reads as a banner. It also means the top of the next
+   section is just visible at the fold, which is a scroll cue rather than an
+   accident.
+
+   DESKTOP IS UNCHANGED: the 100svh rule is intact from 900px up, where the
+   viewport is already landscape and full height is correct. The 700–899px
+   band gets 78svh so tablets do not jump between the two.
+
+   This is deliberately a min-height ladder and nothing else — no type sizes,
+   no padding rhythm, no media geometry changes with it. The photograph you
+   supply will crop tighter vertically on phones, which is why the art
+   direction asks for a subject that survives a centre crop. */
 .hero {
   position: relative;
-  min-height: 100vh;
-  min-height: 100svh; /* mobile URL bar: full height without a scroll        */
+  min-height: max(420px, 64svh);
+  min-height: max(420px, 64dvh); /* dvh: no jump as the URL bar hides     */
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  padding: 4rem 1.25rem 4.5rem;
+  padding: 3rem 1.25rem 3.25rem;
   color: rgb(var(--n15-ink));
+}
+@supports not (height: 1svh) {
+  /* Older Android WebViews: vh only. Slightly taller than intended when the
+     URL bar is showing, which is the safe direction to be wrong in. */
+  .hero {
+    min-height: 64vh;
+  }
+}
+@media (min-width: 700px) {
+  .hero {
+    min-height: 78svh;
+    min-height: 78dvh;
+    padding: 4rem 1.5rem 4.5rem;
+  }
+}
+@media (min-width: 900px) {
+  .hero {
+    min-height: 100svh;
+    min-height: 100dvh;
+    padding: 4rem 2rem 4.5rem;
+  }
 }
 
 /* Media stack: parallax wrapper (input vars) > zoom layer (keyframe scale)
