@@ -1,4 +1,5 @@
 import 'server-only';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 
 /**
@@ -71,6 +72,43 @@ const SEED_PROTOTYPE_ID = '22222222-2222-4222-8222-222222222222';
 
 /** See the note above before raising this. */
 const SAMPLE_LIMIT = 2000;
+
+/**
+ * THE WIDENED CLIENT — and the bug that made it necessary.
+ *
+ * types/database.ts is HAND-WRITTEN and its own header states it matches
+ * migrations 0001–0005. Two things this module needs were added after that and
+ * the type file has never seen either:
+ *
+ *   ai_jobs.duration_ms   added by 0010_ai_suite.sql
+ *   build_log             added by 0012_queue.sql — the table itself, not
+ *                         just a column, so from('build_log') resolves to
+ *                         never against the generated schema
+ *
+ * Both columns are really in the database. The type file is the defect, which
+ * is what its own header says to conclude when the two disagree: "the SQL that
+ * actually ran wins."
+ *
+ * THE FIRST ATTEMPT AT THIS FAILED THE BUILD. Casting the RESULT rows
+ * (`row as { duration_ms: number | null }`) does not work, because postgrest-js
+ * rejects the column at the SELECT and hands back a SelectQueryError — so the
+ * cast is between two types that do not overlap and TS refuses it. The widening
+ * has to happen at the CLIENT, before the query is typed at all.
+ *
+ * This mirrors lib/queue/db.ts exactly, including its reasoning: one function,
+ * in one file, so the untyped surface is greppable rather than sprinkled
+ * through call sites, and every other query in this module keeps its generated
+ * types intact. liveInstalls, quotesToDate and medianLandingToQuote all still
+ * run on the TYPED client, because prototypes, quotes and analytics_events are
+ * all correctly declared.
+ *
+ * DELETE THIS the moment the types are regenerated:
+ *   npx supabase gen types typescript --project-id <ref> > types/database.ts
+ * Nothing changes but two call sites below.
+ */
+function widenedAdmin(): SupabaseClient {
+  return getSupabaseAdminClient() as unknown as SupabaseClient;
+}
 
 /**
  * VERIFY: set this to the date the first widget actually went live. It stamps
@@ -167,7 +205,8 @@ export async function quotesToDate(): Promise<Reading | null> {
  */
 export async function medianAiResponse(): Promise<Reading | null> {
   try {
-    const db = getSupabaseAdminClient();
+    // Widened: duration_ms postdates the hand-written schema. See widenedAdmin.
+    const db = widenedAdmin();
     const { data, error } = await db
       .from('ai_jobs')
       .select('duration_ms')
@@ -177,10 +216,13 @@ export async function medianAiResponse(): Promise<Reading | null> {
       .limit(SAMPLE_LIMIT);
     if (error || !data) return null;
 
+    // The client is widened, so rows arrive untyped. Every value is checked
+    // at runtime rather than asserted — a null or a string here must be
+    // skipped, not coerced into a fake millisecond count.
     const samples: number[] = [];
-    for (const row of data) {
-      const d = (row as { duration_ms: number | null }).duration_ms;
-      if (typeof d === 'number' && d > 0) samples.push(d);
+    for (const row of data as { duration_ms?: unknown }[]) {
+      const d = row.duration_ms;
+      if (typeof d === 'number' && Number.isFinite(d) && d > 0) samples.push(d);
     }
     const m = median(samples);
     if (m === null) return null;
@@ -227,8 +269,7 @@ export async function medianLandingToQuote(): Promise<Reading | null> {
 
     const opened = new Map<string, number>();
     const quoted = new Map<string, number>();
-    for (const raw of data) {
-      const row = raw as { event_name: string; session_id: string | null; occurred_at: string };
+    for (const row of data) {
       if (!row.session_id) continue;
       const t = Date.parse(row.occurred_at);
       if (Number.isNaN(t)) continue;
@@ -277,7 +318,8 @@ export async function medianLandingToQuote(): Promise<Reading | null> {
  */
 export async function buildLogThisMonth(): Promise<Reading | null> {
   try {
-    const db = getSupabaseAdminClient();
+    // Widened: build_log postdates the hand-written schema. See widenedAdmin.
+    const db = widenedAdmin();
     const now = new Date();
     const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const firstOfMonth = first.toISOString().slice(0, 10);
