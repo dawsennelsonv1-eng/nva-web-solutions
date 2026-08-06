@@ -25,13 +25,36 @@ import { useEffect, useState } from 'react';
  *
  * BACKGROUND TABS: browsers throttle timers in hidden tabs, so the cycle
  * slows to a crawl on its own; state is sequential, so it resumes cleanly.
- */
+ *
+ * ---------------------------------------------------------------------------
+ * BUILD FIX (this file only). The first push failed type-check at line 65:
+ *   Type error: 'current' is possibly 'undefined'.
+ *
+ * CAUSE: this repo's tsconfig has `noUncheckedIndexedAccess` enabled, which
+ * makes EVERY array index return `T | undefined` — including `MESSAGES[0]`,
+ * where the value obviously exists. It is a real setting doing its job; the
+ * three indexed reads that were here (lines 42, 64, 72) were all unsound
+ * under it, and tsc only reported the first.
+ *
+ * FIX: the messages are now named constants, and `messageAt()` is the single
+ * accessor — it returns a plain `string`, so nothing downstream is nullable.
+ * The `?? M1` is not defensive padding for a case that can happen; it is how
+ * the accessor proves to the compiler that it always returns a string.
+ *
+ * FOR FUTURE PHASES: assume `noUncheckedIndexedAccess`. Never index an array
+ * with a variable and use the result directly.
+ * ------------------------------------------------------------------------ */
 
-const MESSAGES = [
-  'Turn your website into a quoting machine.',
-  'Your customer gets a price in under a minute.',
-  'They see their floor before they ever call.',
-];
+const M1 = 'Turn your website into a quoting machine.';
+const M2 = 'Your customer gets a price in under a minute.';
+const M3 = 'They see their floor before they ever call.';
+
+const MESSAGES: readonly string[] = [M1, M2, M3];
+
+/** The only way this file reads MESSAGES. Always returns a string. */
+function messageAt(index: number): string {
+  return MESSAGES[index] ?? M1;
+}
 
 const TYPE_MS = 46; // per character, writing
 const ERASE_MS = 22; // per character, retracting
@@ -39,7 +62,7 @@ const HOLD_MS = 2400; // full message on screen
 const GAP_MS = 350; // empty beat between messages
 
 export function HeroCycle() {
-  const [text, setText] = useState(MESSAGES[0]);
+  const [text, setText] = useState<string>(M1);
   const [caret, setCaret] = useState(false);
 
   useEffect(() => {
@@ -61,7 +84,7 @@ export function HeroCycle() {
       // little longer than the normal beat before the first retraction.
       await wait(HOLD_MS + 900);
       while (alive) {
-        const current = MESSAGES[i];
+        const current = messageAt(i);
         for (let n = current.length - 1; alive && n >= 0; n--) {
           setText(current.slice(0, n));
           await wait(ERASE_MS);
@@ -69,7 +92,7 @@ export function HeroCycle() {
         if (!alive) break;
         await wait(GAP_MS);
         i = (i + 1) % MESSAGES.length;
-        const next = MESSAGES[i];
+        const next = messageAt(i);
         for (let n = 1; alive && n <= next.length; n++) {
           setText(next.slice(0, n));
           await wait(TYPE_MS);
@@ -87,8 +110,7 @@ export function HeroCycle() {
   return (
     <>
       <span className="sr15a">
-        Turn your website into a quoting machine. Your customer gets a price in
-        under a minute. They see their floor before they ever call.
+        {M1} {M2} {M3}
       </span>
       <span className="hero-line" aria-hidden="true">
         {text}
