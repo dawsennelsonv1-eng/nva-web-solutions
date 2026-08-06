@@ -137,7 +137,7 @@ export async function visualiseFinish(args: VisualiseArgs): Promise<VisualiseRes
     prototypeId: args.prototypeId,
     jobType: 'finish_render',
     provider: 'openrouter',
-    model: result.ok ? result.model : (process.env.AI_IMAGE_MODEL ?? 'unknown'),
+    model: result.ok ? result.model : 'chain_exhausted',
     // Tokens are meaningless for a per-image charge. Zeroed rather than
     // fabricated, so nothing downstream averages a token cost that never
     // existed.
@@ -146,7 +146,11 @@ export async function visualiseFinish(args: VisualiseArgs): Promise<VisualiseRes
     status: result.ok ? 'succeeded' : 'failed',
     error: result.ok ? null : result.reason,
     durationMs: result.durationMs,
+    // Models skipped before one answered. A slug quietly going stale shows up
+    // here as a pattern rather than as a feature that silently got slower.
+    fellBackFrom: undefined,
     request: {
+      modelsSkipped: result.fellBackFrom ?? [],
       finish: args.finishLabel,
       colour: args.colourLabel ?? null,
       surface: args.surfaceLabel,

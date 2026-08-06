@@ -62,8 +62,65 @@ import 'server-only';
 
 export const IMAGE_ENDPOINT = 'https://openrouter.ai/api/v1/images';
 
-/** VERIFY: unbenchmarked default. See the note above before trusting it. */
-export const DEFAULT_IMAGE_MODEL = 'google/gemini-2.5-flash-image';
+/**
+ * THE CHAIN. You are not meant to manage this.
+ *
+ * OpenRouter's Auto Router (openrouter/auto) picks a model for you, but it is
+ * a CHAT-COMPLETIONS feature — it ranks text models by task type. The Image
+ * API takes an explicit image model and has no auto equivalent, so "just let
+ * OpenRouter decide" is not available at this endpoint.
+ *
+ * This is the equivalent, built the same way lib/ai/config.ts already builds
+ * chat routes: an ordered list, tried in order, falling through on failure.
+ * The practical effect is what matters — nobody has to know which model ran,
+ * a slug going stale degrades to the next candidate instead of breaking the
+ * feature, and adding a better model later is one entry.
+ *
+ * ORDERED BY LATENCY FIRST, NOT QUALITY. This runs mid-funnel with a person
+ * waiting, and OpenRouter's own documentation reports 94 seconds for one
+ * gpt-image-2 render. The best picture nobody waits for is worth nothing, so
+ * the fast editing models lead and the slower, higher-fidelity one is last —
+ * reached only when the others are down.
+ *
+ * VERIFY: these slugs were correct when written and the image-model field
+ * moves faster than anything else in this stack. Check what is live with:
+ *   curl https://openrouter.ai/api/v1/images/models
+ * Override without a redeploy by setting AI_IMAGE_MODELS to a comma-separated
+ * list in Vercel. AI_IMAGE_MODEL (singular) still works and pins one model.
+ */
+export const DEFAULT_IMAGE_MODELS: readonly string[] = [
+  'google/gemini-2.5-flash-image',
+  'black-forest-labs/flux.2-flex',
+  'openai/gpt-image-1',
+];
+
+/** @deprecated Kept so an existing AI_IMAGE_MODEL setting keeps working. */
+export const DEFAULT_IMAGE_MODEL = DEFAULT_IMAGE_MODELS[0] as string;
+
+/** Resolve the chain: explicit pin, then env list, then the default. */
+export function imageModelChain(pinned?: string): string[] {
+  if (pinned) return [pinned];
+  const single = process.env.AI_IMAGE_MODEL?.trim();
+  if (single) return [single];
+  const list = process.env.AI_IMAGE_MODELS?.split(',')
+    .map((m) => m.trim())
+    .filter(Boolean);
+  if (list && list.length > 0) return list;
+  return [...DEFAULT_IMAGE_MODELS];
+}
+
+/**
+ * Which failures are worth trying the next model for.
+ *
+ * A stale or unrecognised slug (400) and a provider outage (5xx) are another
+ * model's problem to solve, so those fall through. An empty wallet, a rate
+ * limit and a timeout are NOT: a second model spends the same absent credit,
+ * hits the same account limit, or adds another 45 seconds to a wait that has
+ * already failed. Retrying those would turn one bad experience into three.
+ */
+function shouldFallThrough(reason: ImageFailureReason): boolean {
+  return reason === 'invalid_request' || reason === 'provider_error' || reason === 'empty_result';
+}
 
 /**
  * A render is worth waiting for, but not indefinitely. 45s is past the point
@@ -101,7 +158,7 @@ export interface RenderImageArgs {
    * a room, and an invented room is a lie with a price attached.
    */
   referenceDataUrl: string;
-  /** Overrides AI_IMAGE_MODEL. Used by an admin test surface, not the funnel. */
+  /** Pins one model and disables the chain. For an admin test surface only. */
   model?: string;
 }
 
@@ -119,7 +176,7 @@ interface OpenRouterImageResponse {
  * product, so an image failure must degrade to "no picture" and let the funnel
  * continue. A throw here would take the quote down with it.
  */
-export async function renderFinishImage(args: RenderImageArgs): Promise<ImageResult> {
+async function attemptRender(args: RenderImageArgs, model: string): Promise<ImageResult> {
   const started = Date.now();
   const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -129,8 +186,6 @@ export async function renderFinishImage(args: RenderImageArgs): Promise<ImageRes
   if (!apiKey) {
     return { ok: false, reason: 'not_configured', durationMs: 0 };
   }
-
-  const model = args.model ?? process.env.AI_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -219,4 +274,39 @@ export async function renderFinishImage(args: RenderImageArgs): Promise<ImageRes
   } finally {
     clearTimeout(timer);
   }
+}
+
+
+/**
+ * Render one image, trying each model in the chain until one answers.
+ *
+ * NEVER THROWS. The last failure's reason is returned, because that is the one
+ * that describes the current state of the world — if every model was tried and
+ * the last said the wallet is empty, "no credit" is the useful answer, not the
+ * first model's 400.
+ *
+ * `fellBackFrom` lets the ledger record that a model was skipped, so a slug
+ * quietly going stale shows up as a pattern in ai_jobs rather than as a
+ * feature that silently got slower.
+ */
+export async function renderFinishImage(
+  args: RenderImageArgs
+): Promise<ImageResult & { fellBackFrom?: string[] }> {
+  const chain = imageModelChain(args.model);
+  const skipped: string[] = [];
+  let last: ImageResult = { ok: false, reason: 'not_configured', durationMs: 0 };
+
+  for (const model of chain) {
+    const result = await attemptRender(args, model);
+    if (result.ok) return skipped.length > 0 ? { ...result, fellBackFrom: skipped } : result;
+
+    last = result;
+    // Not configured means there is no API key at all — every candidate will
+    // fail identically, so stop rather than looping over the same absence.
+    if (result.reason === 'not_configured') break;
+    if (!shouldFallThrough(result.reason)) break;
+    skipped.push(model);
+  }
+
+  return skipped.length > 0 ? { ...last, fellBackFrom: skipped } : last;
 }
