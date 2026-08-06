@@ -13,6 +13,7 @@ import { StepSurface, type SurfaceOption } from './StepSurface';
 import { StepFinish, type FinishOptionView } from './StepFinish';
 import { StepArea } from './StepArea';
 import { StepCapture, type CaptureFields } from './StepCapture';
+import { FinishPreview } from './FinishPreview';
 import { DegradedFlow } from './DegradedFlow';
 import { StyleToggle } from './StyleToggle';
 
@@ -162,6 +163,9 @@ function WidgetBody({
   showStyleToggle = false,
   quoteBaseUrl,
   entryPoint,
+  // Destructured for the visualiser: the render is attributed to the
+  // contractor whose widget produced it, and null correctly means /demo.
+  prototypeId = null,
 }: QuoteWidgetProps) {
   const store = useQuoteStore();
   const step = useQuoteMachine((s) => s.step);
@@ -179,6 +183,52 @@ function WidgetBody({
 
   const [colourId, setColourId] = useState<string | null>(null);
   const [photoNote, setPhotoNote] = useState<string | null>(null);
+
+  /**
+   * THE COMPRESSED PHOTO, RETAINED — added for the finish visualiser.
+   *
+   * Until now the photo was a pass-through: StepSurface produced it,
+   * handlePhoto sent it for analysis, and nothing kept it. The visualiser
+   * needs the same bytes a step later, and re-asking the homeowner to upload
+   * his garage twice is not a product.
+   *
+   * It is kept in component state rather than in the machine on purpose. The
+   * machine is serialised into demo_sessions and reasoned about in tests; a
+   * few hundred kilobytes of base64 living in it would bloat every snapshot
+   * for one screen's benefit. This dies with the component, which is exactly
+   * the lifetime the preview needs.
+   *
+   * `renderPath` is the stored copy's Storage path, threaded to the lead so
+   * the contractor receives the picture the homeowner was actually shown.
+   */
+  const [photo, setPhoto] = useState<{ base64: string; mediaType: string } | null>(null);
+  const [renderPath, setRenderPath] = useState<string | null>(null);
+
+  /**
+   * LABELS FOR THE RENDER PROMPT, read off the catalogue rather than typed.
+   *
+   * The visualiser is told "metallic epoxy in Copper Burl on a garage" in
+   * words, because that is what an image model understands — it has no notion
+   * of a tier key. Those words must be the SAME words the contractor's own
+   * catalogue uses, or the picture and the quote describe different products.
+   * So every one is looked up in config, and the fallbacks are generic rather
+   * than invented: an unknown surface is "floor", never a guess at which kind.
+   */
+  const selectedFinish = useMemo(
+    () => config.finishes.find((f) => f.id === finishId) ?? null,
+    [config.finishes, finishId]
+  );
+  const selectedColour = useMemo(
+    () => selectedFinish?.colours.find((c) => c.id === colourId) ?? null,
+    [selectedFinish, colourId]
+  );
+  const selectedFinishLabel = selectedFinish?.label ?? 'coating';
+  const selectedColourLabel = selectedColour?.label;
+  const selectedColourHex = selectedColour?.hex;
+  const selectedSurfaceLabel = useMemo(
+    () => config.surfaceTypes.find((opt) => opt.id === surfaceTypeId)?.label ?? 'floor',
+    [config.surfaceTypes, surfaceTypeId]
+  );
 
   const dynamic = (config.steps?.length ?? 0) > 0;
 
@@ -371,6 +421,7 @@ function WidgetBody({
               }}
               onPhotoReady={(a) => {
                 setPhotoNote(null);
+                setPhoto({ base64: a.base64, mediaType: a.mediaType });
                 track('photo_selected', { input_method: 'file', original_bytes: a.originalBytes, original_type: 'image/*' }, evtCtx);
                 void handlePhoto(a);
               }}
@@ -384,17 +435,34 @@ function WidgetBody({
           )}
 
           {current?.control.kind === 'finish_select' && (
-            <StepFinish
-              options={config.finishes}
-              selectedFinishId={finishId}
-              selectedColourId={colourId}
-              onSelect={({ finishId: fid, finishTierKey: tier, colourId: cid }) => {
-                setColourId(cid);
-                store.getState().selectFinish({ finishId: fid, finishTierKey: tier });
-                store.getState().setAnswer('colourId', cid);
-                track('finish_selected', { finish_id: fid, finish_tier: tier }, evtCtx);
-              }}
-            />
+            <>
+              <StepFinish
+                options={config.finishes}
+                selectedFinishId={finishId}
+                selectedColourId={colourId}
+                verticalId={config.vertical}
+                onSelect={({ finishId: fid, finishTierKey: tier, colourId: cid }) => {
+                  setColourId(cid);
+                  store.getState().selectFinish({ finishId: fid, finishTierKey: tier });
+                  store.getState().setAnswer('colourId', cid);
+                  track('finish_selected', { finish_id: fid, finish_tier: tier }, evtCtx);
+                }}
+              />
+              {/* Sits UNDER the selector, not in place of it. He picks first
+                  and asks to see it second; a preview that replaced the
+                  chooser would make changing his mind a navigation. */}
+              <FinishPreview
+                photoBase64={photo?.base64 ?? null}
+                photoMediaType={photo?.mediaType ?? null}
+                finishLabel={selectedFinishLabel}
+                colourLabel={selectedColourLabel}
+                colourHex={selectedColourHex}
+                surfaceLabel={selectedSurfaceLabel}
+                sessionId={sessionId ?? 'unknown'}
+                prototypeId={prototypeId}
+                onRendered={setRenderPath}
+              />
+            </>
           )}
 
           {current?.control.kind === 'quantity' && (
@@ -481,6 +549,7 @@ function WidgetBody({
               }}
               onPhotoReady={(a) => {
                 setPhotoNote(null);
+                setPhoto({ base64: a.base64, mediaType: a.mediaType });
                 track('photo_selected', { input_method: 'file', original_bytes: a.originalBytes, original_type: 'image/*' }, evtCtx);
                 void handlePhoto(a);
               }}
@@ -494,16 +563,30 @@ function WidgetBody({
           )}
 
           {step === 'finish' && (
-            <StepFinish
-              options={config.finishes}
-              selectedFinishId={finishId}
-              selectedColourId={colourId}
-              onSelect={({ finishId: fid, finishTierKey: tier, colourId: cid }) => {
-                setColourId(cid);
-                store.getState().selectFinish({ finishId: fid, finishTierKey: tier });
-                track('finish_selected', { finish_id: fid, finish_tier: tier }, evtCtx);
-              }}
-            />
+            <>
+              <StepFinish
+                options={config.finishes}
+                selectedFinishId={finishId}
+                selectedColourId={colourId}
+                verticalId={config.vertical}
+                onSelect={({ finishId: fid, finishTierKey: tier, colourId: cid }) => {
+                  setColourId(cid);
+                  store.getState().selectFinish({ finishId: fid, finishTierKey: tier });
+                  track('finish_selected', { finish_id: fid, finish_tier: tier }, evtCtx);
+                }}
+              />
+              <FinishPreview
+                photoBase64={photo?.base64 ?? null}
+                photoMediaType={photo?.mediaType ?? null}
+                finishLabel={selectedFinishLabel}
+                colourLabel={selectedColourLabel}
+                colourHex={selectedColourHex}
+                surfaceLabel={selectedSurfaceLabel}
+                sessionId={sessionId ?? 'unknown'}
+                prototypeId={prototypeId}
+                onRendered={setRenderPath}
+              />
+            </>
           )}
 
           {step === 'sqft' && (
@@ -685,3 +768,4 @@ function ChoiceControl({
     </div>
   );
 }
+
