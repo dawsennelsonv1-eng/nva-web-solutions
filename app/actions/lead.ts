@@ -9,6 +9,8 @@ import { checkScopedRateLimit, clientIpFromHeaders } from '@/lib/quote/guards';
 import { trackServer } from '@/lib/analytics.server';
 import { notifyAdminOfDemoLead, sendDemoContractorConfirmation } from '@/lib/notify/email';
 import { generateMockLead, type MockLead } from '@/lib/demo/mockLead';
+import { getSignedPhotoUrl } from '@/lib/storage/photos';
+import { RENDER_DISCLOSURE } from '@/lib/ai/visualise';
 import { DEMO_RULES, DEMO_VERTICAL } from '@/lib/demo/config';
 import type { DbDegradedReason, Surface } from '@/types';
 
@@ -179,6 +181,14 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
   let quotePublicId: string | null = input.quotePublicId;
   let submittedAt: string;
   let isNewLead = true;
+  /**
+   * Hoisted out of the new-lead branch so the notification below can read it.
+   * A DEDUPED resubmit sets it from the existing row, so the second email
+   * carries the same price the first did rather than silently dropping the
+   * range — the contractor should not be able to tell which submission he is
+   * looking at.
+   */
+  let quoteUuid: string | null = null;
 
   const existing = existingRows?.[0];
   if (existing) {
@@ -188,12 +198,12 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
     // Keep whichever quote reference the ORIGINAL submission carried; a
     // resubmit from a fresh widget session may not have reached the pricing
     // step again and would otherwise overwrite a real link with null.
+    quoteUuid = existing.quote_id ?? null;
     if (existing.quote_id && !quotePublicId) {
       const { data: qRow } = await db.from('quotes').select('public_id').eq('id', existing.quote_id).maybeSingle();
       quotePublicId = qRow?.public_id ?? null;
     }
   } else {
-    let quoteUuid: string | null = null;
     if (input.quotePublicId) {
       const { data: qRow } = await db.from('quotes').select('id').eq('public_id', input.quotePublicId).maybeSingle();
       quoteUuid = qRow?.id ?? null;
@@ -242,7 +252,57 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
   // 5 — notifications. Fired, never awaited before responding, and their
   // outcome is best-effort logged rather than gating anything downstream —
   // exactly the "non-blocking" posture the spec requires for both sends.
-  const emailFields = { name: input.name, phone, email, timeline: input.timeline, surface: input.surface, createdAt: submittedAt };
+  /**
+   * WHAT THE HOMEOWNER ACTUALLY SAW, assembled for the notification.
+   *
+   * Until now these emails carried a name, a number and a timeline — and the
+   * confirmation template told the reader that on a real site it "arrives with
+   * the calculated price range and photo attached." It did not. That was a
+   * promise unkept in the one email whose whole job is to demonstrate the
+   * product honestly, which is the worst possible place for one.
+   *
+   * SEVEN DAYS, NOT THE 300-SECOND DEFAULT. A signed URL that expires five
+   * minutes after sending is dead before most contractors open their inbox.
+   * Seven days is long enough to be useful and short enough that a forwarded
+   * email does not leak a customer's photo indefinitely.
+   *
+   * EVERY LOOKUP HERE IS ALLOWED TO FAIL. A missing price, a storage hiccup or
+   * an unsigned URL costs a line in an email; it must never cost the lead,
+   * which is already written by this point. Nothing below throws.
+   */
+  let priceRange: string | null = null;
+  if (quoteUuid) {
+    const { data: q } = await db
+      .from('quotes')
+      .select('low_cents, high_cents')
+      .eq('id', quoteUuid)
+      .maybeSingle();
+    if (q) {
+      priceRange =
+        '$' + Math.round(q.low_cents / 100).toLocaleString('en-US') +
+        ' - $' + Math.round(q.high_cents / 100).toLocaleString('en-US');
+    }
+  }
+
+  const SEVEN_DAYS = 604_800;
+  const renderUrl = input.renderPath
+    ? await getSignedPhotoUrl(input.renderPath, SEVEN_DAYS)
+    : null;
+
+  const emailFields = {
+    name: input.name,
+    phone,
+    email,
+    timeline: input.timeline,
+    surface: input.surface,
+    createdAt: submittedAt,
+    priceRange,
+    renderUrl,
+    // The disclosure is attached HERE, beside the URL, rather than left to the
+    // template. A render that reaches a screen without it is the one failure
+    // this whole feature was built to avoid.
+    renderDisclosure: renderUrl ? RENDER_DISCLOSURE : null,
+  };
   void notifyAdminOfDemoLead(emailFields)
     .then((r) => {
       if (r.status === 'failed' && process.env.NODE_ENV === 'development') {
