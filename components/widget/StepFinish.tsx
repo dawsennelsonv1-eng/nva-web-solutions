@@ -1,20 +1,52 @@
 'use client';
 
 import { useState } from 'react';
+import { FinishPhoto } from '@/components/site/FinishPhoto';
+import { finishPhotoFor } from '@/lib/site/finish-photos';
 
 /**
  * STEP 2 — the finish selector.
  *
- * SWATCHES ARE CSS, NOT IMAGERY, and that is a deliberate departure from
+ * COLOUR CHIPS ARE CSS, NOT IMAGERY, and that is a deliberate departure from
  * "lazy-load swatch imagery". Twenty-plus swatch photographs is twenty-plus
  * requests on a phone on 4G, and even lazy-loaded they compete for bandwidth
  * with the thing we actually need fast. The colours in the vertical module are
  * real product colours as hex values, so each chip is rendered from tokens the
  * config already carries: a speckle for flake, a directional sheen for
  * metallic, flat for solid. Zero requests, zero LCP contention, and it stays
- * correct when a contractor edits his catalogue. If photographic swatches are
- * ever wanted, they attach to this same chip as a background-image with
- * loading="lazy" and nothing else changes.
+ * correct when a contractor edits his catalogue.
+ *
+ * ============================================================================
+ * PHASE 14: ONE PHOTOGRAPH PER FINISH. NOT ONE PER COLOUR.
+ * ============================================================================
+ *
+ * The original note here said photographic swatches would attach to the chip
+ * itself. On reflection that is the wrong place for them, and the reason is
+ * the distinction the two things carry:
+ *
+ *     THE CHIP SHOWS THE COLOUR. THE PHOTOGRAPH SHOWS THE MATERIAL.
+ *
+ * A hex value is a truthful representation of a colour and a poor one of a
+ * surface — nothing in #9C5B33 tells a homeowner that metallic epoxy moves and
+ * pools while flake is a speckled aggregate. That difference is exactly what a
+ * person choosing a floor is trying to see, and it is a property of the FINISH
+ * SYSTEM, not of the colour. Copper Burl and Titanium are both metallic; one
+ * photograph shows what metallic looks like and serves them both.
+ *
+ * So the photograph is rendered ONCE per finish, inside the expanded panel,
+ * above the colour grid. Three finishes means at most three images, and only
+ * one is ever open at a time. The original bandwidth objection is answered by
+ * arithmetic rather than abandoned: three lazy images, not twenty-two.
+ *
+ * The images are FINISH REFERENCE, never portfolio. FinishPhoto carries the
+ * caption and the missing-file fallback; see lib/site/finish-photos.ts for the
+ * honesty constraint on what they may claim. A contractor's own installs are
+ * not shown here and there is no field on the type to put one in.
+ *
+ * `verticalId` IS OPTIONAL, so every existing call site compiles unchanged and
+ * simply renders no photograph. A vertical with no photography set — or one
+ * whose files have not been uploaded yet — degrades to exactly the pre-14
+ * behaviour rather than to a broken panel.
  *
  * 20+ OPTIONS AT 360px WITHOUT A SCROLL SWAMP: finishes are the outer choice
  * and colours the inner one, so only the selected finish reveals its colours.
@@ -39,6 +71,11 @@ export interface StepFinishProps {
   selectedFinishId: string | null;
   selectedColourId: string | null;
   onSelect: (args: { finishId: string; finishTierKey: string; colourId: string | null }) => void;
+  /**
+   * Which vertical's finish photography to show. Omit for none — see the
+   * header note on why this is optional rather than required.
+   */
+  verticalId?: string;
 }
 
 function chipStyle(finishId: string, hex: string): React.CSSProperties {
@@ -66,6 +103,7 @@ export function StepFinish({
   selectedFinishId,
   selectedColourId,
   onSelect,
+  verticalId,
 }: StepFinishProps) {
   const [openId, setOpenId] = useState<string | null>(selectedFinishId);
 
@@ -115,6 +153,22 @@ export function StepFinish({
 
               {open ? (
                 <div className="border-t bg-concrete p-3">
+                  {/* The material, once, above its colours. Only the open
+                      finish renders one, so at most a single image is in
+                      flight at a time. */}
+                  {(() => {
+                    const photo = verticalId ? finishPhotoFor(verticalId, f.tierKey) : undefined;
+                    if (!photo) return null;
+                    return (
+                      <div className="mb-3">
+                        <FinishPhoto
+                          photo={photo}
+                          sizes="(min-width: 640px) 420px, 92vw"
+                          showCaption
+                        />
+                      </div>
+                    );
+                  })()}
                   <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
                     {f.colours.map((c) => {
                       const active = selectedColourId === c.id && selectedFinishId === f.id;
@@ -155,3 +209,4 @@ export function StepFinish({
     </div>
   );
 }
+
