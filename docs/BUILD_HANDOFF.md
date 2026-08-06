@@ -22,6 +22,76 @@ environment and you should check before it matters.
 
 ---
 
+## CORRECTIONS TO THE FIRST VERSION OF THIS DOCUMENT
+
+This file was rewritten after two things went wrong in deployment. Both are
+recorded here rather than quietly edited out, because the failure mode they
+share is the useful part.
+
+### 1. I said seven marketing components were orphaned. Three were load-bearing.
+
+The first version of this document, and three separate messages before it, told
+you `components/marketing/*` was imported by nothing and safe to delete. You
+deleted them and **the build failed**: `CtaButton`, `FranchiseComparison` and
+`useInViewport` are all in active use.
+
+**What actually happened.** I grepped a directory containing only the files you
+had sent me in bundles, not your repository. `PayloadScreen.tsx`,
+`PurchaseCta.tsx` and `app/(public)/pricing/page.tsx` — the three importers —
+were never in any bundle. I searched an incomplete tree and reported the result
+as a fact about your codebase.
+
+**The correct answer, audited against the real repo:**
+
+| File | Importers | Verdict |
+|---|---|---|
+| `CtaButton` | 2 | **KEEP** |
+| `FranchiseComparison` | 1 | **KEEP** |
+| `useInViewport` | 1 | **KEEP** |
+| `Hero` | 0 | orphan |
+| `HowItWorks` | 0 | orphan |
+| `WhoItsFor` | 0 | orphan |
+| `ProofOfFlexibility` | 0 | orphan |
+| `InfiniteMotion` | 0 | orphan |
+
+Re-audit before ever acting on a claim like this:
+
+```
+for f in Hero HowItWorks WhoItsFor FranchiseComparison ProofOfFlexibility \
+         CtaButton InfiniteMotion useInViewport; do
+  n=$(grep -rl "marketing/$f" --include=*.tsx --include=*.ts . \
+      | grep -v "^./components/marketing/" | wc -l)
+  echo "$f: $n importers"
+done
+```
+
+**The generalisation worth keeping:** anything in this document derived from
+searching, counting or "nothing uses X" was computed against the subset of your
+repo that reached me in bundles. Statements about specific files I was handed
+are reliable. Statements about the ABSENCE of something across the whole tree
+are not, and should be re-run locally before you act on them.
+
+**One live finding from that audit:** `useInViewport` has a real importer, so an
+IntersectionObserver IS running in your shipped tree. 13A bans scroll-triggered
+reveals. Worth checking what imports it and whether that use is legitimate.
+
+### 2. `npm run typecheck` would have caught every red build in this session
+
+Your deployment history is roughly half red, and almost every failure is a type
+error or an unresolved module — both of which `tsc` reports in about ten
+seconds, offline, in Termux.
+
+```
+npm run typecheck
+```
+
+**Make it a reflex before every `git push`.** You have no local build, but you do
+have a local typechecker, and it catches the exact class of failure that has
+been burning your deploy cycles. This is the single highest-leverage habit in
+this entire document.
+
+---
+
 # PART 1 — PHASE 13D: THE PUBLIC SITE
 
 ## 1.1 The live hero (`CalibrationCheck`, `CountingFigure`)
@@ -407,6 +477,12 @@ the right choice the easy one.
 - 60fps on your specific device.
 - Any RLS policy, against a live database.
 
+## Branch and deploy state, as of this writing
+
+Phase 14 was built on `phase/14a` and merged to `main`. Roughly thirty stale
+`phase/*` branches remain on the remote — untidy, harmless, and not worth a
+build cycle to clean up.
+
 ## What is deliberately not built
 
 - Painting has a module but no public surface — no rate document exists.
@@ -429,3 +505,9 @@ met a contractor.** Those are the two things standing between this being an
 asset and being a very well-built liability.
 
 The checklist tells you how to do the first. The second one only you can do.
+
+And one process note, earned the hard way in this session: **the failures here
+were never in the hard parts.** The pricing kernel, the RLS policies and the
+image pipeline all worked. What broke was a stale type file, a search run
+against an incomplete tree, and a merge that went out without a typecheck. Slow
+down at the boring steps — that is where this codebase actually breaks.

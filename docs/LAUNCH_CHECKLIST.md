@@ -251,8 +251,16 @@ Run Lighthouse on a throttled 4G profile against the deployed URL.
 
 ## 13. THE HOUSEKEEPING YOU KEEP DEFERRING
 
-- [ ] Delete the seven orphaned `components/marketing/*` files. Two are banned
-      patterns waiting to be re-imported by a future phase.
+- [ ] **CORRECTED:** only FIVE `components/marketing/*` files are orphaned —
+      `Hero`, `HowItWorks`, `WhoItsFor`, `ProofOfFlexibility`, `InfiniteMotion`.
+      `CtaButton`, `FranchiseComparison` and `useInViewport` ARE imported and
+      deleting them breaks the build. Re-audit with grep before acting.
+      This is optional cleanup; skip it until the product works.
+- [ ] `useInViewport` has a live importer, so an IntersectionObserver is running
+      in the shipped tree. 13A bans scroll-triggered reveals — check what uses
+      it and whether that use is legitimate.
+- [ ] Run `npm run typecheck` before every push. It is offline, takes ten
+      seconds, and would have caught every red build in this project's history.
 - [ ] Delete the junk committed at repo root: the file named `main`, the file
       named `"s.env[" "`, and the nested `nva-web-solutions/docs/RUNBOOK.md`.
 - [ ] Add the `quote_config_updated` analytics event properly — taxonomy first,
