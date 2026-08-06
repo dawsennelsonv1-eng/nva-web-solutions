@@ -39,6 +39,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               <a href="/admin" className="whitespace-nowrap hover:underline">Dash</a>
               <a href="/admin/leads" className="whitespace-nowrap hover:underline">Leads</a>
               <a href="/admin/prospects" className="whitespace-nowrap hover:underline">Prospects</a>
+              <a href="/admin/pricing" className="whitespace-nowrap hover:underline">Pricing</a>
               <a href="/admin/billing" className="whitespace-nowrap hover:underline">Billing</a>
             </nav>
           </div>
@@ -48,3 +49,4 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     </MotionProvider>
   );
 }
+
