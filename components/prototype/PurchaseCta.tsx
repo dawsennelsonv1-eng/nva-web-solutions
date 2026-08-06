@@ -22,6 +22,13 @@ import type { Tier } from '@/types';
  * environment switch between what he tested and what goes live; it is
  * mechanically the same row.
  *
+ * 15A.4: the franchise line is removed from the offer list. It also had a
+ * real rendering bug — it was written as `6\u20138%` in JSX TEXT, where a
+ * backslash escape is not interpreted, so it was printing the literal
+ * characters 6\u20138% on screen rather than an en dash. The line is gone
+ * either way; noting it because the same mistake is easy to repeat (inside a
+ * JS string literal, as on the button below, the escape is fine).
+ *
  * entryPoint: 'self_serve' — this is the contractor tapping the button
  * himself, not Dawsen generating a link on his behalf (Phase 5.5's own
  * definition of the two entry points names /s/[slug] as self-serve
@@ -81,7 +88,7 @@ export function PurchaseCta({
 
       <ul className="mt-3 space-y-1.5 font-data text-sm">
         <li>${foundationSetupDollars} to set up, ${foundationMonthlyDollars}/month.</li>
-        <li>0% of your revenue. A franchise takes 6\u20138% forever.</li>
+        <li>0% of your revenue. Not now, not ever.</li>
         <li>30 days — not working, full refund on setup.</li>
       </ul>
 

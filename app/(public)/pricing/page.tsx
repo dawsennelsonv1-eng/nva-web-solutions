@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Panel } from '@/components/ui/Panel';
 import { CtaButton } from '@/components/marketing/CtaButton';
-import { FranchiseComparison } from '@/components/marketing/FranchiseComparison';
+import { ImplementationOffer } from '@/components/marketing/ImplementationOffer';
 import { disclosureLine } from '@/lib/billing/entity';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { stubPlans } from '@/lib/stubs';
@@ -20,6 +20,11 @@ import { stubPlans } from '@/lib/stubs';
  * clone, a local preview) renders lib/stubs.ts's stubPlans instead of
  * throwing, so the page is always inspectable without secrets. Production
  * with real env vars always prefers the live table.
+ *
+ * 15A.4 — FranchiseComparison is gone from this page and from the repo. The
+ * section below it is now ImplementationOffer, which carries the new
+ * positioning (we implement AI in your business) and takes the identical two
+ * props, so the live plan numbers still flow through untouched.
  *
  * CHECKOUT IS NOT WIRED YET, on purpose: Phase 5.5 owns the payment
  * provider adapter and is the explicit ship gate — "you cannot advertise
@@ -156,7 +161,7 @@ export default async function PricingPage() {
       </div>
 
       <div className="mt-16">
-        <FranchiseComparison
+        <ImplementationOffer
           foundationSetupDollars={foundation ? Math.round(foundation.setupFeeCents / 100) : 500}
           foundationMonthlyDollars={foundation ? Math.round(foundation.monthlyCents / 100) : 250}
         />
