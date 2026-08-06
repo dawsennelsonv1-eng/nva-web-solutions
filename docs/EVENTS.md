@@ -129,6 +129,7 @@ Comparing `lead_captured` conversion against `degraded_lead_captured` conversion
 | `brand_extraction_completed` | Colours extracted | `extraction_source`, `duration_ms`, `wcag_adjustments` |
 | `brand_extraction_fell_back` | Tier 1 → 2 or 3 | `from_tier`, `to_tier`, `reason` |
 | `lead_status_changed` | Pipeline move | `from_status`, `to_status` |
+`quote_config_updated` — a contractor's pricing rules were saved from /admin/pricing. Props: `vertical`, `by` (admin email). Emitted by app/actions/quoteConfig.ts on a successful write only; a save refused by the vertical's schema emits nothing, because nothing changed.
 
 `brand_extraction_fell_back` measures whether the Phase 7 client-side approach actually holds. If Tier 1 fails often on real contractor logos, that is a signal to invest in Tier 2 — and it is a signal I would otherwise never see, because the fallback is designed to be invisible.
 
@@ -153,3 +154,4 @@ Comparing `lead_captured` conversion against `degraded_lead_captured` conversion
 3. **Emission never blocks a user action and never fails a request.** A failed analytics write is silent.
 4. **`preview` mode emits nothing.** Admin previewing must not pollute a contractor's funnel data.
 5. **`prototype` mode emits contractor-funnel events but no homeowner-funnel events.** He is not a homeowner and mixing them corrupts the abandonment data that decides what gets built next.
+

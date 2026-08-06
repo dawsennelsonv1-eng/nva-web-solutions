@@ -4,6 +4,7 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { requireAdmin } from '@/lib/auth/admin';
 import { ensureVerticalsRegistered } from '@/lib/verticals/manifest';
 import { getVertical, hasVertical } from '@/lib/verticals/registry';
+import { trackServer } from '@/lib/analytics.server';
 import type { Json } from '@/types/database';
 
 /**
@@ -202,23 +203,19 @@ export async function saveQuoteConfigAction(input: SaveQuoteConfigInput): Promis
   if (writeError) return { ok: false, error: 'The save failed. Nothing was changed.' };
 
   /**
-   * NO ANALYTICS EVENT IS EMITTED HERE, and that is a gap worth naming rather
-   * than filling badly.
+   * THE AUDIT LINE. Emitted only on a successful write — a save refused by the
+   * vertical's schema emits nothing, because nothing changed and a rejected
+   * edit in the funnel data would make "rates changed" uncountable.
    *
-   * A rate edit is the highest-consequence write in the whole admin surface —
-   * every quote after it is a different number — so it plainly deserves an
-   * audit trail. But trackServer takes a CLOSED union of event names drawn
-   * from EVENTS.md, whose first rule is that later phases "emit from this list
-   * and invent nothing." Adding `quote_config_updated` means editing the
-   * taxonomy document and the typed emitter, which are two files outside this
-   * change.
-   *
-   * Emitting a loosely-related existing event instead would poison the funnel
-   * data that taxonomy exists to protect. So: nothing is emitted, and the
-   * follow-up is to add the event properly. `admin.email` is already resolved
-   * above and is the value that audit line wants.
+   * Fire-and-forget by design: trackServer swallows its own failures, and an
+   * analytics outage must never roll back a rate change that already
+   * committed. The write is the truth; this is the note about it.
    */
-  void admin;
+  trackServer(
+    'quote_config_updated',
+    { vertical: existing.vertical, by: admin.email },
+    { surface: 'admin', prototypeId: existing.prototype_id }
+  );
 
   return { ok: true };
 }

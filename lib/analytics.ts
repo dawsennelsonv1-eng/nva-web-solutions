@@ -106,6 +106,17 @@ export interface EventPropsMap {
   brand_extraction_completed: { extraction_source: 'client_canvas' | 'server' | 'manual'; duration_ms: number; wcag_adjustments: number };
   brand_extraction_fell_back: { from_tier: number; to_tier: number; reason: string };
   lead_status_changed: { from_status: string; to_status: string };
+  /**
+   * A contractor's RATES were changed. Phase 15.
+   *
+   * The highest-consequence write in the admin surface: every quote produced
+   * after it is a different number, and until this event existed there was no
+   * record anywhere of who changed what or when. `by` carries the admin's
+   * email because the question this event exists to answer is not "did rates
+   * change" — quote_configs.updated_at already says that — but "who changed
+   * them, and was it the change we meant."
+   */
+  quote_config_updated: { vertical: string; by: string };
   // 8. system health
   ai_daily_ceiling_hit: { spend_cents: number };
   rate_limit_triggered: { endpoint: string };
@@ -234,3 +245,4 @@ export function track<E extends EventName>(
     /* rule 3: a failed emit is silent, always */
   }
 }
+
