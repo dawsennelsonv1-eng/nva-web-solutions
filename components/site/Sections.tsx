@@ -10,16 +10,30 @@ import {
 } from '@/lib/site/reference-rates';
 
 /**
- * components/site/Sections.tsx — the static blocks of the homepage.
+ * components/site/Sections.tsx — the static blocks of the homepage, PHASE 15B.
  *
- * Server components, all of them. No client JavaScript is shipped for any
- * section in this file, including the FAQ, which uses native <details> rather
- * than an accordion component. That is one fewer hydration boundary competing
- * with the hero for main-thread time on a mid-range Android.
+ * THE CONTENT IS UNCHANGED. Every step, every table row, every term, every one
+ * of the seven questions and every footer link is the same text it was. What
+ * changed is the system it is set in: the old industrial thesis — square
+ * corners, opaque ground slabs, hairline dividers, 10px uppercase mono — is
+ * cancelled, and these sections now sit on the gradient field in the 15A type
+ * with depth and generous radii.
  *
- * Section separation is by CHANGE OF GROUND COLOUR — Cure Gray to Ticket White
- * to Machine Black — with no rule at the seam. Full-bleed hairline dividers
- * between sections are the broadsheet tell that 13A discards.
+ * ONE REAL CONTENT CHANGE, and it is a removal: Integration step 01 said "Right
+ * now that means concrete and epoxy coating." Painting has been registered in
+ * lib/verticals/manifest.ts since Phase 11 and resolves to IN SERVICE, so that
+ * sentence had quietly become false. It now names what the registry actually
+ * reports rather than a hardcoded pair.
+ *
+ * Still server components, all of them. No client JavaScript ships for
+ * anything in this file — the FAQ is native <details>, not an accordion — which
+ * is one fewer hydration boundary competing with the tool cards for main-thread
+ * time on a mid-range Android.
+ *
+ * NO SECTION HERE PAINTS AN OPAQUE BACKGROUND. That was the 15A.3 bug: an
+ * opaque in-flow block paints over a z-index:-1 fixed field. Section separation
+ * is now by rhythm and by the cards' own surfaces, not by changing the ground
+ * colour underneath them.
  */
 
 /* ------------------------------------------------------------------ 3 steps */
@@ -29,7 +43,7 @@ export function Integration() {
     {
       n: '01',
       head: 'Choose your tool',
-      body: 'Pick the quoting widget for your trade. Right now that means concrete and epoxy coating. What comes next is decided in public on the build queue.',
+      body: 'Pick the quoting widget for your trade. What is running today is shown above, checked against the code as the page loads. What comes next is decided in public on the build queue.',
     },
     {
       n: '02',
@@ -44,20 +58,24 @@ export function Integration() {
   ];
 
   return (
-    <section className="bg-concrete px-4 py-14" aria-labelledby="integration-h">
-      <div className="mx-auto max-w-5xl">
-        <h2 id="integration-h" className="font-display text-2xl font-extrabold uppercase">
-          You do not have to know how to code
+    <section className="n15-sec" aria-labelledby="integration-h">
+      <div className="n15-in">
+        <p className="n15-eyebrow">Getting it running</p>
+        <h2 id="integration-h" className="n15-h2">
+          You do not have to know how to code.
         </h2>
-        <p className="mt-2 max-w-[60ch] text-base">
-          There are three steps and one of them is yours.
-        </p>
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <p className="n15-lede">There are three steps and one of them is yours.</p>
+
+        {/* The numbering stays because this genuinely is a sequence — you
+            cannot brand a tool you have not chosen. Numbered markers on a set
+            of unordered features would be decoration; here the order carries
+            information the reader needs. */}
+        <div className="st-grid">
           {steps.map((s) => (
-            <div key={s.n} className="border border-rule bg-sheet p-4">
-              <p className="font-data text-2xs uppercase tracking-[0.08em] text-rule">{s.n}</p>
-              <h3 className="mt-1 font-display text-lg font-semibold">{s.head}</h3>
-              <p className="mt-2 text-sm">{s.body}</p>
+            <div key={s.n} className="st-card">
+              <p className="st-n">{s.n}</p>
+              <h3>{s.head}</h3>
+              <p>{s.body}</p>
             </div>
           ))}
         </div>
@@ -70,95 +88,96 @@ export function Integration() {
 
 export function Machinery() {
   return (
-    <section className="bg-sheet px-4 py-14" aria-labelledby="machinery-h">
-      <div className="mx-auto max-w-5xl">
-        <h2 id="machinery-h" className="font-display text-2xl font-extrabold uppercase">
-          Here is the pricing model itself
+    <section className="n15-sec" aria-labelledby="machinery-h">
+      <div className="n15-in">
+        <p className="n15-eyebrow">The arithmetic, in full</p>
+        <h2 id="machinery-h" className="n15-h2">
+          Here is the pricing model itself.
         </h2>
-        <p className="mt-2 max-w-[60ch] text-base">
-          This is the whole calculation, not a description of one. It is the configuration
-          your quoting tool runs on. Yours is your own — you set every number in this
-          table, and you can change any of them from the dashboard.
+        <p className="n15-lede">
+          This is the whole calculation, not a description of one. It is the
+          configuration your quoting tool runs on. Yours is your own — you set
+          every number in this table, and you can change any of them from the
+          dashboard.
         </p>
 
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full min-w-[34rem] border-collapse text-sm">
-            <caption className="sr-only">Reference pricing configuration, Dallas residential</caption>
-            <thead>
-              <tr className="border-y border-rule text-left">
-                <th scope="col" className="py-2 pr-3 font-data text-2xs uppercase tracking-[0.08em] text-rule">
-                  Input
-                </th>
-                <th scope="col" className="py-2 pr-3 font-data text-2xs uppercase tracking-[0.08em] text-rule">
-                  Rate
-                </th>
-                <th scope="col" className="py-2 font-data text-2xs uppercase tracking-[0.08em] text-rule">
-                  How it applies
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {REFERENCE_FINISHES.map((f) => (
-                <tr key={f.id} className="border-b border-rule">
-                  <td className="py-2 pr-3">{f.label}</td>
-                  <td className="py-2 pr-3 font-data tabular">
-                    {dollars(BASE_RATES[f.tierKey])} / sqft
-                  </td>
-                  <td className="py-2">× square feet</td>
+        <div className="mx-wrap">
+          <div className="mx-scroll">
+            <table className="mx-table">
+              <caption className="sr15a">
+                Reference pricing configuration, Dallas residential
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Input</th>
+                  <th scope="col">Rate</th>
+                  <th scope="col">How it applies</th>
                 </tr>
-              ))}
-              <tr className="border-b border-rule">
-                <td className="py-2 pr-3">Surface preparation</td>
-                <td className="py-2 pr-3 font-data tabular">
-                  {dollars(REFERENCE_RULES.prepRateCentsPerSqft)} / sqft
-                </td>
-                <td className="py-2">× square feet, added to coating</td>
-              </tr>
-              {REFERENCE_RULES.conditionModifiers.map((m) => (
-                <tr key={m.id} className="border-b border-rule">
-                  <td className="py-2 pr-3">{m.label}</td>
-                  <td className="py-2 pr-3 font-data tabular">
-                    +{Math.round(m.pctAdjust * 100)}%
+              </thead>
+              <tbody>
+                {REFERENCE_FINISHES.map((f) => (
+                  <tr key={f.id}>
+                    <td>{f.label}</td>
+                    <td className="mx-rate">{dollars(BASE_RATES[f.tierKey])} / sqft</td>
+                    <td className="mx-how">× square feet</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td>Surface preparation</td>
+                  <td className="mx-rate">
+                    {dollars(REFERENCE_RULES.prepRateCentsPerSqft)} / sqft
                   </td>
-                  <td className="py-2">of the subtotal, added not compounded</td>
+                  <td className="mx-how">× square feet, added to coating</td>
                 </tr>
-              ))}
-              <tr className="border-b border-rule">
-                <td className="py-2 pr-3">Mobilisation</td>
-                <td className="py-2 pr-3 font-data tabular">
-                  {wholeDollars(REFERENCE_RULES.mobilizationFeeCents)}
-                </td>
-                <td className="py-2">flat, after the percentages</td>
-              </tr>
-              <tr className="border-b border-rule">
-                <td className="py-2 pr-3">Job minimum</td>
-                <td className="py-2 pr-3 font-data tabular">
-                  {wholeDollars(REFERENCE_RULES.minimumJobCents)}
-                </td>
-                <td className="py-2">the midpoint is raised to this if it lands under</td>
-              </tr>
-              <tr className="border-b border-rule">
-                <td className="py-2 pr-3">Quoted band</td>
-                <td className="py-2 pr-3 font-data tabular">
-                  ±{Math.round(REFERENCE_RULES.rangeSpreadPct * 100)}%
-                </td>
-                <td className="py-2">around the midpoint, low clamped to the minimum</td>
-              </tr>
-              <tr>
-                <td className="py-2 pr-3">Accepted range</td>
-                <td className="py-2 pr-3 font-data tabular">
-                  {REFERENCE_SQFT_MIN.toLocaleString('en-US')}–
-                  {REFERENCE_SQFT_MAX.toLocaleString('en-US')} sqft
-                </td>
-                <td className="py-2">outside it, the widget takes the lead instead of guessing</td>
-              </tr>
-            </tbody>
-          </table>
+                {REFERENCE_RULES.conditionModifiers.map((m) => (
+                  <tr key={m.id}>
+                    <td>{m.label}</td>
+                    <td className="mx-rate">+{Math.round(m.pctAdjust * 100)}%</td>
+                    <td className="mx-how">of the subtotal, added not compounded</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td>Mobilisation</td>
+                  <td className="mx-rate">
+                    {wholeDollars(REFERENCE_RULES.mobilizationFeeCents)}
+                  </td>
+                  <td className="mx-how">flat, after the percentages</td>
+                </tr>
+                <tr>
+                  <td>Job minimum</td>
+                  <td className="mx-rate">{wholeDollars(REFERENCE_RULES.minimumJobCents)}</td>
+                  <td className="mx-how">
+                    the midpoint is raised to this if it lands under
+                  </td>
+                </tr>
+                <tr>
+                  <td>Quoted band</td>
+                  <td className="mx-rate">
+                    ±{Math.round(REFERENCE_RULES.rangeSpreadPct * 100)}%
+                  </td>
+                  <td className="mx-how">
+                    around the midpoint, low clamped to the minimum
+                  </td>
+                </tr>
+                <tr>
+                  <td>Accepted range</td>
+                  <td className="mx-rate">
+                    {REFERENCE_SQFT_MIN.toLocaleString('en-US')}–
+                    {REFERENCE_SQFT_MAX.toLocaleString('en-US')} sqft
+                  </td>
+                  <td className="mx-how">
+                    outside it, the widget takes the lead instead of guessing
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        <p className="mt-4 max-w-[60ch] text-sm text-rule">
-          The AI never sets a price. It reads the photo and suggests the slab condition; the number
-          comes from this table every time, which is why a quote still works when the AI is down.
+        <p className="n15-small" style={{ marginTop: '1.25rem', maxWidth: '60ch' }}>
+          The AI never sets a price. It reads the photo and suggests the slab
+          condition; the number comes from this table every time, which is why a
+          quote still works when the AI is down.
         </p>
       </div>
     </section>
@@ -178,22 +197,26 @@ export function Terms() {
   ];
 
   return (
-    <section className="bg-ink px-4 py-14 text-sheet" aria-labelledby="terms-h">
-      <div className="mx-auto max-w-5xl">
-        <h2 id="terms-h" className="font-display text-2xl font-extrabold uppercase">
-          What you are actually agreeing to
+    <section className="n15-sec" aria-labelledby="terms-h">
+      <div className="n15-in">
+        <p className="n15-eyebrow">The agreement</p>
+        <h2 id="terms-h" className="n15-h2">
+          What you are actually agreeing to.
         </h2>
-        <ul className="mt-6 max-w-[60ch]">
+
+        <div className="tm-list">
           {terms.map((t) => (
-            <li key={t} className="border-b border-rule py-3 text-base last:border-b-0">
+            <p key={t} className="tm-item">
               {t}
-            </li>
+            </p>
           ))}
-        </ul>
-        <p className="mt-4 max-w-[60ch] text-sm text-rule">
-          The second and third of those are properties of how the software is built, not promises
-          about how we will behave. Lead capture runs on a path that does not depend on billing
-          state, and the widget falls back to a contact form rather than failing.
+        </div>
+
+        <p className="n15-small" style={{ marginTop: '1.5rem', maxWidth: '60ch' }}>
+          The second and third of those are properties of how the software is
+          built, not promises about how we will behave. Lead capture runs on a
+          path that does not depend on billing state, and the widget falls back
+          to a contact form rather than failing.
         </p>
       </div>
     </section>
@@ -235,16 +258,18 @@ export function Faq() {
   ];
 
   return (
-    <section className="bg-concrete px-4 py-14" aria-labelledby="faq-h">
-      <div className="mx-auto max-w-5xl">
-        <h2 id="faq-h" className="font-display text-2xl font-extrabold uppercase">
-          The seven questions we actually get
+    <section className="n15-sec" aria-labelledby="faq-h">
+      <div className="n15-in">
+        <p className="n15-eyebrow">Questions</p>
+        <h2 id="faq-h" className="n15-h2">
+          The seven questions we actually get.
         </h2>
-        <div className="mt-6 max-w-[60ch] border-t border-rule">
+
+        <div className="fq">
           {items.map((i) => (
-            <details key={i.q} className="border-b border-rule">
-              <summary className="cursor-pointer py-3 text-base marker:text-rule">{i.q}</summary>
-              <p className="pb-3 text-sm">{i.a}</p>
+            <details key={i.q}>
+              <summary>{i.q}</summary>
+              <p>{i.a}</p>
             </details>
           ))}
         </div>
@@ -282,26 +307,22 @@ export function Footer() {
   ];
 
   return (
-    <footer className="bg-ink px-4 py-10 text-sheet">
-      <div className="mx-auto grid max-w-5xl gap-8 sm:grid-cols-3">
+    <footer className="ft">
+      <div className="ft-in">
         {cols.map((c) => (
           <div key={c.head}>
-            <p className="font-data text-2xs uppercase tracking-[0.08em] text-rule">{c.head}</p>
-            <ul className="mt-2">
+            <p className="ft-h">{c.head}</p>
+            <div style={{ marginTop: '0.5rem' }}>
               {c.links.map((l) => (
-                <li key={l.href} className="py-1.5">
-                  <Link href={l.href} className="text-sm text-sheet">
-                    {l.label}
-                  </Link>
-                </li>
+                <Link key={l.href} href={l.href}>
+                  {l.label}
+                </Link>
               ))}
-            </ul>
+            </div>
           </div>
         ))}
       </div>
-      <p className="mx-auto mt-8 max-w-5xl font-data text-2xs uppercase tracking-[0.08em] text-rule">
-        NVA Digital Solutions · Dallas, Texas
-      </p>
+      <p className="ft-mark">NVA Digital Solutions · Dallas, Texas</p>
     </footer>
   );
 }

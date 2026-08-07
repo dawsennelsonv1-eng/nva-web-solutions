@@ -1,39 +1,37 @@
 import type { Metadata } from 'next';
 import { GradientField } from '@/components/site/GradientField';
 import { Hero } from '@/components/site/Hero';
+import { WhyUs } from '@/components/site/WhyUs';
+import { ToolDeck } from '@/components/site/ToolDeck';
+import { AiImplementation } from '@/components/site/AiImplementation';
 import { ProofOfOperation } from '@/components/site/ProofOfOperation';
-import { Showcase } from '@/components/site/Showcase';
 import { Faq, Integration, Machinery, Terms } from '@/components/site/Sections';
 
 /**
- * app/(public)/page.tsx — PHASE 15A. The industrial-instrument thesis is
- * cancelled; the page now opens on a full-bleed cinematic hero over a living
- * gradient field.
+ * app/(public)/page.tsx — PHASE 15B.
  *
- * WHAT LEFT THIS FILE:
- * - CalibrationCheck is UNMOUNTED, not deleted. The component is untouched at
- *   components/site/CalibrationCheck.tsx and remounts on the tool cards in
- *   15B. (If any OTHER file in the repo mounts it, that mount is unaffected —
- *   I can only see files pasted into the phase.)
- * - The Plate and liveInstalls() are unmounted with it: the hero no longer
- *   carries an equipment plate, and dropping the fetch makes the homepage
- *   fully static — it now serves straight from the Vercel edge cache, which
- *   is worth real milliseconds on the ad-click path. Both remain untouched on
- *   disk; the live count can return inside ProofOfOperation in 15B.
- * - Every franchise / $49,500 / royalty reference in THIS file and in the
- *   metadata. NOTE: Machinery and Terms below very likely still carry that
- *   copy internally — those files were not pasted, so they render as-is until
- *   15A.1. Same for /og.png, which may still show the old headline.
+ * THE LEGACY SLAB IS GONE. 15A parked everything below the hero on an explicit
+ * `.bg-concrete` wrapper because those sections still wore the old light system
+ * and their ink text would have vanished against the dark field. They are all
+ * restyled now, so the wrapper is removed and the gradient field runs behind
+ * the entire document, uninterrupted, from the hero to the footer. The visible
+ * seam 15A accepted for one deploy is closed.
  *
- * THE LEGACY SLAB: Showcase through Faq still wear the old light system, so
- * they are parked on an explicit .bg-concrete wrapper. Without it they would
- * sit directly over the dark field and their ink text would vanish. 15B
- * rebuilds them onto the field properly; one deploy of visible seam between
- * hero and slab is expected and accepted.
+ * WHAT CHANGED IN THE ORDER: Why us goes directly under the hero, the tool deck
+ * follows it, then the AI implementation positioning, then everything that was
+ * already here. Showcase is replaced by ToolDeck.
  *
- * GradientField mounts here, so the field runs the full height of THIS page.
- * Making it site-wide (categories, pricing) needs the (public) layout — see
- * the phase notes.
+ * Showcase.tsx and MiniPricer.tsx are NO LONGER IMPORTED BY THIS FILE. They are
+ * not deleted and not edited — I can only see the files pasted into this phase,
+ * and either may be mounted somewhere I cannot see. Grep the repo before
+ * removing them:
+ *   grep -rn "Showcase\|MiniPricer" app components lib
+ *
+ * STILL FULLY STATIC. Every section is a server component. ToolDeck and
+ * ProofOfOperation each read the database, so this route is dynamic where 15A
+ * left it static — that is the cost of the tool cards being reconciled against
+ * the registry at request time rather than hardcoded, and it is the same trade
+ * the Showcase section already made.
  */
 
 export const metadata: Metadata = {
@@ -61,14 +59,14 @@ export default function HomePage() {
     <>
       <GradientField />
       <Hero />
-      <div className="bg-concrete">
-        <Showcase />
-        <Integration />
-        <Machinery />
-        <ProofOfOperation />
-        <Terms />
-        <Faq />
-      </div>
+      <WhyUs />
+      <ToolDeck />
+      <AiImplementation />
+      <Integration />
+      <Machinery />
+      <ProofOfOperation />
+      <Terms />
+      <Faq />
     </>
   );
 }

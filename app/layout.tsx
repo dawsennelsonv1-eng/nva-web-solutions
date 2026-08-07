@@ -2,21 +2,27 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import './globals.css';
 import './phase15a.css';
+import './phase15b.css';
 
 /**
- * PHASE 15A. phase15a.css is imported AFTER globals.css and carries the whole
- * new visual layer — fonts, tokens, gradient field, hero. globals.css is
- * untouched: the paste of it in this phase was truncated mid-file, and admin,
- * the widget, and the legacy lower sections still depend on its tokens.
+ * PHASE 15B. phase15b.css is imported LAST and carries the rest of the page —
+ * card surfaces, tilt, the restyled lower sections, header and footer.
  *
- * PRELOADS CHANGED: the three Archivo/Plex preloads are gone. Those faces
- * still exist in public/fonts and are still declared in globals.css for the
- * legacy sections and admin — they now load on demand with font-display:
- * swap, which is correct for faces that no longer render above the fold.
- * Preloaded instead: the display serif (the LCP headline), Geist 400 (body)
- * and Geist 500 (eyebrow + CTA, both above the fold). Geist 600 is figures
- * only and nothing above the fold uses it, so it stays lazy — 57.6 KB of
- * preload total, in front of a text LCP.
+ * THE IMPORT ORDER IS THE WHOLE MECHANISM and it is deliberate:
+ *   globals.css   legacy tokens. Still governs admin, the widget, and every
+ *                 public route except the homepage. UNTOUCHED.
+ *   phase15a.css  fonts, --n15-* tokens, the gradient field, the hero. UNTOUCHED.
+ *   phase15b.css  additions only. Every selector in it is new, and every token
+ *                 it reads is 15A's, so it cannot override either file above.
+ *
+ * Nothing in 15B is a Tailwind class, so tailwind.config.ts is unchanged and no
+ * legacy surface moves.
+ *
+ * PRELOADS: unchanged from 15A, and deliberately so. The LCP element is still
+ * the hero headline in Instrument Serif; Geist 400 and 500 carry body and UI
+ * above the fold. Geist 600 is figures only — the price band on the tool cards
+ * is well below the fold on a phone, so it stays lazy rather than adding 17 KB
+ * in front of a text LCP. 57.6 KB of preload total.
  */
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nva.digital';
@@ -45,9 +51,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  // data-theme="light" stays: the legacy token system still governs admin,
-  // the widget, and the lower public sections until 15B. The 15A layer is
-  // namespaced (--n15-*) and does not read data-theme.
+  // data-theme="light" stays: the legacy token system still governs admin, the
+  // widget, and every public route other than the homepage. The 15A/15B layers
+  // are namespaced (--n15-*) and do not read data-theme.
   return (
     <html lang="en" data-theme="light">
       <head>

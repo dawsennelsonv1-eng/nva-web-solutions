@@ -1,0 +1,1148 @@
+/* ============================================================================
+   PHASE 15B — THE REST OF THE PAGE, BROUGHT UP TO THE HERO'S STANDARD
+   ----------------------------------------------------------------------------
+   Imported AFTER phase15a.css. It ADDS to the 15A layer and overrides nothing
+   in it: every selector here is new, and every token it reads (--n15-serif,
+   --n15-copper, --n15-ink, --n15-steel, --n15-teal, --n15-base) is 15A's.
+   The hero, the gradient field and the font faces are untouched.
+
+   globals.css and tailwind.config.ts are likewise untouched. Nothing in this
+   file is a Tailwind class, so the legacy token system still governs admin,
+   the widget, and every public route other than the homepage exactly as it
+   does today.
+
+   THE OLD THESIS IS CANCELLED HERE, NOT PARTIALLY KEPT. Square corners,
+   shadowless surfaces, hairline-rule dividers and 10px uppercase mono are
+   gone from every surface this file owns.
+
+   ---------------------------------------------------------------------------
+   THE 60FPS BUDGET, WHICH IS THE REAL CONSTRAINT IN THIS PHASE
+   ---------------------------------------------------------------------------
+
+   Three things now animate at once: the site field (3 layers, 15A), one
+   ambient gradient per card, and tilt on the card under a finger. The budget
+   is held by four rules, all of them structural rather than tuned:
+
+   1. EVERY ANIMATED PROPERTY IS transform OR opacity. No filter:blur, no
+      animated background-position, no box-shadow transitions, no width or
+      left. Softness comes from transparent gradient colour stops, which
+      rasterise once and composite forever.
+
+   2. ONE ANIMATED LAYER PER CARD, not three. The site field can afford three
+      drifting discs because there is one of it. A card is repeated, so it
+      gets a single composited element carrying a two-stop radial pair.
+
+   3. CARDS OFF SCREEN DO NOT ANIMATE. ToolCard's IntersectionObserver adds
+      .tc-rest when a card leaves the viewport, which pauses its keyframe. On
+      a phone at 360px only one card is ever visible, so the steady-state
+      cost is one card gradient, not the whole deck.
+
+   4. TILT RUNS ON ONE CARD AT A TIME, by construction — a pointer is only
+      ever over one card, and the variables are written to that card's own
+      element inside a rAF, one write per frame.
+
+   will-change is declared ONLY on the elements that actually animate. Putting
+   it on the card wrapper would promote every card to its own compositor layer
+   permanently and cost more memory than it saves on a mid-range device.
+========================================================================== */
+
+/* ----------------------------------------------------------------------------
+   15B TOKENS — additions only, same --n15-* namespace.
+--------------------------------------------------------------------------- */
+:root {
+  /* Surfaces. Translucent on purpose: the gradient field drifts THROUGH every
+     card and section, which is what makes the page feel like one continuous
+     material rather than a stack of panels sitting on a picture. */
+  --n15-card: rgba(19, 24, 32, 0.72);
+  --n15-card-edge: rgba(244, 242, 237, 0.1);
+  --n15-card-edge-lit: rgba(244, 242, 237, 0.18);
+  --n15-panel: rgba(13, 17, 23, 0.55);
+
+  /* Radii. Generous, and consistent, so the page reads as one system. */
+  --n15-r-card: 22px;
+  --n15-r-inner: 14px;
+  --n15-r-chip: 11px;
+
+  /* The depth stack. Now permitted, and used as a hierarchy rather than as
+     decoration: the deeper the shadow, the more the element is meant to read
+     as liftable. */
+  --n15-shadow-rest:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 18px 44px -18px rgba(0, 0, 0, 0.72);
+  --n15-shadow-lift:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 30px 66px -22px rgba(0, 0, 0, 0.8);
+}
+
+/* ----------------------------------------------------------------------------
+   SHARED PRIMITIVES
+--------------------------------------------------------------------------- */
+
+/* Every 15B section. Transparent — the field is the ground now, so there is
+   no .bg-concrete slab and no seam between the hero and what follows. */
+.n15-sec {
+  position: relative;
+  padding: 4.5rem 1.25rem;
+  color: rgb(var(--n15-ink));
+}
+@media (min-width: 900px) {
+  .n15-sec {
+    padding: 6.5rem 1.5rem;
+  }
+}
+.n15-in {
+  margin: 0 auto;
+  max-width: 68rem;
+}
+
+.n15-eyebrow {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.7rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.5);
+}
+
+.n15-h2 {
+  margin-top: 0.9rem;
+  font-family: var(--n15-serif);
+  font-weight: 400;
+  font-size: clamp(2rem, 6.5vw, 3.5rem);
+  line-height: 1.06;
+  letter-spacing: -0.01em;
+}
+
+.n15-h3 {
+  font-family: var(--n15-serif);
+  font-weight: 400;
+  font-size: clamp(1.35rem, 3.4vw, 1.75rem);
+  line-height: 1.15;
+}
+
+.n15-lede {
+  margin-top: 1.1rem;
+  max-width: 44ch;
+  font-family: var(--n15-sans);
+  font-size: clamp(1rem, 2.4vw, 1.15rem);
+  line-height: 1.6;
+  color: rgba(var(--n15-ink), 0.76);
+}
+
+.n15-body {
+  font-family: var(--n15-sans);
+  font-size: 1rem;
+  line-height: 1.65;
+  color: rgba(var(--n15-ink), 0.78);
+}
+
+.n15-small {
+  font-family: var(--n15-sans);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: rgba(var(--n15-ink), 0.56);
+}
+
+/* Buttons. The copper fill is the ONE action colour on the page and it is
+   spent sparingly — a section may have one. Everything else is a lit outline. */
+.n15-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  padding: 0 1.6rem;
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  text-align: center;
+  transition: transform 110ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+.n15-btn:active {
+  transform: scale(0.975);
+}
+.n15-btn-primary {
+  color: #150e07;
+  background: linear-gradient(180deg, #d9812f, var(--n15-copper-deep));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 10px 28px -10px rgba(201, 112, 47, 0.55);
+}
+.n15-btn-ghost {
+  color: rgb(var(--n15-ink));
+  background: rgba(244, 242, 237, 0.05);
+  border-color: var(--n15-card-edge);
+}
+.n15-btn-ghost:hover {
+  border-color: var(--n15-card-edge-lit);
+  background: rgba(244, 242, 237, 0.08);
+}
+.n15-btn[aria-disabled='true'],
+.n15-btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Focus. One visible ring for the whole layer, on the copper, so keyboard
+   users get the same affordance the design gives a thumb. */
+.n15-sec :focus-visible,
+.tc :focus-visible {
+  outline: 2px solid var(--n15-copper);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ----------------------------------------------------------------------------
+   WHY US — type and space only. No icons: every point here is an abstraction
+   (ownership, continuity, revenue), and an icon for an abstraction is a
+   decoration pretending to be information.
+--------------------------------------------------------------------------- */
+.wu-grid {
+  margin-top: 3rem;
+  display: grid;
+  gap: 2.4rem 2.5rem;
+}
+@media (min-width: 700px) {
+  .wu-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1080px) {
+  .wu-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.wu-item {
+  border-top: 1px solid var(--n15-card-edge);
+  padding-top: 1.25rem;
+}
+.wu-item h3 {
+  font-family: var(--n15-serif);
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+.wu-item p {
+  margin-top: 0.6rem;
+  font-family: var(--n15-sans);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: rgba(var(--n15-ink), 0.66);
+}
+
+/* ----------------------------------------------------------------------------
+   THE TOOL CARD — the centrepiece.
+
+   Structure, back to front:
+     .tc          the object. Owns the tilt transform and the press state.
+     .tc-field    its own drifting gradient, one composited layer.
+     .tc-sheen    a static specular edge that catches the tilt.
+     .tc-body     content, on its own stacking context above both.
+
+   Per-card colour comes from --tc-1 / --tc-2, set inline by ToolCard from the
+   tool's own palette. Cards are therefore individually alive without a
+   selector per tool.
+--------------------------------------------------------------------------- */
+.tc-deck {
+  margin-top: 3rem;
+  display: grid;
+  gap: 1.75rem;
+}
+@media (min-width: 980px) {
+  .tc-deck {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.tc {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  /* The tilt. --tc-rx/--tc-ry are written by ToolCard inside a rAF and default
+     to zero, so a card that is never touched never transforms. Perspective is
+     on the element itself rather than the deck: a shared perspective origin
+     makes cards at the edge of a wide grid shear rather than tilt. */
+  transform: perspective(1100px) rotateX(calc(var(--tc-rx, 0) * 1deg))
+    rotateY(calc(var(--tc-ry, 0) * 1deg)) translateZ(0);
+  transition: box-shadow 220ms ease, border-color 220ms ease;
+}
+.tc:hover {
+  border-color: var(--n15-card-edge-lit);
+  box-shadow: var(--n15-shadow-lift);
+}
+/* Lift on press. Applied to a card being actively dragged or tapped, and it is
+   a scale rather than a translate so it cannot nudge the layout of a grid. */
+.tc-press {
+  box-shadow: var(--n15-shadow-lift);
+}
+.tc-tilting {
+  will-change: transform;
+}
+
+.tc-field {
+  position: absolute;
+  inset: -30%;
+  z-index: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, var(--tc-1, rgba(201, 112, 47, 0.3)), transparent 72%),
+    radial-gradient(closest-side at 70% 65%, var(--tc-2, rgba(38, 72, 112, 0.3)), transparent 70%);
+  animation: n15-card-drift var(--tc-dur, 34s) ease-in-out infinite alternate;
+  will-change: transform;
+  pointer-events: none;
+}
+@keyframes n15-card-drift {
+  from {
+    transform: translate3d(-4%, 3%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(6%, -5%, 0) scale(1.14);
+  }
+}
+/* Off screen: stop paying for it. Added by ToolCard's IntersectionObserver. */
+.tc-rest .tc-field,
+.tab-hidden .tc-field {
+  animation-play-state: paused;
+}
+
+/* The specular edge. Static — it reads as light on a curved surface, and it is
+   what makes the tilt feel like a physical object rather than a skewed div. */
+.tc-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: var(--n15-r-card);
+  background: linear-gradient(
+    148deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(255, 255, 255, 0) 70%,
+    rgba(255, 255, 255, 0.045) 100%
+  );
+  pointer-events: none;
+}
+
+.tc-body {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+  padding: 1.5rem 1.35rem 1.5rem;
+}
+@media (min-width: 560px) {
+  .tc-body {
+    padding: 1.9rem 1.75rem;
+  }
+}
+
+.tc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.tc-trade {
+  font-family: var(--n15-serif);
+  font-size: clamp(1.6rem, 4.6vw, 2.1rem);
+  line-height: 1.1;
+}
+.tc-sub {
+  margin-top: 0.45rem;
+  font-family: var(--n15-sans);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: rgba(var(--n15-ink), 0.6);
+}
+
+/* Status. A pill, not a stamped plate — but it still carries the unit number,
+   because that number is checked against the registry at request time and is
+   the one piece of the old instrument language that was carrying real
+   information rather than atmosphere. */
+.tc-status {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--n15-card-edge);
+  background: rgba(244, 242, 237, 0.04);
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.72);
+}
+.tc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--n15-copper);
+}
+
+/* The inner panel: everything interactive sits on it, so the controls read as
+   an instrument set into the card rather than as loose elements on it. */
+.tc-panel {
+  border-radius: var(--n15-r-inner);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-panel);
+  padding: 1.15rem 1.1rem;
+}
+
+/* --- the area rule ------------------------------------------------------- */
+.ar-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.ar-label {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.5);
+}
+.ar-read {
+  font-family: var(--n15-sans);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 1.25rem;
+  color: rgb(var(--n15-ink));
+}
+.ar-unit {
+  margin-left: 0.35rem;
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: rgba(var(--n15-ink), 0.5);
+}
+
+/* The track is 44px tall so the whole band is a thumb target, not just the
+   handle. The fill is a transform-scaled layer rather than an animated width,
+   because width is layout and this moves every frame of a drag. */
+.ar-track {
+  position: relative;
+  margin-top: 0.85rem;
+  height: 44px;
+  display: flex;
+  align-items: center;
+}
+.ar-rail {
+  position: absolute;
+  inset-inline: 0;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(244, 242, 237, 0.1);
+  overflow: hidden;
+}
+.ar-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(var(--ar-p, 0.5));
+  background: linear-gradient(90deg, var(--n15-copper-deep), #d9812f);
+}
+/* The knob is positioned with `left` rather than a transform because it is
+   written once per input event, not once per frame of an interpolation —
+   the same fast-path DatumRule already established, and the reason that
+   file's `left` transition was removed in 13D. */
+.ar-knob {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--ar-p, 0.5) * 100%);
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #e8933f, var(--n15-copper-deep));
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+.ar-input {
+  position: absolute;
+  inset-inline: 0;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  opacity: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: ew-resize;
+}
+.ar-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 44px;
+  height: 44px;
+}
+.ar-hints {
+  margin-top: 0.15rem;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--n15-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.7rem;
+  color: rgba(var(--n15-ink), 0.38);
+}
+
+/* --- finish selection ---------------------------------------------------- */
+.tc-finishes {
+  margin-top: 1.35rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+.tc-fin {
+  position: relative;
+  display: block;
+  padding: 0;
+  border-radius: var(--n15-r-chip);
+  border: 1px solid var(--n15-card-edge);
+  background: rgba(244, 242, 237, 0.03);
+  overflow: hidden;
+  text-align: left;
+  transition: border-color 160ms ease, transform 110ms ease;
+}
+.tc-fin:active {
+  transform: scale(0.97);
+}
+.tc-fin[aria-pressed='true'] {
+  border-color: var(--n15-copper);
+  box-shadow: 0 0 0 1px var(--n15-copper), 0 8px 22px -10px rgba(201, 112, 47, 0.6);
+}
+.tc-fin-img {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  overflow: hidden;
+  background: rgba(10, 13, 18, 0.6);
+}
+.tc-fin-img img {
+  object-fit: cover;
+}
+/* The designed absence. A finish with no photograph on disk gets a labelled
+   swatch built from the finish's own colour deck, never a broken-image glyph
+   and never a grey box — see ToolCard for why this is a state rather than a
+   failure. */
+.tc-fin-ph {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 30% 15%, rgba(255, 255, 255, 0.12), transparent 60%),
+    var(--fin-hex, #2a2f37);
+}
+.tc-fin-ph::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    118deg,
+    rgba(255, 255, 255, 0.05) 0 1px,
+    transparent 1px 6px
+  );
+}
+.tc-fin-name {
+  display: block;
+  padding: 0.5rem 0.55rem 0.6rem;
+  font-family: var(--n15-sans);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: rgba(var(--n15-ink), 0.8);
+}
+
+/* --- the price ----------------------------------------------------------- */
+.tc-price {
+  margin-top: 1.35rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid var(--n15-card-edge);
+}
+.tc-price-label {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.5);
+}
+.tc-band {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+}
+/* THE NUMBER PEOPLE SCREENSHOT. Geist 600 with tabular lining figures, so the
+   band does not jitter horizontally while a thumb is on the rule. */
+.tc-fig {
+  font-family: var(--n15-sans);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: clamp(1.9rem, 6.4vw, 2.6rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: rgb(var(--n15-ink));
+}
+.tc-dash {
+  flex: 1;
+  height: 1px;
+  background: var(--n15-card-edge);
+}
+.tc-free {
+  margin-top: 0.7rem;
+  font-family: var(--n15-sans);
+  font-size: 0.75rem;
+  color: rgba(var(--n15-ink), 0.45);
+}
+
+/* --- the upload, which is meant to be the most inviting thing here -------- */
+.tc-up {
+  position: relative;
+  margin-top: 1.35rem;
+  border-radius: var(--n15-r-inner);
+  border: 1px dashed rgba(201, 112, 47, 0.45);
+  background:
+    radial-gradient(120% 140% at 50% 0%, rgba(201, 112, 47, 0.16), transparent 70%),
+    rgba(201, 112, 47, 0.05);
+  padding: 1.25rem 1.1rem;
+  text-align: center;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+.tc-up-hot {
+  border-color: var(--n15-copper);
+  background:
+    radial-gradient(120% 140% at 50% 0%, rgba(201, 112, 47, 0.26), transparent 70%),
+    rgba(201, 112, 47, 0.1);
+}
+.tc-up-h {
+  font-family: var(--n15-serif);
+  font-size: clamp(1.15rem, 3.6vw, 1.4rem);
+  line-height: 1.2;
+  color: rgb(var(--n15-ink));
+}
+.tc-up-sub {
+  margin-top: 0.4rem;
+  font-family: var(--n15-sans);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: rgba(var(--n15-ink), 0.6);
+}
+.tc-up-actions {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+}
+.tc-up-note {
+  margin-top: 0.85rem;
+  font-family: var(--n15-sans);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: rgba(var(--n15-ink), 0.5);
+}
+.tc-up-err {
+  margin-top: 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 112, 47, 0.4);
+  background: rgba(201, 112, 47, 0.08);
+  padding: 0.65rem 0.75rem;
+  font-family: var(--n15-sans);
+  font-size: 0.82rem;
+  color: rgba(var(--n15-ink), 0.85);
+}
+.tc-up-stage {
+  margin-top: 0.85rem;
+  font-family: var(--n15-sans);
+  font-size: 0.82rem;
+  color: rgba(var(--n15-ink), 0.7);
+}
+.tc-up-shots {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+.tc-shot {
+  border-radius: 10px;
+  border: 1px solid var(--n15-card-edge);
+  overflow: hidden;
+  background: rgba(10, 13, 18, 0.5);
+}
+.tc-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.tc-shot-cap {
+  display: block;
+  padding: 0.45rem 0.55rem;
+  font-family: var(--n15-sans);
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.45);
+}
+.tc-disclosure {
+  margin-top: 0.8rem;
+  font-family: var(--n15-sans);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: rgba(var(--n15-ink), 0.55);
+}
+
+.tc-actions {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+@media (min-width: 480px) {
+  .tc-actions {
+    flex-direction: row;
+  }
+  .tc-actions > * {
+    flex: 1;
+  }
+}
+
+/* A card for a tool that is NOT in service. Same surface, no controls, and a
+   route to its spec sheet — never a disabled pricer, which would read as a
+   tool that exists and is broken. */
+.tc-quiet .tc-status {
+  color: rgba(var(--n15-ink), 0.5);
+}
+.tc-quiet .tc-dot {
+  background: rgba(244, 242, 237, 0.35);
+}
+.tc-reason {
+  border-radius: var(--n15-r-inner);
+  border: 1px solid var(--n15-card-edge);
+  background: rgba(13, 17, 23, 0.4);
+  padding: 1rem 1.05rem;
+  font-family: var(--n15-sans);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: rgba(var(--n15-ink), 0.66);
+}
+
+/* ----------------------------------------------------------------------------
+   AI IMPLEMENTATION
+--------------------------------------------------------------------------- */
+.ai-grid {
+  margin-top: 3rem;
+  display: grid;
+  gap: 1.25rem;
+}
+@media (min-width: 860px) {
+  .ai-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.ai-card {
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  padding: 1.6rem 1.4rem;
+}
+.ai-card h3 {
+  font-family: var(--n15-serif);
+  font-size: 1.5rem;
+  line-height: 1.18;
+}
+.ai-card p {
+  margin-top: 0.75rem;
+  font-family: var(--n15-sans);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: rgba(var(--n15-ink), 0.7);
+}
+.ai-foot {
+  margin-top: 2.5rem;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-panel);
+  padding: 1.75rem 1.5rem;
+}
+
+/* ----------------------------------------------------------------------------
+   THE RESTYLED LOWER SECTIONS
+--------------------------------------------------------------------------- */
+
+/* Three steps. Numbered, and the numbering is kept because these genuinely are
+   a sequence — you cannot brand a tool you have not chosen. */
+.st-grid {
+  margin-top: 3rem;
+  display: grid;
+  gap: 1.25rem;
+}
+@media (min-width: 860px) {
+  .st-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.st-card {
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  padding: 1.6rem 1.4rem;
+}
+.st-n {
+  font-family: var(--n15-serif);
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--n15-copper);
+}
+.st-card h3 {
+  margin-top: 0.8rem;
+  font-family: var(--n15-serif);
+  font-size: 1.4rem;
+  line-height: 1.2;
+}
+.st-card p {
+  margin-top: 0.6rem;
+  font-family: var(--n15-sans);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: rgba(var(--n15-ink), 0.68);
+}
+
+/* The pricing model table. It STAYS — publishing the arithmetic is the
+   differentiator — and it stops looking like a spreadsheet: no outer box, no
+   vertical rules, generous row height, figures in tabular Geist 600, and the
+   rate column set large enough to read as a quoted number rather than a cell.
+   On a phone it scrolls horizontally inside a rounded panel rather than
+   wrapping into rubble. */
+.mx-wrap {
+  margin-top: 2.5rem;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  overflow: hidden;
+}
+.mx-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.mx-table {
+  width: 100%;
+  min-width: 33rem;
+  border-collapse: collapse;
+  font-family: var(--n15-sans);
+}
+.mx-table th {
+  padding: 1.1rem 1.25rem 0.7rem;
+  text-align: left;
+  font-weight: 500;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.45);
+}
+.mx-table td {
+  padding: 0.95rem 1.25rem;
+  border-top: 1px solid var(--n15-card-edge);
+  font-size: 0.95rem;
+  color: rgba(var(--n15-ink), 0.82);
+  vertical-align: baseline;
+}
+.mx-rate {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 1.05rem;
+  color: rgb(var(--n15-ink));
+  white-space: nowrap;
+}
+.mx-how {
+  color: rgba(var(--n15-ink), 0.55);
+  font-size: 0.88rem;
+}
+
+/* Terms. Each line is a card rather than a list item with a rule under it. */
+.tm-list {
+  margin-top: 2.5rem;
+  display: grid;
+  gap: 0.75rem;
+}
+@media (min-width: 760px) {
+  .tm-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.tm-item {
+  border-radius: var(--n15-r-inner);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-panel);
+  padding: 1.1rem 1.15rem;
+  font-family: var(--n15-sans);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: rgba(var(--n15-ink), 0.8);
+}
+
+/* FAQ. Native <details>, so still zero client JavaScript. */
+.fq {
+  margin-top: 2.5rem;
+  max-width: 52rem;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  overflow: hidden;
+}
+.fq details {
+  border-top: 1px solid var(--n15-card-edge);
+}
+.fq details:first-child {
+  border-top: 0;
+}
+.fq summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 1.15rem 1.35rem;
+  font-family: var(--n15-sans);
+  font-size: 1rem;
+  color: rgb(var(--n15-ink));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.fq summary::-webkit-details-marker {
+  display: none;
+}
+.fq summary::after {
+  content: '+';
+  font-family: var(--n15-sans);
+  font-size: 1.2rem;
+  color: var(--n15-copper);
+  flex-shrink: 0;
+}
+.fq details[open] summary::after {
+  content: '−';
+}
+.fq p {
+  padding: 0 1.35rem 1.25rem;
+  margin: 0;
+  font-family: var(--n15-sans);
+  font-size: 0.93rem;
+  line-height: 1.65;
+  color: rgba(var(--n15-ink), 0.68);
+}
+
+/* Readings */
+.pf-grid {
+  margin-top: 2.5rem;
+  display: grid;
+  gap: 1rem;
+}
+@media (min-width: 760px) {
+  .pf-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.pf-item {
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  padding: 1.4rem;
+}
+.pf-k {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.45);
+}
+.pf-v {
+  margin: 0.45rem 0 0;
+  font-family: var(--n15-sans);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 2.2rem;
+  line-height: 1;
+  color: var(--n15-copper);
+}
+.pf-s {
+  margin: 0.5rem 0 0;
+  font-family: var(--n15-sans);
+  font-size: 0.75rem;
+  color: rgba(var(--n15-ink), 0.4);
+}
+
+/* ----------------------------------------------------------------------------
+   HEADER & FOOTER — now sitting on the field rather than on an opaque slab.
+
+   The bar keeps its opacity. 13B's daylight argument has not changed: a
+   translucent bar in a truck cab at noon is illegible, and backdrop-filter is
+   the single most expensive thing that could be added to a page already
+   holding a 60fps budget. It gains a rounded, lifted treatment and the new
+   type; it does not gain a blur.
+--------------------------------------------------------------------------- */
+.hd {
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  z-index: 50;
+  height: 56px;
+  background: #0b0e13;
+  border-bottom: 1px solid var(--n15-card-edge);
+}
+.hd-in {
+  margin: 0 auto;
+  max-width: 68rem;
+  height: 56px;
+  padding: 0 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hd-mark {
+  font-family: var(--n15-serif);
+  font-size: 1.4rem;
+  letter-spacing: 0.01em;
+  color: rgb(var(--n15-ink));
+}
+.hd-nav {
+  display: none;
+  align-items: center;
+  gap: 1.75rem;
+}
+@media (min-width: 760px) {
+  .hd-nav {
+    display: flex;
+  }
+}
+.hd-nav a {
+  font-family: var(--n15-sans);
+  font-size: 0.88rem;
+  color: rgba(var(--n15-ink), 0.7);
+  transition: color 160ms ease;
+}
+.hd-nav a:hover {
+  color: rgb(var(--n15-ink));
+}
+.hd-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--n15-card-edge);
+  background: rgba(244, 242, 237, 0.05);
+  font-family: var(--n15-sans);
+  font-size: 0.82rem;
+  color: rgb(var(--n15-ink));
+}
+@media (min-width: 760px) {
+  .hd-toggle {
+    display: none;
+  }
+}
+.hd-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 4rem 1.25rem 2rem;
+  background: #0b0e13;
+}
+@media (min-width: 760px) {
+  .hd-panel {
+    display: none;
+  }
+}
+.hd-panel a {
+  display: flex;
+  align-items: center;
+  min-height: 62px;
+  border-bottom: 1px solid var(--n15-card-edge);
+  font-family: var(--n15-serif);
+  font-size: 1.85rem;
+  color: rgb(var(--n15-ink));
+}
+.hd-panel a:last-child {
+  border-bottom: 0;
+}
+
+.ft {
+  position: relative;
+  border-top: 1px solid var(--n15-card-edge);
+  background: rgba(8, 11, 15, 0.6);
+  padding: 3.5rem 1.25rem 2.5rem;
+  color: rgb(var(--n15-ink));
+}
+.ft-in {
+  margin: 0 auto;
+  max-width: 68rem;
+  display: grid;
+  gap: 2rem;
+}
+@media (min-width: 700px) {
+  .ft-in {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.ft-h {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.4);
+}
+.ft-in a {
+  display: block;
+  padding: 0.4rem 0;
+  font-family: var(--n15-sans);
+  font-size: 0.9rem;
+  color: rgba(var(--n15-ink), 0.72);
+}
+.ft-in a:hover {
+  color: rgb(var(--n15-ink));
+}
+.ft-mark {
+  margin: 2.5rem auto 0;
+  max-width: 68rem;
+  font-family: var(--n15-sans);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.35);
+}
+
+/* ----------------------------------------------------------------------------
+   REDUCED MOTION — gradients hold their composition, no tilt, no parallax.
+   The result is a designed static page, not a stripped one: the depth, the
+   radii, the type and the per-card colour are all still there, because none
+   of them were ever motion.
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .tc-field {
+    animation: none;
+    transform: translate3d(1%, -1%, 0) scale(1.06);
+  }
+  .tc {
+    transform: none;
+  }
+  .n15-btn,
+  .tc-fin,
+  .tc {
+    transition: none;
+  }
+}
