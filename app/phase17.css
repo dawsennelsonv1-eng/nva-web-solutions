@@ -1,0 +1,316 @@
+/* ============================================================================
+   PHASE 16D — THE LIGHT THEME
+   ----------------------------------------------------------------------------
+   Imported LAST, after phase16.css. Every rule in this file is scoped to
+   html[data-n15-theme='light'] and therefore inert on the dark theme. Nothing
+   here is a Tailwind class; globals.css and tailwind.config.ts are untouched,
+   so admin, the widget and every legacy surface are unaffected either way.
+
+   LIGHT IS THE DEFAULT AND DARK IS THE ALTERNATE, but this file is written the
+   other way round — dark stays in the base stylesheets and light overrides it.
+   That is deliberate: the base files are correct, shipped, and 30 KB. Inverting
+   them would be a very large diff for no behavioural gain, and the override
+   direction has no effect on which theme a visitor actually sees.
+
+   ============================================================================
+   THE ONE-LINE VERSION: THIS IS NOT A WHITE SITE
+   ============================================================================
+
+   The ground is #ece7df — warm light stone, roughly the colour of cured
+   concrete in daylight. Not #fff, and never near it.
+
+   White backgrounds make the gradient field invisible: at 4% alpha over white
+   the copper and steel discs simply vanish, and the whole design becomes a
+   plain page with a photograph at the top. Against warm stone they read as
+   tinted washes, which is the same effect the dark theme gets and the reason
+   the field exists at all.
+
+   ============================================================================
+   WHAT HAD TO BE OVERRIDDEN BY HAND
+   ============================================================================
+
+   Most surfaces flip through the --n15-* tokens. Three groups could not:
+
+   1. HARDCODED rgba(244, 242, 237, x) — the warm off-white used for hairlines
+      and faint fills throughout 15B and 16. On light these become invisible.
+      Each is restated below as a dark-on-light equivalent.
+
+   2. HARDCODED rgba(255, 255, 255, x) — the specular highlights on the tool
+      card and its buttons. White-on-white is nothing, so the card sheen and
+      inner glows are re-cut as soft shadow instead of light.
+
+   3. NEAR-BLACK PANEL FILLS — #0b0e13, #11151c, rgba(10, 13, 18, x) and
+      friends. These are the header bar, the form inputs and the media stage.
+
+   ============================================================================
+   CONTRAST
+   ============================================================================
+
+   Body text is #1a1d22 on #ece7df, which is comfortably past 4.5:1. The muted
+   variants used for secondary copy stop at 0.62 alpha rather than the dark
+   theme's 0.45, because dark-on-light loses legibility faster as alpha drops
+   than light-on-dark does — 0.45 black on stone is a grey that reads as
+   disabled rather than as secondary.
+
+   The copper is DARKENED for light. #c9702f on stone is around 3:1 — fine for a
+   large filled button, not fine for the small text and hairlines the copper
+   also carries. #9a5316 holds up in both roles.
+========================================================================== */
+
+html[data-n15-theme='light'] {
+  --n15-base: #ece7df;
+  --n15-ink: 26 29 34;
+  --n15-copper: #9a5316;
+  --n15-copper-deep: #7d400e;
+
+  /* The drift colours stay the same hues, deeper, so they survive on stone. */
+  --n15-steel: 30 58 92;
+  --n15-teal: 18 68 57;
+
+  /* 15B surface tokens */
+  --n15-card: rgba(255, 255, 255, 0.66);
+  --n15-card-edge: rgba(26, 29, 34, 0.14);
+  --n15-card-edge-lit: rgba(26, 29, 34, 0.26);
+  --n15-panel: rgba(255, 255, 255, 0.5);
+
+  /* Depth from shadow only. On a light ground an inset white highlight is
+     invisible, so the rest state loses it and leans on a longer, softer drop. */
+  --n15-shadow-rest: 0 14px 34px -16px rgba(26, 29, 34, 0.28);
+  --n15-shadow-lift: 0 24px 52px -20px rgba(26, 29, 34, 0.34);
+}
+
+/* ----------------------------------------------------------------------------
+   THE FIELD
+
+   Alphas roughly double. A wash that reads at 0.30 over #0a0d12 is barely
+   present over #ece7df, because the eye judges these against the ground rather
+   than absolutely.
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .gf-a .gf-i {
+  background: radial-gradient(closest-side, rgba(154, 83, 22, 0.24), rgba(154, 83, 22, 0) 70%);
+}
+html[data-n15-theme='light'] .gf-b .gf-i {
+  background: radial-gradient(
+    closest-side,
+    rgba(var(--n15-steel), 0.2),
+    rgba(var(--n15-steel), 0) 70%
+  );
+}
+html[data-n15-theme='light'] .gf-c .gf-i {
+  background: radial-gradient(
+    closest-side,
+    rgba(var(--n15-teal), 0.16),
+    rgba(var(--n15-teal), 0) 70%
+  );
+}
+
+/* ----------------------------------------------------------------------------
+   THE HERO
+
+   THIS IS THE PART THE BRIEF WAS ABOUT. The shipped photograph is no longer
+   pre-darkened — public/hero/floor-master.jpg is now the ungraded original at
+   mean luminance 151, where the old file had been crushed to 49.
+
+   On the light theme the scrim therefore inverts: instead of dropping a
+   near-black wash to carry white type, it lays a warm white wash to carry dark
+   type. The photograph stays bright, which is the whole point, and the headline
+   sits on stone rather than on shadow.
+
+   The scrim is heaviest at the top-left, where the eyebrow and the first two
+   lines of the cycling headline sit, and clears toward the vanishing point so
+   the corridor keeps its depth.
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .hero {
+  color: #1a1d22;
+}
+html[data-n15-theme='light'] .hero-scrim {
+  background:
+    radial-gradient(72% 58% at 26% 34%, rgba(236, 231, 223, 0.9), rgba(236, 231, 223, 0) 76%),
+    linear-gradient(
+      180deg,
+      rgba(236, 231, 223, 0.72) 0%,
+      rgba(236, 231, 223, 0.34) 46%,
+      rgba(236, 231, 223, 0.78) 100%
+    );
+}
+html[data-n15-theme='light'] .hero-eyebrow {
+  color: rgba(26, 29, 34, 0.66);
+}
+html[data-n15-theme='light'] .hero-sub {
+  color: rgba(26, 29, 34, 0.8);
+}
+
+/* ----------------------------------------------------------------------------
+   HEADER AND FOOTER
+
+   The bar stays OPAQUE. The daylight argument from 13B has not changed and it
+   is if anything stronger here: this theme exists because the site is read
+   outdoors. It is stone rather than near-black, with a hairline beneath.
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .hd {
+  background: #e6e0d6;
+  border-bottom-color: rgba(26, 29, 34, 0.14);
+}
+html[data-n15-theme='light'] .hd-panel {
+  background: #e6e0d6;
+}
+html[data-n15-theme='light'] .hd-toggle {
+  background: rgba(26, 29, 34, 0.05);
+}
+html[data-n15-theme='light'] .hd-nav a {
+  color: rgba(26, 29, 34, 0.7);
+}
+html[data-n15-theme='light'] .hd-nav a:hover {
+  color: #1a1d22;
+}
+html[data-n15-theme='light'] .ft {
+  background: rgba(255, 255, 255, 0.4);
+  border-top-color: rgba(26, 29, 34, 0.14);
+}
+
+/* ----------------------------------------------------------------------------
+   THE TOOL CARD
+
+   The sheen goes off. It is a white specular edge and there is nothing for it
+   to catch on a light card — left on, it fogs the top-left corner. The card
+   keeps its tilt and its own drifting gradient, which still read because the
+   card sits on white and the field behind it does not.
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .tc-sheen {
+  display: none;
+}
+html[data-n15-theme='light'] .tc-field {
+  opacity: 0.55;
+}
+html[data-n15-theme='light'] .tc-status,
+html[data-n15-theme='light'] .tc-fin {
+  background: rgba(26, 29, 34, 0.04);
+}
+html[data-n15-theme='light'] .tc-dot {
+  background: var(--n15-copper);
+}
+html[data-n15-theme='light'] .tc-quiet .tc-dot {
+  background: rgba(26, 29, 34, 0.3);
+}
+html[data-n15-theme='light'] .ar-rail {
+  background: rgba(26, 29, 34, 0.12);
+}
+html[data-n15-theme='light'] .ar-knob {
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 3px 9px -2px rgba(26, 29, 34, 0.4);
+}
+html[data-n15-theme='light'] .ar-hints {
+  color: rgba(26, 29, 34, 0.42);
+}
+html[data-n15-theme='light'] .tc-fin-img,
+html[data-n15-theme='light'] .tc-shot {
+  background: rgba(26, 29, 34, 0.05);
+}
+html[data-n15-theme='light'] .tc-reason,
+html[data-n15-theme='light'] .tc-quiet .tc-status {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* The upload invitation. Copper on stone rather than copper on resin. */
+html[data-n15-theme='light'] .tc-up {
+  border-color: rgba(154, 83, 22, 0.42);
+  background:
+    radial-gradient(120% 140% at 50% 0%, rgba(154, 83, 22, 0.12), transparent 70%),
+    rgba(154, 83, 22, 0.05);
+}
+html[data-n15-theme='light'] .tc-up-hot {
+  border-color: var(--n15-copper);
+  background:
+    radial-gradient(120% 140% at 50% 0%, rgba(154, 83, 22, 0.2), transparent 70%),
+    rgba(154, 83, 22, 0.1);
+}
+html[data-n15-theme='light'] .tc-up-err {
+  border-color: rgba(154, 83, 22, 0.4);
+  background: rgba(154, 83, 22, 0.08);
+}
+
+/* ----------------------------------------------------------------------------
+   BUTTONS
+
+   The primary keeps its copper fill and gains dark type — #f6f2ea on the deeper
+   copper is the readable pairing, and the inset white highlight goes because a
+   raised bevel on a light page reads as a 2008 gradient button.
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .n15-btn-primary {
+  color: #f7f3ec;
+  background: linear-gradient(180deg, #a85c1b, var(--n15-copper-deep));
+  box-shadow: 0 8px 20px -10px rgba(122, 62, 14, 0.55);
+}
+html[data-n15-theme='light'] .n15-btn-ghost {
+  background: rgba(26, 29, 34, 0.04);
+}
+html[data-n15-theme='light'] .n15-btn-ghost:hover {
+  background: rgba(26, 29, 34, 0.07);
+}
+
+/* ----------------------------------------------------------------------------
+   GALLERY, STORY, FORM — the 16B/16B-2 surfaces
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .mg-stage,
+html[data-n15-theme='light'] .ts-media {
+  background: rgba(255, 255, 255, 0.6);
+}
+html[data-n15-theme='light'] .mg-ph {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(154, 83, 22, 0.12), transparent 65%),
+    rgba(255, 255, 255, 0.7);
+}
+html[data-n15-theme='light'] .mg-ph-k {
+  color: rgba(26, 29, 34, 0.45);
+}
+html[data-n15-theme='light'] .mg-dot::after {
+  background: rgba(26, 29, 34, 0.25);
+}
+html[data-n15-theme='light'] .mg-dot-on::after {
+  background: var(--n15-copper);
+}
+
+/* Inputs stay OPAQUE for the same reason they are opaque on dark: typed text
+   must not sit on a moving gradient. White, with a real border. */
+html[data-n15-theme='light'] .rf-input {
+  background: #ffffff;
+  border-color: rgba(26, 29, 34, 0.2);
+}
+html[data-n15-theme='light'] .rf-input::placeholder {
+  color: rgba(26, 29, 34, 0.35);
+}
+html[data-n15-theme='light'] .rf-opt {
+  color: rgba(26, 29, 34, 0.4);
+}
+html[data-n15-theme='light'] .rf-err {
+  border-color: rgba(154, 83, 22, 0.45);
+  background: rgba(154, 83, 22, 0.08);
+}
+
+/* ----------------------------------------------------------------------------
+   SECONDARY TEXT
+
+   Dark-on-light loses legibility faster as alpha falls than light-on-dark does.
+   Everything the base files set at 0.38–0.5 is lifted so it reads as secondary
+   rather than as disabled.
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .n15-eyebrow,
+html[data-n15-theme='light'] .n15-small,
+html[data-n15-theme='light'] .tc-price-label,
+html[data-n15-theme='light'] .ar-label,
+html[data-n15-theme='light'] .rf-label,
+html[data-n15-theme='light'] .mx-table th,
+html[data-n15-theme='light'] .pf-k,
+html[data-n15-theme='light'] .sim-trade,
+html[data-n15-theme='light'] .ft-h,
+html[data-n15-theme='light'] .st-code {
+  color: rgba(26, 29, 34, 0.62);
+}
+html[data-n15-theme='light'] .tc-free,
+html[data-n15-theme='light'] .tc-shot-cap,
+html[data-n15-theme='light'] .pf-s,
+html[data-n15-theme='light'] .rf-hint,
+html[data-n15-theme='light'] .ft-mark,
+html[data-n15-theme='light'] .mg-cap {
+  color: rgba(26, 29, 34, 0.55);
+}

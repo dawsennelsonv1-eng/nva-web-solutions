@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { getSiteTheme } from '@/lib/site/theme';
 import './globals.css';
 import './phase15a.css';
 import './phase15b.css';
 import './phase15c.css';
 import './phase16.css';
+import './phase17.css';
 
 /**
  * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
@@ -17,7 +19,19 @@ import './phase16.css';
  *   phase15b.css  homepage: cards, tilt, restyled sections, header, footer.
  *                 UNTOUCHED BY 15C.
  *   phase15c.css  about, support, privacy, terms, error, not-found. UNTOUCHED.
- *   phase16.css   tool pages: gallery, story, similar tools, CTA rail.
+ *   phase16.css   tool pages: gallery, story, similar tools, CTA rail. UNTOUCHED.
+ *   phase17.css   the LIGHT THEME. Every rule scoped to
+ *                 html[data-n15-theme='light'], so it is inert on dark.
+ *
+ * THE THEME IS READ ON THE SERVER AND WRITTEN ONTO <html>. There is no flash of
+ * the wrong theme, because the correct attribute is in the initial HTML — the
+ * browser never paints one theme and then swaps. That is the whole reason this
+ * is a server read and not a cookie or a localStorage lookup in a script tag.
+ *
+ * getSiteTheme() is cached and tag-invalidated (lib/site/theme.ts), so the
+ * steady-state cost of this read across the whole site is zero queries. If the
+ * settings table does not exist yet it returns 'light' and the site renders
+ * normally — deploying this before running migration 0018 is safe.
  *
  * Nothing in 15B is a Tailwind class, so tailwind.config.ts is unchanged and no
  * legacy surface moves.
@@ -54,12 +68,20 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
-  // data-theme="light" stays: the legacy token system still governs admin, the
-  // widget, and every public route other than the homepage. The 15A/15B layers
-  // are namespaced (--n15-*) and do not read data-theme.
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const theme = await getSiteTheme();
+
+  // TWO THEME ATTRIBUTES, AND THEY ARE NOT THE SAME THING.
+  //
+  //   data-theme="light"    the LEGACY token system. Governs admin, the widget,
+  //                         and any public route still on the old styles. It is
+  //                         hardcoded and does not follow the switch — flipping
+  //                         the marketing site to dark must not restyle the
+  //                         admin screens somebody is working in.
+  //
+  //   data-n15-theme        the 15A+ layer. This is the one the switch controls.
   return (
-    <html lang="en" data-theme="light">
+    <html lang="en" data-theme="light" data-n15-theme={theme}>
       <head>
         <link
           rel="preload"
