@@ -35,12 +35,60 @@ import Link from 'next/link';
  * iOS Safari is a well-known source of scroll-position bugs.
  */
 
+/**
+ * ============================================================================
+ * ONE "SIGN IN" LINK SERVES BOTH SIGNED-IN AND SIGNED-OUT VISITORS
+ * ============================================================================
+ *
+ * There is no session check in this component and none is needed. middleware.ts
+ * already bounces an authenticated user from /login straight to /app, so a
+ * stranger who taps Sign in gets the form and a contractor who taps it lands on
+ * his own dashboard.
+ *
+ * Worth stating plainly, because the obvious implementation — read the session,
+ * swap the label between "Sign in" and "My account" — would mean threading a
+ * server-side auth read through app/(public)/layout.tsx into a client component
+ * on every public page, to change one word. The routing already does the work.
+ *
+ * ============================================================================
+ * "GET STARTED" IS THE SIGN-UP, AND IT IS DELIBERATELY NOT A SUPABASE FORM
+ * ============================================================================
+ *
+ * There is no /signup route in this codebase and that reads as a decision
+ * rather than a gap. An account here is not a thing you create — it is a thing
+ * that exists because a `companies` row and a `company_members` row were
+ * created for you. lib/auth/member.ts is explicit that a signed-in user with no
+ * membership is "a real person whose invite has not been accepted": an anomaly,
+ * handled as a support problem.
+ *
+ * A self-serve email/password form would manufacture exactly that anomaly. The
+ * visitor would sign up successfully, land on /app, and be told no company is
+ * attached to his account — working software delivering a dead end, on the
+ * first screen he sees after trusting us with an email address.
+ *
+ * It is also a tenancy decision I am not entitled to make alone. Letting an
+ * anonymous visitor create a `companies` row changes who can bootstrap a
+ * tenant, and 0014_companies.sql was written on the assumption that they
+ * cannot.
+ *
+ * So Get started points at /start, the questionnaire. For this business that
+ * genuinely IS the sign-up: he answers five short questions, the branded
+ * version gets built, and his account is created with a company attached when
+ * he is onboarded. If self-serve accounts are ever wanted, that is its own
+ * phase with its own migration — not a link in a menu.
+ */
 const NAV = [
   { href: '/', label: 'Home' },
   { href: '/categories', label: 'Categories' },
   { href: '/queue', label: 'Build queue' },
   { href: '/pricing', label: 'Pricing' },
   { href: '/demo', label: 'Demo' },
+];
+
+/** Account actions. Separated from NAV at both breakpoints. */
+const ACCOUNT = [
+  { href: '/login', label: 'Sign in' },
+  { href: '/start', label: 'Get started' },
 ];
 
 export function Header() {
@@ -60,6 +108,11 @@ export function Header() {
                 {n.label}
               </Link>
             ))}
+            <span aria-hidden className="hd-sep" />
+            <Link href="/login">Sign in</Link>
+            <Link href="/start" className="hd-cta">
+              Get started
+            </Link>
           </nav>
 
           <button
@@ -83,6 +136,17 @@ export function Header() {
               {n.label}
             </Link>
           ))}
+
+          {/* Bottom-weighted below the rest. These are the two rows a thumb
+              should reach first on a large phone held one-handed, which is the
+              same reason the whole panel is justified to the end. */}
+          <div className="hd-account">
+            {ACCOUNT.map((a) => (
+              <Link key={a.href} href={a.href} onClick={() => setOpen(false)}>
+                {a.label}
+              </Link>
+            ))}
+          </div>
         </nav>
       )}
     </>

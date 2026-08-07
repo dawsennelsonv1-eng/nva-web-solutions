@@ -1,0 +1,69 @@
+/* ============================================================================
+   PHASE 16F — ACCOUNT LINKS IN THE MENU
+   Imported last. Additions only; light-theme overrides at the foot, scoped the
+   same way phase17.css is.
+========================================================================== */
+
+/* Separates the account actions from the site navigation on desktop. A hairline
+   rather than a gap: a gap at this scale just looks like inconsistent spacing,
+   whereas a rule says these two things are different kinds of link. */
+.hd-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--n15-card-edge);
+}
+
+/* "Get started" is the only filled element in the bar. It is the same action as
+   the primary button at the foot of every tool page, so it carries the same
+   copper — a visitor who has scrolled past three of those recognises it. */
+.hd-cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0 0.95rem;
+  border-radius: 999px;
+  color: #150e07;
+  background: linear-gradient(180deg, #d9812f, var(--n15-copper-deep));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+/* The nav's own `a` rule sets a muted colour and a hover; both are wrong on a
+   filled pill, so they are restated here rather than inherited. */
+.hd-nav .hd-cta,
+.hd-nav .hd-cta:hover {
+  color: #150e07;
+}
+
+/* The mobile panel's account block. A rule above it and a little air, so the
+   two account rows read as a group rather than as two more menu items — and it
+   sits at the very bottom, in thumb reach. */
+.hd-account {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--n15-card-edge);
+  padding-top: 0.5rem;
+}
+.hd-panel .hd-account a {
+  font-size: 1.5rem;
+  color: rgba(var(--n15-ink), 0.82);
+}
+.hd-panel .hd-account a:last-child {
+  color: var(--n15-copper);
+}
+
+/* ----------------------------------------------------------------------------
+   LIGHT THEME
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .hd-cta {
+  color: #f7f3ec;
+  background: linear-gradient(180deg, #a85c1b, var(--n15-copper-deep));
+  box-shadow: none;
+}
+html[data-n15-theme='light'] .hd-nav .hd-cta,
+html[data-n15-theme='light'] .hd-nav .hd-cta:hover {
+  color: #f7f3ec;
+}
+html[data-n15-theme='light'] .hd-panel .hd-account a {
+  color: rgba(26, 29, 34, 0.85);
+}
+html[data-n15-theme='light'] .hd-panel .hd-account a:last-child {
+  color: var(--n15-copper);
+}

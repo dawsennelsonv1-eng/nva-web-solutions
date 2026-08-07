@@ -1,32 +1,30 @@
 'use server';
 
 import { z } from 'zod';
+import { requireAdmin } from '@/lib/auth/admin';
 import { MAX_SLOTS, replaceToolMedia } from '@/lib/tools/media';
 
 /**
  * app/actions/toolMedia.ts — save a tool's recordings.
  *
  * ============================================================================
- * VERIFY — AUTHORISATION
+ * AUTHORISATION — CLOSED IN PHASE 16F
  * ============================================================================
  *
- * Like app/actions/appearance.ts, this does NOT check who is calling it. Server
- * actions are reachable from any browser, and I have not seen the admin session
- * helper — app/admin/ai/page.tsx says Phase 8 owns it and stands in with a
- * hardcoded constant.
- *
- * THE EXPOSURE HERE IS LARGER THAN THE THEME SWITCH. This writes image URLs
- * that render on public pages, so an unauthenticated caller could put an
+ * This was the more exposed of the two unguarded actions: it writes image URLs
+ * that render on public pages, so an unauthenticated caller could have put an
  * arbitrary picture on the front of the site.
  *
- * It is bounded: the schema below accepts only a root-relative path or an
- * https:// URL, so `data:`, `javascript:` and protocol-relative values are all
- * rejected, and the value is only ever used as an <img src>. Nothing here can
- * execute. But it is a real gap and it is worth closing before this URL is
- * public knowledge.
+ * requireAdmin() (lib/auth/admin.ts) now runs FIRST, before the payload is even
+ * parsed. It reads the cookie-bound session and calls the same is_admin() SQL
+ * function middleware uses.
  *
- * TO CLOSE IT: import whatever guard app/admin/layout.tsx uses and call it as
- * the first line of the function. One line, same as the theme action.
+ * THE SCHEMA BELOW STAYS AS THE SECOND LAYER, not because the guard is doubted
+ * but because they answer different questions. The guard answers "may this
+ * person write here"; the schema answers "is this a sane thing to write" — it
+ * accepts only a root-relative path or an https:// URL, so `data:`,
+ * `javascript:` and protocol-relative values are rejected even for an admin who
+ * pastes the wrong thing.
  */
 
 const slot = z.object({
@@ -52,6 +50,11 @@ const schema = z.object({
 export type SaveMediaResult = { ok: true; count: number } | { ok: false; message: string };
 
 export async function saveToolMediaAction(raw: unknown): Promise<SaveMediaResult> {
+  const admin = await requireAdmin();
+  if (!admin) {
+    return { ok: false, message: 'Not signed in as an admin. Sign in again and retry.' };
+  }
+
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
