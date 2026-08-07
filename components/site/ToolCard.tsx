@@ -46,9 +46,24 @@ import { finishPhotoFor } from '@/lib/site/finish-photos';
  *
  * Only ONE card can be under a pointer at a time, so the tilt cost does not
  * multiply with the deck. The ambient gradient does, which is why it is a
- * single animated layer per card and why the IntersectionObserver below pauses
- * it the moment a card leaves the viewport. At 360px exactly one card is on
- * screen, so the steady-state animation cost of the whole deck is one layer.
+ * single animated layer per card rather than the three the site field runs.
+ *
+ * THERE IS NO OFF-SCREEN PAUSE, and that is a corrected decision rather than an
+ * omission. The first version of this file used an IntersectionObserver to stop
+ * a card's gradient once it left the viewport. The repo's ESLint config bans
+ * IntersectionObserver outright under 13A build constraint 4 — no scroll-
+ * triggered animation of any kind — and the build failed on it.
+ *
+ * The rule is right and the exception was not worth taking. It reads intent
+ * from the API rather than from a comment, which is the only way a constraint
+ * like that survives contact with a future phase, and what the observer bought
+ * on a two-card deck was one composited layer. Cards still stop animating when
+ * the TAB is hidden: GradientField toggles .tab-hidden on <html> and the CSS
+ * pauses .tc-field with it, which is the case that actually drains a battery.
+ *
+ * If the deck ever grows past four or five live tools and the gradients start
+ * costing something measurable, the fix is CSS — content-visibility: auto with
+ * a contain-intrinsic-size on the card — not a scroll observer.
  *
  * `will-change: transform` is added only while a card is actually tilting and
  * removed when the pointer leaves. Leaving it on would promote every card to a
@@ -175,22 +190,6 @@ export function ToolCard({
       el.removeEventListener('pointercancel', onLeave);
       if (raf.current) cancelAnimationFrame(raf.current);
     };
-  }, []);
-
-  // ---- pause the gradient when off screen ---------------------------------
-  useEffect(() => {
-    const el = cardRef.current;
-    if (!el || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          el.classList.toggle('tc-rest', !entry.isIntersecting);
-        }
-      },
-      { rootMargin: '200px' }
-    );
-    io.observe(el);
-    return () => io.disconnect();
   }, []);
 
   // ---- the price, computed in the browser ---------------------------------

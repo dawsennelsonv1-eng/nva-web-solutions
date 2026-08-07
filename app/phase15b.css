@@ -32,10 +32,12 @@
       drifting discs because there is one of it. A card is repeated, so it
       gets a single composited element carrying a two-stop radial pair.
 
-   3. CARDS OFF SCREEN DO NOT ANIMATE. ToolCard's IntersectionObserver adds
-      .tc-rest when a card leaves the viewport, which pauses its keyframe. On
-      a phone at 360px only one card is ever visible, so the steady-state
-      cost is one card gradient, not the whole deck.
+   3. HIDDEN TABS COST NOTHING. GradientField toggles .tab-hidden on <html>
+      and every card gradient pauses with it, the same way the site field and
+      the hero zoom already do. There is deliberately NO off-screen pause:
+      that needed an IntersectionObserver, which 13A build constraint 4 bans
+      outright, and the rule is worth more than the one composited layer it
+      would have saved on a two-card deck.
 
    4. TILT RUNS ON ONE CARD AT A TIME, by construction — a pointer is only
       ever over one card, and the variables are written to that card's own
@@ -305,8 +307,9 @@
     transform: translate3d(6%, -5%, 0) scale(1.14);
   }
 }
-/* Off screen: stop paying for it. Added by ToolCard's IntersectionObserver. */
-.tc-rest .tc-field,
+/* Hidden tab: stop paying for it. .tab-hidden is set on <html> by
+   GradientField on visibilitychange — one writer, and the site field and hero
+   zoom already read it. */
 .tab-hidden .tc-field {
   animation-play-state: paused;
 }
