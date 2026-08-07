@@ -174,7 +174,7 @@ export function Machinery() {
           </div>
         </div>
 
-        <p className="n15-small" style={{ marginTop: '1.25rem', maxWidth: '60ch' }}>
+        <p className="n15-small n15-measure">
           The AI never sets a price. It reads the photo and suggests the slab
           condition; the number comes from this table every time, which is why a
           quote still works when the AI is down.
@@ -212,7 +212,7 @@ export function Terms() {
           ))}
         </div>
 
-        <p className="n15-small" style={{ marginTop: '1.5rem', maxWidth: '60ch' }}>
+        <p className="n15-small n15-measure">
           The second and third of those are properties of how the software is
           built, not promises about how we will behave. Lead capture runs on a
           path that does not depend on billing state, and the widget falls back
@@ -312,7 +312,7 @@ export function Footer() {
         {cols.map((c) => (
           <div key={c.head}>
             <p className="ft-h">{c.head}</p>
-            <div style={{ marginTop: '0.5rem' }}>
+            <div className="ft-links">
               {c.links.map((l) => (
                 <Link key={l.href} href={l.href}>
                   {l.label}

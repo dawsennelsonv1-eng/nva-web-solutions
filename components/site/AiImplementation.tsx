@@ -79,7 +79,7 @@ export function AiImplementation() {
 
         <div className="ai-foot">
           <h3 className="n15-h3">We look at the business first</h3>
-          <p className="n15-body" style={{ marginTop: '0.9rem', maxWidth: '58ch' }}>
+          <p className="n15-body n15-measure">
             Before anything gets built we go through how a job goes from enquiry
             to signed: where the enquiries come in, who answers them, how long a
             quote takes to write, what gets it wrong, and where the ones you lose
@@ -87,12 +87,12 @@ export function AiImplementation() {
             should not exist. What is left is the thing worth building, and you
             get that list whether or not you hire us for the build.
           </p>
-          <p className="n15-small" style={{ marginTop: '0.9rem', maxWidth: '58ch' }}>
+          <p className="n15-small n15-measure">
             What none of this does is create traffic. It converts the people
             already looking at you.
           </p>
 
-          <div className="tc-actions" style={{ marginTop: '1.75rem' }}>
+          <div className="tc-actions n15-actions-wide">
             <Link href="/pricing" className="n15-btn n15-btn-primary">
               Start with my trade
             </Link>

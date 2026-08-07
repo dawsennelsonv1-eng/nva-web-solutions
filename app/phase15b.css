@@ -196,6 +196,47 @@
   border-radius: 6px;
 }
 
+/* Measure and rhythm utilities.
+
+   These exist because CONVENTIONS.md §7 permits inline styles ONLY for CSS
+   custom properties injected for per-tenant branding, and the first cut of 15B
+   used a dozen inline margin/max-width objects. That is a real rule with a real
+   reason — an inline max-width is invisible to anyone auditing the type system
+   and cannot be changed at a breakpoint — so the values moved here.
+
+   60ch is where a line stops being scannable at this body size; 58ch is the
+   same measure against the slightly larger .n15-body. */
+.n15-measure {
+  margin-top: 1.4rem;
+  max-width: 60ch;
+}
+.n15-after {
+  margin-top: 1rem;
+}
+.n15-actions-wide {
+  margin-top: 1.75rem;
+}
+
+/* The unit number beside a card's status. Quieter than the status word itself:
+   it is provenance, not a label, and it is checked against the registry rather
+   than typed. */
+.tc-unit {
+  opacity: 0.5;
+}
+
+/* The visualiser when the render path is not configured on this deployment.
+   Legible, obviously inert, and not hidden — a missing feature that is stated
+   is a different thing from a missing feature that is concealed. */
+.tc-up-off {
+  opacity: 0.55;
+}
+
+/* The real file input. Hidden because the styled button drives it via .click();
+   it is still in the DOM and still keyboard-reachable through that button. */
+.tc-file {
+  display: none;
+}
+
 /* ----------------------------------------------------------------------------
    WHY US — type and space only. No icons: every point here is an abstraction
    (ownership, continuity, revenue), and an icon for an abstraction is a
@@ -1108,6 +1149,9 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: rgba(var(--n15-ink), 0.4);
+}
+.ft-links {
+  margin-top: 0.5rem;
 }
 .ft-in a {
   display: block;

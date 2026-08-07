@@ -245,7 +245,7 @@ export function ToolCard({
           <span className="tc-status">
             <span aria-hidden className="tc-dot" />
             {inService ? 'In service' : 'On the queue'}
-            <span style={{ opacity: 0.5 }}>· {unit}</span>
+            <span className="tc-unit">· {unit}</span>
           </span>
         </header>
 

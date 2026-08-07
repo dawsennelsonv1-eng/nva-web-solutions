@@ -163,7 +163,7 @@ export function FinishVisualiser({
 
   if (!enabled) {
     return (
-      <div className="tc-up" aria-disabled="true" style={{ opacity: 0.55 }}>
+      <div className="tc-up tc-up-off" aria-disabled="true">
         <p className="tc-up-h">See your floor finished</p>
         <p className="tc-up-sub">
           The photo preview is switched off on this deployment. Everything else on
@@ -214,7 +214,7 @@ export function FinishVisualiser({
         type="file"
         accept="image/*"
         capture="environment"
-        style={{ display: 'none' }}
+        className="tc-file"
         onChange={(e) => void handleFile(e.target.files?.[0])}
       />
 

@@ -53,14 +53,14 @@ export async function ProofOfOperation() {
           ))}
         </dl>
 
-        <div style={{ marginTop: '2rem', maxWidth: '60ch' }}>
+        <div className="n15-measure">
           <p className="n15-body">
             That install count is small because this launched this quarter. Being
             early is the offer rather than the problem: founding install pricing
             is locked for the life of the account, and it does not go up when the
             price does.
           </p>
-          <p className="n15-small" style={{ marginTop: '1rem' }}>
+          <p className="n15-small n15-after">
             Uptime is not on this page and will not be until something outside
             this system measures it. Software cannot honestly report its own
             downtime — if it were down, it would not be writing the row.

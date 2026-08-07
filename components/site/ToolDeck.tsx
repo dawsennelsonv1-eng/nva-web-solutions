@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ToolCard, type ToolCardFinish } from '@/components/site/ToolCard';
 import { getQueueSections } from '@/lib/queue/data';
 import { TOOLS } from '@/lib/queue/tools';
+import { isVisualiserConfigured } from '@/lib/site/render-config';
 import {
   DEFAULT_TIER,
   REFERENCE_FINISHES,
@@ -50,11 +51,13 @@ import {
  *
  * lib/ai/images returns 'not_configured' when OPENROUTER_API_KEY is absent, so
  * on a deployment without the key every upload would fail politely after a
- * round trip. Reading it here lets the card render the invitation visibly
- * inert with a plain note instead of shipping a button that always fails.
+ * round trip. Asking here lets the card render the invitation visibly inert
+ * with a plain note instead of shipping a button that always fails.
  *
- * process.env is read in a server component, so the key itself never reaches
- * the browser — only the boolean does.
+ * The env var is NOT read in this file. CONVENTIONS.md §4 forbids a component
+ * reading one directly, so the question is asked of lib/site/render-config,
+ * which is 'server-only'. The boolean crosses to the client as a prop; the key
+ * never does.
  */
 
 /**
@@ -131,7 +134,7 @@ export async function ToolDeck() {
   // Nothing is in service: render nothing rather than an empty shelf.
   if (live.length === 0) return null;
 
-  const renderEnabled = Boolean(process.env.OPENROUTER_API_KEY);
+  const renderEnabled = isVisualiserConfigured();
   const remaining = TOOLS.length - live.length;
 
   const finishes: ToolCardFinish[] = REFERENCE_FINISHES.map((f) => ({
