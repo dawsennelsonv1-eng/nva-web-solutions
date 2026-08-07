@@ -1,6 +1,7 @@
 import { ToolCard, type ToolCardFinish } from '@/components/site/ToolCard';
 import { getQueueSections } from '@/lib/queue/data';
 import { isVisualiserConfigured } from '@/lib/site/render-config';
+import { mediaForTool } from '@/lib/tools/media';
 import {
   DEFAULT_TIER,
   REFERENCE_FINISHES,
@@ -176,6 +177,18 @@ export async function ToolDeck() {
   const shown = live.filter((row) => PUBLIC_TOOLS.includes(row.tool.id));
   if (shown.length === 0) return null;
 
+  /**
+   * Recordings for every visible tool, fetched once here rather than per card.
+   * mediaForTool is async-shaped against the day it becomes a table query
+   * (see lib/tools/media.ts) — resolving them together keeps that a single
+   * round trip instead of one per card.
+   */
+  const mediaByTool = new Map(
+    await Promise.all(
+      shown.map(async (row) => [row.tool.id, await mediaForTool(row.tool.id)] as const)
+    )
+  );
+
   const finishes: ToolCardFinish[] = REFERENCE_FINISHES.map((f) => ({
     id: f.id,
     label: f.label,
@@ -211,6 +224,7 @@ export async function ToolDeck() {
                 inService
                 tint={tint}
                 renderEnabled={renderEnabled}
+                media={mediaByTool.get(row.tool.id) ?? []}
                 specHref={`/tools/${row.tool.id}`}
                 quietReason={QUIET_REASON[row.tool.id]}
                 pricer={

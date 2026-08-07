@@ -1,0 +1,105 @@
+/* ============================================================================
+   PHASE 16C — THE PHOTO-FIRST CARD
+   ----------------------------------------------------------------------------
+   Imported last, after phase17.css. Additions only; every selector is new.
+   The light-theme overrides for these are at the foot of the file, scoped to
+   html[data-n15-theme='light'] exactly as phase17.css is.
+========================================================================== */
+
+/* The gallery inside a card. Deliberately smaller than the one on a tool page:
+   here it is supporting evidence beneath the invitation, not the headline act,
+   and a full-width 16/10 stage inside a card pushes the price below the fold on
+   every phone. */
+.tc-gallery {
+  margin-top: 1.35rem;
+}
+.tc-gallery .mg {
+  margin: 0;
+}
+.tc-gallery .mg-stage {
+  aspect-ratio: 3 / 2;
+  border-radius: var(--n15-r-inner);
+}
+.tc-gallery .mg-cap {
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+}
+.tc-gallery .mg-dots {
+  margin-top: 0.5rem;
+}
+
+/* ----------------------------------------------------------------------------
+   THE ESTIMATE
+
+   Set as a sentence in the display serif, not as a readout. That is the whole
+   design argument of this phase: an answer reads as an answer, whereas a
+   numeric field with a slider under it reads as an unfinished form. The number
+   itself is the one thing lifted into the figure face, because it is the fact.
+--------------------------------------------------------------------------- */
+.tc-measure {
+  margin-bottom: 1.1rem;
+}
+.tc-measure-h {
+  font-family: var(--n15-serif);
+  font-size: clamp(1.2rem, 3.8vw, 1.5rem);
+  line-height: 1.25;
+  color: rgb(var(--n15-ink));
+}
+.tc-measure-n {
+  font-family: var(--n15-sans);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
+}
+
+/* A quiet inline control. Underlined rather than boxed: a second button beside
+   the estimate would compete with it, and this is a correction most visitors
+   will never make. 44px of vertical padding keeps the target honest without
+   making the text look like a button. */
+.tc-link {
+  display: inline-block;
+  padding: 0.35rem 0;
+  border: 0;
+  background: none;
+  font-family: var(--n15-sans);
+  font-size: 0.85rem;
+  color: rgba(var(--n15-ink), 0.62);
+  text-decoration: underline;
+  text-decoration-color: rgba(201, 112, 47, 0.55);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.tc-link:hover {
+  color: rgb(var(--n15-ink));
+}
+
+/* The rule, once revealed. Separated by a hairline so it reads as a correction
+   to the sentence above rather than as the primary control. */
+.tc-rule {
+  margin-bottom: 1.35rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--n15-card-edge);
+}
+
+/* ----------------------------------------------------------------------------
+   THE RENDER, now a step inside the panel rather than its own invitation block
+--------------------------------------------------------------------------- */
+.tc-render {
+  margin-top: 1.35rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid var(--n15-card-edge);
+}
+.tc-render-go {
+  width: 100%;
+}
+
+/* ----------------------------------------------------------------------------
+   LIGHT THEME
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .tc-link {
+  color: rgba(26, 29, 34, 0.68);
+  text-decoration-color: rgba(154, 83, 22, 0.6);
+}
+html[data-n15-theme='light'] .tc-link:hover {
+  color: #1a1d22;
+}

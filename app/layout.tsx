@@ -7,6 +7,7 @@ import './phase15b.css';
 import './phase15c.css';
 import './phase16.css';
 import './phase17.css';
+import './phase18.css';
 
 /**
  * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
@@ -20,6 +21,7 @@ import './phase17.css';
  *                 UNTOUCHED BY 15C.
  *   phase15c.css  about, support, privacy, terms, error, not-found. UNTOUCHED.
  *   phase16.css   tool pages: gallery, story, similar tools, CTA rail. UNTOUCHED.
+ *   phase18.css   the photo-first card (16C). Light overrides at its foot.
  *   phase17.css   the LIGHT THEME. Every rule scoped to
  *                 html[data-n15-theme='light'], so it is inert on dark.
  *
