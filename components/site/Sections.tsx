@@ -19,7 +19,14 @@ import {
  * cancelled, and these sections now sit on the gradient field in the 15A type
  * with depth and generous radii.
  *
- * ONE REAL CONTENT CHANGE, and it is a removal: Integration step 01 said "Right
+ * PHASE 16A: the Terms section is REMOVED from this file. Its six lines now
+ * live only on /terms, which the footer already links to. Two copies of a
+ * promise is how a promise starts drifting, and the homepage is being made
+ * generic across trades while those six lines are specifics of one commercial
+ * arrangement. The Machinery section is kept here but is no longer mounted on
+ * the homepage — see app/(public)/page.tsx.
+ *
+ * ONE REAL CONTENT CHANGE FROM 15B, and it is a removal: Integration step 01 said "Right
  * now that means concrete and epoxy coating." Painting has been registered in
  * lib/verticals/manifest.ts since Phase 11 and resolves to IN SERVICE, so that
  * sentence had quietly become false. It now names what the registry actually
@@ -43,12 +50,12 @@ export function Integration() {
     {
       n: '01',
       head: 'Choose your tool',
-      body: 'Pick the quoting widget for your trade. What is running today is shown above, checked against the code as the page loads. What comes next is decided in public on the build queue.',
+      body: 'Pick the one built for your trade. What is running today is shown above, checked against the code as the page loads, and what comes next is decided in public on the build queue.',
     },
     {
       n: '02',
       head: 'We brand it',
-      body: 'We pull your logo and colours off your existing site and match the widget to it, then send you a link to the working thing before you pay anything.',
+      body: 'We pull your logo and colours off your existing site and match the tool to them, then send you a link to the working thing before you pay anything.',
     },
     {
       n: '03',
@@ -64,7 +71,10 @@ export function Integration() {
         <h2 id="integration-h" className="n15-h2">
           You do not have to know how to code.
         </h2>
-        <p className="n15-lede">There are three steps and one of them is yours.</p>
+        <p className="n15-lede">
+          Whichever tool you pick, it goes live the same way. Three steps, and
+          one of them is yours.
+        </p>
 
         {/* The numbering stays because this genuinely is a sequence — you
             cannot brand a tool you have not chosen. Numbered markers on a set
@@ -95,10 +105,11 @@ export function Machinery() {
           Here is the pricing model itself.
         </h2>
         <p className="n15-lede">
-          This is the whole calculation, not a description of one. It is the
-          configuration your quoting tool runs on. Yours is your own — you set
-          every number in this table, and you can change any of them from the
-          dashboard.
+          YOU set every rate, every adjustment, every fee and every minimum
+          below, and you change any of them from your dashboard in about a
+          minute. This is one worked example so you can see the whole
+          calculation rather than a description of it. Nothing here is our price
+          for your work — it is your price, running.
         </p>
 
         <div className="mx-wrap">
@@ -175,48 +186,10 @@ export function Machinery() {
         </div>
 
         <p className="n15-small n15-measure">
-          The AI never sets a price. It reads the photo and suggests the slab
-          condition; the number comes from this table every time, which is why a
-          quote still works when the AI is down.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------- terms */
-
-export function Terms() {
-  const terms = [
-    'No contract. Cancel from the dashboard in one click.',
-    'Every lead reaches you regardless of billing status. Lead capture never stops.',
-    'The widget degrades to a plain contact form and never breaks your site — payment lapse, usage cap, or API outage.',
-    'Full data export any time.',
-    'Unhappy within 30 days and the setup fee is refunded.',
-    'Payments are processed by Stripe. We never touch your customers’ money.',
-  ];
-
-  return (
-    <section className="n15-sec" aria-labelledby="terms-h">
-      <div className="n15-in">
-        <p className="n15-eyebrow">The agreement</p>
-        <h2 id="terms-h" className="n15-h2">
-          What you are actually agreeing to.
-        </h2>
-
-        <div className="tm-list">
-          {terms.map((t) => (
-            <p key={t} className="tm-item">
-              {t}
-            </p>
-          ))}
-        </div>
-
-        <p className="n15-small n15-measure">
-          The second and third of those are properties of how the software is
-          built, not promises about how we will behave. Lead capture runs on a
-          path that does not depend on billing state, and the widget falls back
-          to a contact form rather than failing.
+          You set every number in this table. The AI never sets a price and
+          never adjusts one — it reads the photo and suggests the slab
+          condition, within limits you decide. The figure your customer sees
+          comes from your own rates, every single time.
         </p>
       </div>
     </section>

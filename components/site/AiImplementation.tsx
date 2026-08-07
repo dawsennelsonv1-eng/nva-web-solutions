@@ -1,5 +1,3 @@
-import Link from 'next/link';
-
 /**
  * components/site/AiImplementation.tsx — THE POSITIONING.
  *
@@ -21,8 +19,18 @@ import Link from 'next/link';
  * revolutionise, or powered by AI.
  *
  * ============================================================================
- * THE ENTRY POINT ROUTES INTO WHAT ALREADY EXISTS
+ * THE CLOSING BLOCK IS GONE — PHASE 16A
  * ============================================================================
+ *
+ * 15B ended this section with a "We look at the business first" card and two
+ * buttons. It is removed. The audit it described is real, but it was making
+ * this section carry a second job — positioning AND conversion — and the page
+ * now has a dedicated intake further down that asks for the same information in
+ * a form instead of describing it in a paragraph. A section that explains what
+ * a conversation would cover, immediately above a form that starts one, is the
+ * paragraph losing.
+ *
+ * ORIGINAL ENTRY-POINT NOTE, still true of the buttons elsewhere on the page:
  *
  * /pricing is the existing entry to the funnel, and its own CTA
  * (components/prototype/PurchaseCta) already runs the checkout path. This
@@ -41,16 +49,16 @@ import Link from 'next/link';
 
 const OFFERS = [
   {
-    head: 'A quoting tool on your own website',
+    head: 'An instant answer on your own website',
     body: 'Somebody lands on your site at nine at night wanting a number. Right now they find a contact form and call the next company on the list. This gives them a real range in under a minute, from your rates, and hands you their name and phone whether or not they book.',
   },
   {
-    head: 'A visualiser that shows them the floor',
-    body: 'The question you answer every week is what will it actually look like. Describing it loses the job to whoever showed a picture. They send a photo of their own garage and get it back with the coating on it — their room, their light, not a gallery of somebody else’s work.',
+    head: 'They see the finished job before they call',
+    body: 'The question you answer every week is what will it actually look like. Describing it loses the job to whoever showed a picture. They send a photo of their own place and get it back finished — their room, their light, not a gallery of somebody else’s work.',
   },
   {
-    head: 'Software built for how you work',
-    body: 'The estimate you rebuild in a spreadsheet every time. The measurements you retype into three places. The follow-up you meant to send on Tuesday. Those are the jobs worth writing software for, and they are different in every trade.',
+    head: 'Software built for how you actually work',
+    body: 'The estimate you rebuild in a spreadsheet every time. The measurements you retype into three places. The follow-up you meant to send on Tuesday. Those are the jobs worth writing software for, and they are different in every trade — which is why we build yours rather than selling you somebody else’s.',
   },
 ];
 
@@ -64,8 +72,9 @@ export function AiImplementation() {
         </h2>
         <p className="n15-lede">
           Not a website. Not a monthly retainer for marketing. We look at how
-          quotes actually get made in your company, and we build the specific
-          thing that is missing.
+          work actually gets won in your company — where the enquiries come in,
+          how long an answer takes, where the ones you lose drop out — and we
+          build the specific thing that is missing.
         </p>
 
         <div className="ai-grid">
@@ -77,30 +86,6 @@ export function AiImplementation() {
           ))}
         </div>
 
-        <div className="ai-foot">
-          <h3 className="n15-h3">We look at the business first</h3>
-          <p className="n15-body n15-measure">
-            Before anything gets built we go through how a job goes from enquiry
-            to signed: where the enquiries come in, who answers them, how long a
-            quote takes to write, what gets it wrong, and where the ones you lose
-            drop out. Most of what comes back is not software — it is a step that
-            should not exist. What is left is the thing worth building, and you
-            get that list whether or not you hire us for the build.
-          </p>
-          <p className="n15-small n15-measure">
-            What none of this does is create traffic. It converts the people
-            already looking at you.
-          </p>
-
-          <div className="tc-actions n15-actions-wide">
-            <Link href="/pricing" className="n15-btn n15-btn-primary">
-              Start with my trade
-            </Link>
-            <Link href="/demo" className="n15-btn n15-btn-ghost">
-              Run the whole thing first
-            </Link>
-          </div>
-        </div>
       </div>
     </section>
   );

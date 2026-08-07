@@ -3,51 +3,76 @@
 import { useEffect, useState } from 'react';
 
 /**
- * components/site/HeroCycle.tsx — Phase 15A, Part 3: the type animation.
+ * components/site/HeroCycle.tsx — the type animation. PHASE 16A-2.
  *
- * Three messages. Each writes in, holds, retracts, and the next writes in.
+ * ============================================================================
+ * THE THREE LINES ARE NOW GENERIC. THAT IS THE WHOLE CHANGE.
+ * ============================================================================
+ *
+ * 15A's three were written when this was one product for one trade:
+ *   "Turn your website into a quoting machine."
+ *   "Your customer gets a price in under a minute."
+ *   "They see their floor before they ever call."
+ *
+ * The third names a floor. The first names quoting. This page is now the front
+ * of a marketplace of tools for many trades, and the first thing a visitor
+ * reads should not narrow the business to one of them.
+ *
+ * The replacements say what we do at the level of the company, and they are
+ * ordered so the broadest claim is first — because the first line is the one
+ * that is server-rendered and the one most visitors will read before the cycle
+ * ever starts.
+ *
+ * STILL AIMED AT THE FLOOR GUY. Generic in scope does not mean bland. "How your
+ * trade works" and "an answer in under a minute" are true of nineteen trades
+ * while still describing exactly the epoxy contractor's Tuesday. Nothing here
+ * says platform, solution, leverage, or unlock.
+ *
+ * ============================================================================
+ * EVERYTHING ELSE IS UNCHANGED, AND DELIBERATELY SO
+ * ============================================================================
  *
  * NO LAYOUT SHIFT, BY CONSTRUCTION:
- * - The server renders message one COMPLETE. It is in the initial HTML, so
- *   the largest text on the page paints on first paint with the preloaded
- *   serif — that full line is the LCP candidate, and it never re-renders
- *   before hydration.
+ * - The server renders message one COMPLETE. It is in the initial HTML, so the
+ *   largest text on the page paints on first paint with the preloaded serif —
+ *   that full line is the LCP candidate, and it never re-renders before
+ *   hydration.
  * - .hero-line (phase15a.css) reserves the full wrapped height, so the CTA
  *   below never moves while lines write and retract.
  *
- * REDUCED MOTION: the effect checks the media query and simply never starts.
- * The visitor keeps the complete first message, static — a finished state,
- * not a degraded one.
+ * LENGTH IS A CONSTRAINT HERE, NOT A STYLE CHOICE. The height reservation in
+ * phase15a.css was measured against 15A's strings, whose longest was 45
+ * characters. The first draft of these three ran to 57, which at 360px is very
+ * likely an extra wrapped line — and an extra line means the CTA hops every
+ * time the cycle turns over, on the largest element on the page.
  *
- * ACCESSIBILITY: the cycling span is aria-hidden; screen readers get all
- * three messages once, as one static visually-hidden sentence. No live
- * region, no strobing announcements.
+ * So all three are held at or under 45 characters (longest: 41). Keep any
+ * future line under that ceiling, or re-measure the reservation in
+ * phase15a.css first. This is the cheapest possible place to cause layout
+ * shift and the most expensive place to have it.
  *
- * BACKGROUND TABS: browsers throttle timers in hidden tabs, so the cycle
- * slows to a crawl on its own; state is sequential, so it resumes cleanly.
+ * REDUCED MOTION: the effect checks the media query and never starts. The
+ * visitor keeps the complete first message, static — a finished state, not a
+ * degraded one.
  *
- * ---------------------------------------------------------------------------
- * BUILD FIX (this file only). The first push failed type-check at line 65:
- *   Type error: 'current' is possibly 'undefined'.
+ * ACCESSIBILITY: the cycling span is aria-hidden; screen readers get all three
+ * messages once, as one static visually-hidden sentence. No live region, no
+ * strobing announcements.
  *
- * CAUSE: this repo's tsconfig has `noUncheckedIndexedAccess` enabled, which
- * makes EVERY array index return `T | undefined` — including `MESSAGES[0]`,
- * where the value obviously exists. It is a real setting doing its job; the
- * three indexed reads that were here (lines 42, 64, 72) were all unsound
- * under it, and tsc only reported the first.
+ * BACKGROUND TABS: browsers throttle timers in hidden tabs, so the cycle slows
+ * on its own; state is sequential, so it resumes cleanly.
  *
- * FIX: the messages are now named constants, and `messageAt()` is the single
- * accessor — it returns a plain `string`, so nothing downstream is nullable.
- * The `?? M1` is not defensive padding for a case that can happen; it is how
- * the accessor proves to the compiler that it always returns a string.
- *
- * FOR FUTURE PHASES: assume `noUncheckedIndexedAccess`. Never index an array
- * with a variable and use the result directly.
- * ------------------------------------------------------------------------ */
+ * `noUncheckedIndexedAccess` IS ON. Every array index returns `T | undefined`,
+ * including MESSAGES[0]. That is why the strings are named constants and why
+ * messageAt() is the single accessor — the `?? M1` is not defensive padding for
+ * a case that can happen, it is how the accessor proves to the compiler that it
+ * always returns a string. Never index an array with a variable and use the
+ * result directly.
+ */
 
-const M1 = 'Turn your website into a quoting machine.';
-const M2 = 'Your customer gets a price in under a minute.';
-const M3 = 'They see their floor before they ever call.';
+const M1 = 'We build AI into your business.';
+const M2 = 'Tools made for how your trade works.';
+const M3 = 'Your customer gets an answer in a minute.';
 
 const MESSAGES: readonly string[] = [M1, M2, M3];
 
