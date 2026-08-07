@@ -1,17 +1,37 @@
 import Link from 'next/link';
+import { GradientField } from '@/components/site/GradientField';
 
+/**
+ * (public) 404 — PHASE 15C restyle.
+ *
+ * It now offers somewhere to go rather than only home. A 404 on this site is
+ * most often a mistyped trade name or an old link to a tool page, so the two
+ * destinations are the two places that answer "is my trade on here" — which is
+ * the question the visitor almost certainly arrived with.
+ *
+ * An empty screen is an invitation to act. This one does not apologise and it
+ * is not vague about what happened.
+ */
 export default function PublicNotFound() {
   return (
-    <div className="mx-auto flex min-h-[60dvh] max-w-sm flex-col items-center justify-center px-4 text-center">
-      <p className="font-data text-xs uppercase tracking-wide text-rule">404</p>
-      <h1 className="mt-2 font-display font-condensed text-2xl font-bold">Page not found.</h1>
-      <p className="mt-2 text-base text-rule">That page doesn&apos;t exist.</p>
-      <Link
-        href="/"
-        className="mt-6 min-h-[3rem] rounded-milled bg-hazard px-6 py-3 font-body text-base font-semibold text-sheet"
-      >
-        Back to home
-      </Link>
-    </div>
+    <>
+      <GradientField />
+      <div className="st-state">
+        <p className="st-code">404</p>
+        <h1>That page isn&apos;t here.</h1>
+        <p>
+          It may have moved, or the link may be old. The two pages below cover
+          most of what people are looking for.
+        </p>
+        <div className="st-links">
+          <Link href="/categories" className="n15-btn n15-btn-primary">
+            Find your trade
+          </Link>
+          <Link href="/" className="n15-btn n15-btn-ghost">
+            Back to home
+          </Link>
+        </div>
+      </div>
+    </>
   );
 }

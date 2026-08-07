@@ -1,0 +1,216 @@
+/* ============================================================================
+   PHASE 15C — THE PROSE ROUTES
+   ----------------------------------------------------------------------------
+   Imported AFTER phase15b.css. Additions only: every selector here is new and
+   every token it reads belongs to 15A. globals.css, phase15a.css,
+   phase15b.css and tailwind.config.ts are all untouched.
+
+   WHY A THIRD FILE RATHER THAN AN EDIT TO 15B. phase15b.css is 30 KB and it is
+   correct. Rewriting a working stylesheet to append forty lines is exactly the
+   kind of large diff that introduces a defect nobody is looking for, and this
+   repo delivers whole files — so a whole file that only adds is safer than a
+   whole file that replaces. The import chain stays legible:
+
+     globals.css    legacy tokens — admin, the widget, the unrestyled routes
+     phase15a.css   fonts, --n15-* tokens, gradient field, hero
+     phase15b.css   homepage: cards, tilt, restyled sections, header, footer
+     phase15c.css   about / support / privacy / terms / error / not-found
+
+   These six routes are TEXT. There is no product surface on any of them and
+   no reason for one, so nothing here animates and nothing here is a card. The
+   whole design is a measure, a scale, and enough space to read at arm's
+   length on a phone in daylight.
+========================================================================== */
+
+/* The reading column. 34rem is roughly 68 characters at this body size, which
+   is where a line stops being scannable. It is narrower than .n15-in on
+   purpose: that container holds grids, this one holds sentences. */
+.pr {
+  position: relative;
+  margin: 0 auto;
+  max-width: 34rem;
+  padding: 3.5rem 1.25rem 5rem;
+  color: rgb(var(--n15-ink));
+}
+@media (min-width: 900px) {
+  .pr {
+    padding-top: 5rem;
+  }
+}
+
+.pr h1 {
+  margin-top: 0.9rem;
+  font-family: var(--n15-serif);
+  font-weight: 400;
+  font-size: clamp(2.1rem, 7vw, 3rem);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+}
+
+.pr h2 {
+  margin-top: 2.75rem;
+  font-family: var(--n15-serif);
+  font-weight: 400;
+  font-size: clamp(1.3rem, 4vw, 1.6rem);
+  line-height: 1.2;
+}
+
+.pr p {
+  margin-top: 1rem;
+  font-family: var(--n15-sans);
+  font-size: 1rem;
+  line-height: 1.7;
+  color: rgba(var(--n15-ink), 0.78);
+}
+
+.pr ul {
+  margin-top: 1rem;
+  padding: 0;
+  list-style: none;
+}
+.pr li {
+  position: relative;
+  padding-left: 1.2rem;
+  margin-top: 0.7rem;
+  font-family: var(--n15-sans);
+  font-size: 1rem;
+  line-height: 1.65;
+  color: rgba(var(--n15-ink), 0.78);
+}
+.pr li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.72em;
+  width: 6px;
+  height: 1px;
+  background: var(--n15-copper);
+}
+
+.pr a:not(.n15-btn) {
+  color: rgb(var(--n15-ink));
+  text-decoration: underline;
+  text-decoration-color: rgba(201, 112, 47, 0.6);
+  text-underline-offset: 3px;
+}
+
+/* A stated fact with a date on it. Used for the "last updated" line and for
+   anything a reader is entitled to check — a document about data handling
+   that does not say when it was written is asking to be trusted on nothing. */
+.pr-stamp {
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--n15-card-edge);
+  font-family: var(--n15-sans);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  color: rgba(var(--n15-ink), 0.45);
+}
+
+/* A block the reader should not skim past. One per page at most. */
+.pr-note {
+  margin-top: 1.5rem;
+  border-radius: var(--n15-r-inner);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-panel);
+  padding: 1.15rem 1.2rem;
+}
+.pr-note p {
+  margin-top: 0.55rem;
+}
+.pr-note p:first-child {
+  margin-top: 0;
+}
+.pr-note-k {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.45);
+}
+
+/* Contact rows on /support. A definition list rather than a table: there are
+   two columns and one of them is a label, which is what a <dl> is for. */
+.pr-dl {
+  margin-top: 1.75rem;
+  display: grid;
+  gap: 0.75rem;
+}
+.pr-dl > div {
+  border-radius: var(--n15-r-inner);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-panel);
+  padding: 1.05rem 1.15rem;
+}
+.pr-dl dt {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.45);
+}
+.pr-dl dd {
+  margin: 0.45rem 0 0;
+  font-family: var(--n15-sans);
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: rgba(var(--n15-ink), 0.82);
+}
+
+.pr-actions {
+  margin-top: 2.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+/* ----------------------------------------------------------------------------
+   ERROR AND NOT-FOUND
+
+   Centred, short, and pointed at a way out. An empty screen is an invitation
+   to act, so both end in a real destination rather than an apology.
+--------------------------------------------------------------------------- */
+.st-state {
+  position: relative;
+  display: flex;
+  min-height: 62dvh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.25rem;
+  text-align: center;
+  color: rgb(var(--n15-ink));
+}
+.st-state h1 {
+  margin-top: 0.8rem;
+  font-family: var(--n15-serif);
+  font-weight: 400;
+  font-size: clamp(1.9rem, 6.5vw, 2.6rem);
+  line-height: 1.1;
+}
+.st-state p {
+  margin-top: 0.9rem;
+  max-width: 32ch;
+  font-family: var(--n15-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  color: rgba(var(--n15-ink), 0.68);
+}
+.st-code {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 0.7rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.42);
+}
+.st-links {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+}

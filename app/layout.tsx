@@ -3,17 +3,19 @@ import type { ReactNode } from 'react';
 import './globals.css';
 import './phase15a.css';
 import './phase15b.css';
+import './phase15c.css';
 
 /**
- * PHASE 15B. phase15b.css is imported LAST and carries the rest of the page —
- * card surfaces, tilt, the restyled lower sections, header and footer.
+ * PHASE 15C. phase15c.css is imported LAST and carries the prose routes.
  *
- * THE IMPORT ORDER IS THE WHOLE MECHANISM and it is deliberate:
- *   globals.css   legacy tokens. Still governs admin, the widget, and every
- *                 public route except the homepage. UNTOUCHED.
+ * THE IMPORT ORDER IS THE WHOLE MECHANISM and it is deliberate. Each file adds
+ * and none of them override the one above:
+ *   globals.css   legacy tokens. Still governs admin, the widget, and the
+ *                 public routes not yet restyled. UNTOUCHED.
  *   phase15a.css  fonts, --n15-* tokens, the gradient field, the hero. UNTOUCHED.
- *   phase15b.css  additions only. Every selector in it is new, and every token
- *                 it reads is 15A's, so it cannot override either file above.
+ *   phase15b.css  homepage: cards, tilt, restyled sections, header, footer.
+ *                 UNTOUCHED BY 15C.
+ *   phase15c.css  about, support, privacy, terms, error, not-found.
  *
  * Nothing in 15B is a Tailwind class, so tailwind.config.ts is unchanged and no
  * legacy surface moves.
