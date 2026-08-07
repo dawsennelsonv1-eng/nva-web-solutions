@@ -70,10 +70,10 @@ export default function SupportPage() {
 
         <h2>If the widget stops working</h2>
         <p>
-          It is built so that it cannot take your site down with it. A payment
-          lapse, a used-up usage cap or an outage at a provider all produce the
-          same result: the widget falls back to a plain contact form and the
-          enquiry still reaches you. If you are seeing something other than that
+          It is built so that it cannot take your site down with it. Whatever
+          the cause, the result is the same: the widget falls back to a plain
+          contact form and the enquiry still reaches you. If you are seeing
+          something other than that
           — a blank space, an error, or a price that looks wrong — that is a bug
           and worth an email.
         </p>

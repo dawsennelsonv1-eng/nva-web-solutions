@@ -95,9 +95,9 @@ export default function TermsPage() {
             usage cap costs the extras — never the enquiry.
           </p>
           <p>
-            <strong>The widget never breaks your site.</strong> On any failure —
-            payment, usage cap, or an outage at a provider — it falls back to a
-            plain contact form rather than erroring or vanishing.
+            <strong>The widget never breaks your site.</strong> Whatever else
+            happens, it falls back to a plain contact form rather than erroring
+            or vanishing.
           </p>
         </div>
 

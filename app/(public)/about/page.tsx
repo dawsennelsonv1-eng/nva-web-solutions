@@ -69,8 +69,8 @@ export default function AboutPage() {
         <ul>
           <li>
             The price never comes from a model. It comes from a rate table the
-            contractor owns and edits, which is why a quote still works when the
-            AI is down.
+            contractor owns and edits. The contractor sets every rate, every
+            adjustment and every minimum, and changes them whenever he likes.
           </li>
           <li>
             The AI reads a photograph and suggests the surface condition. That is
@@ -78,9 +78,9 @@ export default function AboutPage() {
             contractor set.
           </li>
           <li>
-            Lead capture does not depend on billing state. A lapsed payment, a
-            used-up usage cap or a provider outage costs the extras — never the
-            enquiry.
+            Lead capture runs on a path of its own and does not depend on
+            billing state. Whatever else happens, the enquiry reaches the
+            contractor.
           </li>
           <li>
             The full pricing model is published on the homepage. Not a

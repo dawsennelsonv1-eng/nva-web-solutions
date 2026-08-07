@@ -322,11 +322,19 @@ export function ToolCard({
             />
 
             <div className="tc-actions">
-              <Link href="/pricing" className="n15-btn n15-btn-primary">
+              {/* "Try it out" goes to the running widget, not to /pricing. In
+                  15B it went to /pricing, whose own CTA then said "Try it live"
+                  and sent you to /demo — a redundant hop on the primary
+                  conversion path. */}
+              <Link href="/demo" className="n15-btn n15-btn-primary">
                 Try it out
               </Link>
+              {/* "More information" rather than "What it costs to run". The old
+                  label was an answer to a question nobody had asked yet; this
+                  is the phrase every buyer already knows means "the page about
+                  this thing". It points at the tool's own product page. */}
               <Link href={specHref} className="n15-btn n15-btn-ghost">
-                What it costs to run
+                More information
               </Link>
             </div>
           </>
@@ -335,7 +343,7 @@ export function ToolCard({
             <p className="tc-reason">{quietReason}</p>
             <div className="tc-actions">
               <Link href={specHref} className="n15-btn n15-btn-ghost">
-                Read the spec sheet
+                More information
               </Link>
             </div>
           </>

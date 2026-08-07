@@ -4,9 +4,10 @@ import './globals.css';
 import './phase15a.css';
 import './phase15b.css';
 import './phase15c.css';
+import './phase16.css';
 
 /**
- * PHASE 15C. phase15c.css is imported LAST and carries the prose routes.
+ * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
  *
  * THE IMPORT ORDER IS THE WHOLE MECHANISM and it is deliberate. Each file adds
  * and none of them override the one above:
@@ -15,7 +16,8 @@ import './phase15c.css';
  *   phase15a.css  fonts, --n15-* tokens, the gradient field, the hero. UNTOUCHED.
  *   phase15b.css  homepage: cards, tilt, restyled sections, header, footer.
  *                 UNTOUCHED BY 15C.
- *   phase15c.css  about, support, privacy, terms, error, not-found.
+ *   phase15c.css  about, support, privacy, terms, error, not-found. UNTOUCHED.
+ *   phase16.css   tool pages: gallery, story, similar tools, CTA rail.
  *
  * Nothing in 15B is a Tailwind class, so tailwind.config.ts is unchanged and no
  * legacy surface moves.

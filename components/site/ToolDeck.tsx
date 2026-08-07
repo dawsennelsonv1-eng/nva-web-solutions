@@ -1,7 +1,5 @@
-import Link from 'next/link';
 import { ToolCard, type ToolCardFinish } from '@/components/site/ToolCard';
 import { getQueueSections } from '@/lib/queue/data';
-import { TOOLS } from '@/lib/queue/tools';
 import { isVisualiserConfigured } from '@/lib/site/render-config';
 import {
   DEFAULT_TIER,
@@ -124,8 +122,44 @@ const PRICERS: Record<
 
 const QUIET_REASON: Record<string, string> = {
   painting:
-    'The module prices this trade and the arithmetic is written down. There is no live demo on this page yet, because the published rate document a demo prices against does not exist for painting — and inventing Dallas repaint rates to fill this space would put a number here that nobody can check.',
+    'The module prices this trade and the arithmetic is written down. There is no live demo on this page yet, because the published rate document a demo prices against does not exist for painting.',
 };
+
+/**
+ * ============================================================================
+ * THE PUBLIC ALLOWLIST — READ THIS BEFORE CHANGING IT
+ * ============================================================================
+ *
+ * ONLY the tool ids in this array are shown to visitors. Everything else in the
+ * catalogue is built, registered, reconciled and fully wired — it is simply not
+ * rendered yet.
+ *
+ * WHY AN ALLOWLIST AND NOT A DELETION. Painting is registered in
+ * lib/verticals/manifest.ts, it has a working module with a state machine and a
+ * widget, and getQueueSections() correctly reports it as IN SERVICE. What it
+ * does not have is a published rate document, so its card had no live pricer
+ * and read as a half-finished thing on the most important page of the site.
+ *
+ * Hiding it is a PRESENTATION decision, reversed by adding one string here.
+ * None of the painting code is deleted, disabled, or commented out. If you are
+ * an AI reading this repo in a later session and wondering where painting went:
+ * it is complete, it is in lib/verticals/painting/, and it is hidden ONLY by
+ * this array. Add 'painting' below and it returns instantly, though it will
+ * return as a quiet card until lib/site/reference-rates gains a painting rate
+ * document and ToolDeck's PRICERS gains a matching entry.
+ *
+ * The same applies to every other trade in lib/queue/tools.ts. Nineteen are
+ * specified; one is shown.
+ * ============================================================================
+ */
+const PUBLIC_TOOLS: readonly string[] = ['epoxy'];
+
+/*
+ * VERIFY: app/(public)/tools/[toolId]/page.tsx holds its own copy of this list.
+ * lib/queue is a data layer and "what is public" is a presentation decision, so
+ * the two are deliberately not shared yet — but they MUST agree. When a third
+ * surface needs it, lift it into lib/site/ and import it in all three.
+ */
 
 export async function ToolDeck() {
   const sections = await getQueueSections();
@@ -135,7 +169,12 @@ export async function ToolDeck() {
   if (live.length === 0) return null;
 
   const renderEnabled = isVisualiserConfigured();
-  const remaining = TOOLS.length - live.length;
+
+  // Filtered AFTER the registry reconciliation, never instead of it. A tool
+  // still has to genuinely be in service to reach this line; the allowlist only
+  // decides whether an in-service tool is shown yet.
+  const shown = live.filter((row) => PUBLIC_TOOLS.includes(row.tool.id));
+  if (shown.length === 0) return null;
 
   const finishes: ToolCardFinish[] = REFERENCE_FINISHES.map((f) => ({
     id: f.id,
@@ -153,12 +192,12 @@ export async function ToolDeck() {
         </h2>
         <p className="n15-lede">
           Every status below is checked against the code at the moment you loaded
-          this page. Where there is a rule to drag, the number moving under your
-          thumb is the same engine your customers would use.
+          this page. What you can touch here is the real thing your customers
+          would use — not a video of it.
         </p>
 
         <div className="tc-deck">
-          {live.map((row) => {
+          {shown.map((row) => {
             const spec = PRICERS[row.tool.id];
             const tint = TINTS[row.tool.id] ?? DEFAULT_TINT;
 
@@ -172,7 +211,7 @@ export async function ToolDeck() {
                 inService
                 tint={tint}
                 renderEnabled={renderEnabled}
-                specHref={`/queue/${row.tool.id}`}
+                specHref={`/tools/${row.tool.id}`}
                 quietReason={QUIET_REASON[row.tool.id]}
                 pricer={
                   spec
@@ -194,27 +233,6 @@ export async function ToolDeck() {
           })}
         </div>
 
-        {/* The count is computed from the catalogue rather than typed. A number
-            in this sentence that could drift from the queue page is a small lie
-            waiting to happen. */}
-        {remaining > 0 && (
-          <div className="ai-foot">
-            <p className="n15-body">
-              {remaining} more {remaining === 1 ? 'trade is' : 'trades are'}{' '}
-              specified and queued. The inputs and the arithmetic are written down
-              for every one of them, and they are built in the order contractors
-              ask for them.
-            </p>
-            <div className="tc-actions">
-              <Link href="/queue" className="n15-btn n15-btn-ghost">
-                See the schedule
-              </Link>
-              <Link href="/categories" className="n15-btn n15-btn-ghost">
-                Check for tools in my trade
-              </Link>
-            </div>
-          </div>
-        )}
       </div>
     </section>
   );
