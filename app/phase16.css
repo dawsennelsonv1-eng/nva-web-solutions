@@ -1,0 +1,438 @@
+/* ============================================================================
+   PHASE 16B — THE TOOL PAGE TEMPLATE
+   ----------------------------------------------------------------------------
+   Imported after phase15c.css. Additions only; every selector is new and every
+   token it reads belongs to 15A/15B. globals.css, phase15a.css, phase15b.css
+   and phase15c.css are all untouched, as is tailwind.config.ts.
+
+   Import chain, each file adding and none overriding the one above it:
+     globals.css    legacy tokens — admin, widget, unrestyled public routes
+     phase15a.css   fonts, --n15-* tokens, gradient field, hero
+     phase15b.css   homepage: cards, tilt, sections, header, footer
+     phase15c.css   prose routes: about, support, privacy, terms, error, 404
+     phase16.css    tool pages: gallery, story, similar, CTA rail
+
+   MOTION BUDGET. The only thing that animates here is the gallery cross-fade —
+   one opacity transition on one element at a time. Everything else on a tool
+   page is static. That is deliberate: the site gradient field is already
+   running behind this page, and the gallery frames themselves are animated
+   media, which is real decoded-video-shaped work. Adding drifting card
+   gradients on top of that would spend the frame budget on decoration while the
+   thing the page exists to show is playing.
+========================================================================== */
+
+.tp-top {
+  padding-bottom: 2rem;
+}
+/* Between two CTA rails and a section, the standard 4.5rem block padding stacks
+   into a canyon. These sections carry one element and are spaced accordingly. */
+.tp-tight {
+  padding-top: 0;
+  padding-bottom: 2.5rem;
+}
+
+/* ----------------------------------------------------------------------------
+   THE GALLERY
+--------------------------------------------------------------------------- */
+.mg {
+  margin: 2.5rem 0 0;
+}
+
+/* The stage holds its aspect ratio so nothing below it jumps as frames decode
+   at different times — the layout is fixed before a single byte of media has
+   arrived. 16/10 suits a phone screen recording and a landscape still equally
+   badly, which is the correct compromise when both are expected. */
+.mg-stage {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: rgba(10, 13, 18, 0.55);
+  box-shadow: var(--n15-shadow-rest);
+}
+
+.mg-frame {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 520ms ease;
+  pointer-events: none;
+}
+.mg-frame-on {
+  opacity: 1;
+}
+.mg-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The reserved frame. It says what belongs here rather than pretending to be
+   it — no fake screenshot, no grey box, no broken-image glyph. */
+.mg-ph {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.5rem;
+  text-align: center;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(201, 112, 47, 0.12), transparent 65%),
+    rgba(13, 17, 23, 0.6);
+}
+.mg-ph-k {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.4);
+}
+.mg-ph-t {
+  font-family: var(--n15-serif);
+  font-size: clamp(1.1rem, 3.6vw, 1.5rem);
+  line-height: 1.2;
+  color: rgba(var(--n15-ink), 0.75);
+}
+
+.mg-cap {
+  margin-top: 0.9rem;
+  font-family: var(--n15-sans);
+  font-size: 0.88rem;
+  color: rgba(var(--n15-ink), 0.6);
+  text-align: center;
+  /* Holds a line's height so the dots do not hop when a caption wraps. */
+  min-height: 1.4em;
+}
+
+.mg-dots {
+  margin-top: 0.9rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+/* 34px tall so the tap target clears the 30px floor, while the visible dot
+   stays small. Padding does the work; the dot is drawn by the background. */
+.mg-dot {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  position: relative;
+  cursor: pointer;
+}
+.mg-dot::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: rgba(244, 242, 237, 0.28);
+  transition: background-color 200ms ease, transform 200ms ease;
+}
+.mg-dot-on::after {
+  background: var(--n15-copper);
+  transform: scale(1.35);
+}
+
+/* ----------------------------------------------------------------------------
+   THE STORY
+--------------------------------------------------------------------------- */
+.ts-list {
+  margin-top: 3rem;
+  display: grid;
+  gap: 3.5rem;
+}
+.ts-row {
+  display: grid;
+  gap: 1.5rem;
+  align-items: center;
+}
+@media (min-width: 860px) {
+  .ts-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3rem;
+  }
+  /* The flip is done with grid order, not with direction, so the DOM order
+     stays text-then-image on every row. A screen reader and a keyboard both
+     read the page in one consistent sequence regardless of which side the
+     picture is on. */
+  .ts-row-flip .ts-text {
+    order: 2;
+  }
+  .ts-row-flip .ts-media {
+    order: 1;
+  }
+  .ts-row-plain {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ts-row-plain .ts-text {
+    max-width: 62ch;
+  }
+}
+.ts-media {
+  margin: 0;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: rgba(10, 13, 18, 0.5);
+  overflow: hidden;
+  box-shadow: var(--n15-shadow-rest);
+}
+.ts-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ----------------------------------------------------------------------------
+   SIMILAR TOOLS
+--------------------------------------------------------------------------- */
+.sim-row {
+  margin-top: 2.5rem;
+  display: grid;
+  gap: 1.25rem;
+}
+@media (min-width: 760px) {
+  .sim-row {
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  }
+}
+.sim-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  padding: 1.5rem 1.35rem;
+}
+.sim-trade {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.45);
+}
+.sim-title {
+  margin-top: 0.7rem;
+  font-family: var(--n15-serif);
+  font-size: 1.4rem;
+  line-height: 1.18;
+}
+.sim-tag {
+  margin-top: 0.6rem;
+  font-family: var(--n15-sans);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: rgba(var(--n15-ink), 0.68);
+  /* Clamped in CSS, not in the data, so the full sentence is still in the DOM
+     for a screen reader and for search. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sim-actions {
+  margin-top: auto;
+  padding-top: 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* ----------------------------------------------------------------------------
+   THE CTA RAIL
+--------------------------------------------------------------------------- */
+.cta-rail {
+  margin-top: 2.5rem;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-panel);
+  padding: 1.5rem 1.35rem;
+}
+.cta-note {
+  margin: 0 0 1.15rem;
+  max-width: 52ch;
+  font-family: var(--n15-sans);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: rgba(var(--n15-ink), 0.7);
+}
+.cta-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+@media (min-width: 520px) {
+  .cta-actions {
+    flex-direction: row;
+  }
+  .cta-actions > * {
+    flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mg-frame,
+  .mg-dot::after {
+    transition: none;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   THE REQUEST FORM (16B-2)
+
+   Inputs on a dark ground are a legibility problem before they are a styling
+   one: a translucent field over a drifting gradient makes typed text sit on a
+   moving background. Every input here has an OPAQUE fill for that reason, and
+   it is the one place on these pages where a surface is not translucent.
+
+   Targets are 48px minimum. This form is filled in on a phone, one-handed, by
+   somebody who has already decided to leave once.
+--------------------------------------------------------------------------- */
+.rf-wrap {
+  margin-top: 2.5rem;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  padding: 1.6rem 1.35rem;
+}
+@media (min-width: 700px) {
+  .rf-wrap {
+    padding: 2rem 1.85rem;
+  }
+}
+
+.rf-grid {
+  display: grid;
+  gap: 1.1rem;
+}
+@media (min-width: 640px) {
+  .rf-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.rf-field {
+  display: block;
+}
+.rf-wide {
+  margin-top: 1.1rem;
+}
+.rf-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.55);
+}
+/* "required" and "optional" are shown, not implied by an asterisk. The reader
+   should be able to see how short the form really is before he starts. */
+.rf-req,
+.rf-opt {
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+}
+.rf-req {
+  color: rgba(201, 112, 47, 0.9);
+}
+.rf-opt {
+  color: rgba(244, 242, 237, 0.3);
+}
+
+.rf-input {
+  margin-top: 0.45rem;
+  width: 100%;
+  min-height: 48px;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--n15-r-chip);
+  border: 1px solid var(--n15-card-edge);
+  background: #11151c;
+  color: rgb(var(--n15-ink));
+  font-family: var(--n15-sans);
+  /* 16px exactly. Anything under it makes iOS Safari zoom the viewport on
+     focus, which on a long form throws the layout every single time. */
+  font-size: 16px;
+  line-height: 1.4;
+}
+.rf-input::placeholder {
+  color: rgba(244, 242, 237, 0.3);
+}
+.rf-input:focus-visible {
+  outline: 2px solid var(--n15-copper);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+.rf-textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+.rf-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-family: var(--n15-sans);
+  font-size: 0.78rem;
+  color: rgba(var(--n15-ink), 0.42);
+}
+
+.rf-err {
+  margin-top: 1.1rem;
+  border-radius: var(--n15-r-chip);
+  border: 1px solid rgba(201, 112, 47, 0.45);
+  background: rgba(201, 112, 47, 0.09);
+  padding: 0.75rem 0.9rem;
+  font-family: var(--n15-sans);
+  font-size: 0.9rem;
+  color: rgba(var(--n15-ink), 0.88);
+}
+
+.rf-submit {
+  margin-top: 1.5rem;
+  width: 100%;
+}
+@media (min-width: 640px) {
+  .rf-submit {
+    width: auto;
+    min-width: 14rem;
+  }
+}
+.rf-foot {
+  margin-top: 0.9rem;
+}
+.rf-context {
+  margin-top: 0.6rem;
+  color: rgba(var(--n15-ink), 0.6);
+}
+
+.rf-done {
+  padding: 0.5rem 0;
+}
+.rf-done-h {
+  font-family: var(--n15-serif);
+  font-size: clamp(1.5rem, 4.5vw, 2rem);
+  line-height: 1.15;
+  color: rgb(var(--n15-ink));
+  margin-bottom: 0.8rem;
+}
+
+/* /start is a form page, not a reading page, so it gets a wider measure than
+   the prose routes .pr was built for. */
+.pr-wide {
+  max-width: 44rem;
+}
