@@ -6,18 +6,26 @@ import { GradientField } from '@/components/site/GradientField';
  * app/(public)/support/page.tsx — NEW ROUTE, PHASE 15C.
  *
  * ============================================================================
- * READ THIS BEFORE YOU DEPLOY: THE ADDRESS BELOW IS A GUESS
+ * THE ADDRESS COMES FROM CONFIG, AND IT IS NO LONGER A GUESS
  * ============================================================================
  *
- * VERIFY: SUPPORT_EMAIL falls back to a literal derived from the same guessed
- * production domain that app/layout.tsx uses for metadataBase. I have not seen
- * lib/notify/email.ts, so I do not know what address this system actually
- * sends from, and I will not pretend to.
+ * 15C shipped this with a hardcoded literal derived from a guessed production
+ * domain, because lib/notify/email.ts had not been pasted into any phase.
  *
- * A support page listing an address that bounces is worse than the 404 this
- * route replaces — a 404 tells the truth. Either set
- * NEXT_PUBLIC_SUPPORT_EMAIL in Vercel or edit the constant, and send yourself a
- * test message before this goes to traffic.
+ * .env.example declares LEGAL_SELLER_SUPPORT_EMAIL, which is the address the
+ * billing entity already publishes under R-210 — the same one on invoices and
+ * in the disclosure line on /pricing. Using it means a contractor who reads a
+ * receipt and a contractor who reads this page get the same address, which is
+ * the whole point of having one.
+ *
+ * It is read WITHOUT a NEXT_PUBLIC_ prefix, which is correct: this is a server
+ * component, the value is rendered into HTML rather than shipped as a bundle
+ * constant, and prefixing it would put it in the client bundle for no reason.
+ *
+ * IF IT IS UNSET, NO ADDRESS IS SHOWN AT ALL. The email row disappears and the
+ * page points at /start instead. A support page advertising an address that
+ * bounces is worse than one that does not offer email — a bounce looks like
+ * being ignored, and this page is read by people who are already unhappy.
  *
  * NO CONTACT FORM, deliberately. There is exactly one lead path in this
  * codebase (app/actions/lead.ts, reached through the widget) and adding a
@@ -25,7 +33,7 @@ import { GradientField } from '@/components/site/GradientField';
  * nowhere anyone is watching. A mailto goes to an inbox that already exists.
  */
 
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? 'support@nva.digital';
+const SUPPORT_EMAIL = process.env.LEGAL_SELLER_SUPPORT_EMAIL ?? null;
 
 export const metadata: Metadata = {
   title: 'Support',
@@ -42,18 +50,28 @@ export default function SupportPage() {
         <h1>Something wrong, or something you want changed.</h1>
 
         <p>
-          Email is the fastest route and it reaches a person, not a ticket queue.
-          If your widget is misbehaving on a live site, say so in the subject
-          line and it gets looked at first.
+          {SUPPORT_EMAIL
+            ? 'Email is the fastest route and it reaches a person, not a ticket queue. If your widget is misbehaving on a live site, say so in the subject line and it gets looked at first.'
+            : 'Send it through the form and it reaches a person, not a ticket queue. If your widget is misbehaving on a live site, say so first — those get looked at before anything else.'}
         </p>
 
         <dl className="pr-dl">
-          <div>
-            <dt>Email</dt>
-            <dd>
-              <a href={'mailto:' + SUPPORT_EMAIL}>{SUPPORT_EMAIL}</a>
-            </dd>
-          </div>
+          {SUPPORT_EMAIL ? (
+            <div>
+              <dt>Email</dt>
+              <dd>
+                <a href={'mailto:' + SUPPORT_EMAIL}>{SUPPORT_EMAIL}</a>
+              </dd>
+            </div>
+          ) : (
+            <div>
+              <dt>Get in touch</dt>
+              <dd>
+                <Link href="/start">Send us the details</Link> and we will reply
+                to the address you give us.
+              </dd>
+            </div>
+          )}
           <div>
             <dt>What to include</dt>
             <dd>

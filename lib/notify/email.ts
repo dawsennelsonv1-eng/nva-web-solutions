@@ -240,3 +240,87 @@ export async function sendDemoContractorConfirmation(fields: DemoLeadEmailFields
     html,
   });
 }
+
+// ---------------------------------------------------------------------------
+// PHASE 16L — IMPLEMENTATION REQUESTS
+//
+// A contractor asking us to build something. Added because rows were landing in
+// `implementation_requests` and nothing was telling anyone, while the form's own
+// success copy promised a reply within one working day.
+//
+// WHY THIS IS NOT notifyAdminOfDemoLead WITH DIFFERENT ARGUMENTS. That
+// function's shape is a homeowner lead — timeline, quoted range, a photo of a
+// slab, a finish render and its disclosure — and its `surface` is typed to
+// 'public_hub' | 'demo'. Forcing this through it would produce an email that
+// misdescribes what arrived, on the one message you are meant to act on.
+//
+// The audiences are opposite too. A demo lead is a stranger who tried the
+// product. This is a business owner who has described his company to you and is
+// waiting on a human reply — which is why reply_to is his address: the correct
+// action on receiving this email is to hit reply.
+// ---------------------------------------------------------------------------
+
+export interface ImplementationRequestEmailFields {
+  kind: 'tool_install' | 'custom_build';
+  /** Which tool page it came from. Null for the homepage's open question. */
+  toolId: string | null;
+  name: string;
+  email: string;
+  phone: string | null;
+  businessName: string | null;
+  businessField: string | null;
+  websiteUrl: string | null;
+  customerType: string | null;
+  description: string;
+  createdAt: string;
+}
+
+/** Renders one optional field, or nothing. Omitted fields stay omitted. */
+function optionalRow(label: string, value: string | null): string {
+  if (!value) return '';
+  return '<p><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(value) + '</p>';
+}
+
+export async function notifyAdminOfImplementationRequest(
+  fields: ImplementationRequestEmailFields
+): Promise<EmailResult> {
+  const to = process.env.ADMIN_NOTIFY_EMAIL;
+  if (!to) return { status: 'skipped', error: 'not_configured' };
+
+  const install = fields.kind === 'tool_install';
+
+  // The subject has to be actionable from a phone lock screen, so the business
+  // name leads where there is one — that is what tells you whether this is
+  // worth opening now or after the job.
+  const who = fields.businessName ?? fields.name;
+  const subject = install
+    ? 'Wants it on their site: ' + who + (fields.toolId ? ' (' + fields.toolId + ')' : '')
+    : 'Has a problem to solve: ' + who;
+
+  const html =
+    '<p><strong>' +
+    (install ? 'Someone wants a tool on their site' : 'Someone described a problem') +
+    '</strong></p>' +
+    '<p>' +
+    escapeHtml(fields.name) +
+    '<br>' +
+    escapeHtml(fields.email) +
+    (fields.phone ? '<br>' + escapeHtml(fields.phone) : '') +
+    '</p>' +
+    optionalRow('Business', fields.businessName) +
+    optionalRow('Trade', fields.businessField) +
+    optionalRow('Website', fields.websiteUrl) +
+    optionalRow('Their customers', fields.customerType) +
+    (fields.toolId ? optionalRow('Came from', '/tools/' + fields.toolId) : '') +
+    '<p><strong>' +
+    (install ? 'About the business' : 'The problem') +
+    ':</strong></p>' +
+    // Line breaks preserved: he typed this in paragraphs, and collapsing them
+    // into one block makes a considered answer look like a rushed one.
+    '<p>' + escapeHtml(fields.description).replace(/\n/g, '<br>') + '</p>' +
+    '<p style="font-size:13px;color:#8A8880">' +
+    escapeHtml(new Date(fields.createdAt).toLocaleString('en-US')) +
+    ' \u00b7 reply straight to this email</p>';
+
+  return sendViaResend({ to, subject, html, replyTo: fields.email });
+}

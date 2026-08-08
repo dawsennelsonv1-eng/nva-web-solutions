@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { z } from 'zod';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { checkScopedRateLimit, clientIpFromHeaders } from '@/lib/quote/guards';
+import { notifyAdminOfImplementationRequest } from '@/lib/notify/email';
 
 /**
  * app/actions/implementation.ts — a contractor asking us to build something.
@@ -45,19 +46,28 @@ import { checkScopedRateLimit, clientIpFromHeaders } from '@/lib/quote/guards';
  * list, so a renamed column fails the build instead of the request.
  *
  * ============================================================================
- * VERIFY: NOBODY IS EMAILED WHEN THIS FIRES
+ * THE EMAIL IS AWAITED, AND THAT IS DELIBERATE
  * ============================================================================
  *
- * A row lands in the table and nothing tells you about it. lib/notify/email.ts
- * exists and lead.ts uses notifyAdminOfDemoLead(), but that function's argument
- * is shaped for a homeowner lead — name, phone, timeline, priceRange, renderUrl
- * — and its `surface` is typed to 'public_hub' | 'demo'. Forcing an
- * implementation request through it would send you an email that misdescribes
- * what arrived.
+ * lib/notify/email.ts says callers "fire these and do not await them before
+ * responding to the visitor". That advice is right for a long-lived server and
+ * wrong here. On Vercel a serverless function is frozen the moment it returns,
+ * so an un-awaited fetch is not backgrounded — it is killed, usually before the
+ * request leaves. The email would silently never send.
  *
- * So until a notifier for this shape exists, CHECK THE TABLE. This is the one
- * thing in this phase that will silently cost you a customer if it is
- * forgotten, which is why it is at the top of the file rather than the bottom.
+ * So it is awaited. The cost is bounded: sendViaResend carries its own 10s
+ * AbortController, and a typical send is well under a second, against a form
+ * that is already showing "Sending…".
+ *
+ * IT CANNOT FAIL THE REQUEST. The row is written FIRST and the result is
+ * returned regardless of what the email does. A provider having a bad day must
+ * never be the reason a contractor's enquiry is lost — that is the same rule
+ * that governs lead capture, applied here.
+ *
+ * The outcome is recorded on the row so a silent misconfiguration is visible in
+ * the table rather than invisible everywhere. 'skipped' means ADMIN_NOTIFY_EMAIL
+ * or RESEND_API_KEY is unset; that is a real state, not an error, and it is
+ * worth being able to see it.
  */
 
 const schema = z.object({
@@ -133,7 +143,9 @@ export async function submitImplementationRequest(
    */
   const db = getSupabaseAdminClient();
 
-  const { error } = await db.from('implementation_requests').insert({
+  const { data: inserted, error } = await db
+    .from('implementation_requests')
+    .insert({
       kind: input.kind,
       tool_id: orNull(input.toolId),
       name: input.name,
@@ -145,15 +157,45 @@ export async function submitImplementationRequest(
       customer_type: orNull(input.customerType),
       description: input.description,
       source: orNull(input.source),
-    });
+    })
+    .select('id, created_at')
+    .single();
 
-  if (error) {
+  if (error || !inserted) {
     return {
       ok: false,
       code: 'write_failed',
       message: 'We could not save that. Try again in a moment, or email us directly.',
     };
   }
+
+  // 4 — tell somebody. Never allowed to change the outcome above.
+  const notified = await notifyAdminOfImplementationRequest({
+    kind: input.kind,
+    toolId: orNull(input.toolId),
+    name: input.name,
+    email: input.email.toLowerCase(),
+    phone: orNull(input.phone),
+    businessName: orNull(input.businessName),
+    businessField: orNull(input.businessField),
+    websiteUrl: orNull(input.websiteUrl),
+    customerType: orNull(input.customerType),
+    description: input.description,
+    createdAt: inserted.created_at,
+  });
+
+  // Best effort. If this update fails the request still succeeded and the
+  // contractor still gets his reply — losing the audit line is the cheapest
+  // possible failure here, so it is swallowed rather than surfaced.
+  await db
+    .from('implementation_requests')
+    .update({
+      delivery_status: {
+        admin_email: notified.status,
+        ...(notified.error ? { admin_email_error: notified.error } : {}),
+      },
+    })
+    .eq('id', inserted.id);
 
   return { ok: true };
 }
