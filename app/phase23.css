@@ -1,0 +1,132 @@
+/* ============================================================================
+   PHASE 16J — THE SPEC SHEET
+   Imported last. Additions only; light overrides at the foot. This is the final
+   public route to leave the legacy token system.
+========================================================================== */
+
+.ss-status {
+  display: inline-flex;
+}
+.ss-h {
+  margin-top: 1rem;
+  max-width: 18ch;
+}
+
+/* Revision, date and installs. Mono because they are measured values, and dot-
+   separated rather than stacked so the line reads as one provenance stamp. */
+.ss-meta {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+  font-family: var(--n15-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.5);
+}
+.ss-meta > span + span::before {
+  content: '· ';
+  opacity: 0.6;
+}
+
+.ss-sec {
+  margin-top: 3rem;
+}
+.ss-blurb {
+  margin-top: 0.5rem;
+  max-width: 58ch;
+}
+
+/* ----------------------------------------------------------------------------
+   THE TWO TABLES
+
+   A <dl> of rows rather than a <table>, because this is name-and-value pairs and
+   a real table forces two columns to share 360px on a phone — which is where the
+   old version became unreadable exactly when it mattered most.
+
+   STACKED BELOW 640px, two columns above it. The formula never truncates and
+   never wraps mid-expression against a hard column edge.
+--------------------------------------------------------------------------- */
+.ss-table {
+  margin: 1.25rem 0 0;
+  border-top: 1px solid var(--n15-card-edge);
+}
+.ss-row {
+  display: grid;
+  gap: 0.3rem;
+  border-bottom: 1px solid var(--n15-card-edge);
+  padding: 0.95rem 0;
+}
+@media (min-width: 640px) {
+  .ss-row {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 1.5rem;
+    align-items: baseline;
+  }
+}
+
+/* The label is QUIETER than the value, which inverts the old hierarchy on
+   purpose: the label names a thing the reader already knows, and the value is
+   the part he is checking against what he charges. */
+.ss-label {
+  margin: 0;
+  font-family: var(--n15-sans);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: rgba(var(--n15-ink), 0.6);
+}
+.ss-value {
+  margin: 0;
+  min-width: 0;
+}
+.ss-value-plain {
+  font-family: var(--n15-sans);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: rgba(var(--n15-ink), 0.85);
+}
+
+/* The formula. Mono at full body size — one of the three places 13A permits
+   mono, and the single most important string on the page.
+   `overflow-wrap: anywhere` so a long expression breaks rather than forcing a
+   horizontal scrollbar on the whole document. */
+.ss-formula {
+  font-family: var(--n15-mono);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: rgb(var(--n15-ink));
+  overflow-wrap: anywhere;
+}
+
+.ss-notes {
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  max-width: 62ch;
+  border-top: 1px solid var(--n15-card-edge);
+}
+.ss-notes li {
+  border-bottom: 1px solid var(--n15-card-edge);
+  padding: 0.85rem 0;
+  font-family: var(--n15-sans);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: rgba(var(--n15-ink), 0.78);
+}
+
+.ss-action {
+  margin-top: 3rem;
+  max-width: 34rem;
+}
+.ss-back {
+  margin-top: 2.5rem;
+}
+
+/* ----------------------------------------------------------------------------
+   LIGHT THEME
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .ss-meta,
+html[data-n15-theme='light'] .ss-label {
+  color: rgba(26, 29, 34, 0.62);
+}

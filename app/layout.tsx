@@ -12,6 +12,7 @@ import './phase19.css';
 import './phase20.css';
 import './phase21.css';
 import './phase22.css';
+import './phase23.css';
 
 /**
  * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
@@ -30,6 +31,8 @@ import './phase22.css';
  *   phase20.css   /categories and /pricing (16G). Light overrides at its foot.
  *   phase21.css   /queue and the build log (16H). Light overrides at its foot.
  *   phase22.css   vote form and concierge (16I). Light overrides at its foot.
+ *   phase23.css   the spec sheet (16J). The last public route off the legacy
+ *                 token system. Light overrides at its foot.
  *   phase17.css   the LIGHT THEME. Every rule scoped to
  *                 html[data-n15-theme='light'], so it is inert on dark.
  *
