@@ -9,7 +9,11 @@ import { MediaGallery } from '@/components/tools/MediaGallery';
 import { analyzePhotoAction } from '@/app/actions/quote';
 import { calculateQuote, type PricingRules } from '@/lib/quote/pricing';
 import { finishPhotoFor } from '@/lib/site/finish-photos';
-import type { MediaSlot } from '@/lib/tools/media';
+// media-types rather than media. This was already legal — a type-only import
+// is erased before webpack sees it — but pointing a client component at a
+// server-only module is a trap: the day somebody adds MIN_SLOTS to this line
+// the build breaks with an error that names the wrong cause.
+import type { MediaSlot } from '@/lib/tools/media-types';
 import type { PipelineStage } from '@/lib/image/pipeline';
 
 /**

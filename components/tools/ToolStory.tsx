@@ -1,4 +1,6 @@
-import { mediaSlotByKey, type MediaSlot } from '@/lib/tools/media';
+// Server component, so either module would work — media-types is correct
+// because mediaSlotByKey is a pure lookup and belongs with the shape.
+import { mediaSlotByKey, type MediaSlot } from '@/lib/tools/media-types';
 import type { ToolStoryPoint } from '@/lib/tools/catalogue';
 
 /**

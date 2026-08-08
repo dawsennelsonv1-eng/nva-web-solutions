@@ -2,7 +2,13 @@
 
 import { useState } from 'react';
 import { saveToolMediaAction } from '@/app/actions/toolMedia';
-import { MAX_SLOTS, MIN_SLOTS, DEFAULT_DURATION_MS, type MediaSlot } from '@/lib/tools/media';
+// From media-types, NOT media: client component, value imports.
+import {
+  MAX_SLOTS,
+  MIN_SLOTS,
+  DEFAULT_DURATION_MS,
+  type MediaSlot,
+} from '@/lib/tools/media-types';
 
 /**
  * components/admin/ToolMediaEditor.tsx — the slots for one tool.

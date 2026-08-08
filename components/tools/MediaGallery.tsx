@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MIN_SLOTS, type MediaSlot } from '@/lib/tools/media';
+// From media-types, NOT media: this is a client component, and a value
+// import from the server-only module puts it in the browser graph.
+import { MIN_SLOTS, type MediaSlot } from '@/lib/tools/media-types';
 
 /**
  * components/tools/MediaGallery.tsx — the showcase at the top of a tool page.

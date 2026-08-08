@@ -50,20 +50,30 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin';
  * this and running migration 0019.
  */
 
-export type MediaKind = 'animation' | 'still';
+/**
+ * The shape, the limits and the pure lookup live in ./media-types, which is NOT
+ * server-only and can therefore be imported by client components. They are
+ * re-exported here so server callers still have a single import.
+ *
+ * DO NOT MOVE THEM BACK. A value import of MIN_SLOTS from a client component
+ * pulls this whole module into the browser graph, `server-only` throws, and the
+ * build fails with a message about the pages/ directory that points nowhere
+ * near the real cause. That is exactly how this broke in 16E.
+ */
+export type { MediaKind, MediaSlot } from '@/lib/tools/media-types';
+export {
+  MIN_SLOTS,
+  MAX_SLOTS,
+  DEFAULT_DURATION_MS,
+  mediaSlotByKey,
+} from '@/lib/tools/media-types';
 
-export interface MediaSlot {
-  key: string;
-  kind: MediaKind;
-  src: string;
-  alt: string;
-  caption: string;
-  durationMs: number;
-}
+// Re-exporting a name does NOT bind it locally, so the shapes this file
+// actually uses are imported as well.
+import type { MediaKind, MediaSlot } from '@/lib/tools/media-types';
+import { MAX_SLOTS } from '@/lib/tools/media-types';
 
-export const MIN_SLOTS = 3;
-export const MAX_SLOTS = 10;
-export const DEFAULT_DURATION_MS = 3000;
+/** Cache tag. Invalidated by replaceToolMedia so a save is live immediately. */
 export const MEDIA_TAG = 'tool-media';
 
 interface Row {
@@ -77,27 +87,15 @@ interface Row {
 }
 
 /**
- * The cast is the same narrow structural one used elsewhere: types/database.ts
- * is hand-written and its header says it matches migrations 0001–0005, so
- * tables added since do not exist in the generated types. It names only `from`,
- * `select`, `eq` and `order`, and the rows are re-shaped into MediaSlot below
- * rather than being trusted as they arrive.
+ * No cast. types/database.ts gained `tool_media` in Phase 16K, so both the read
+ * and the upsert below are checked against the real column list.
+ *
+ * The rows are still re-shaped into MediaSlot rather than handed out as they
+ * arrive — the database's snake_case columns are not this module's public API,
+ * and MediaGallery should never know what a `duration_ms` is.
  */
 function client() {
-  return getSupabaseAdminClient() as unknown as {
-    from(table: string): {
-      select(cols: string): {
-        eq(
-          col: string,
-          val: string
-        ): { order(col: string, o: { ascending: boolean }): Promise<{ data: Row[] | null }> };
-      };
-      upsert(values: unknown[], opts: { onConflict: string }): Promise<{ error: unknown }>;
-      delete(): {
-        eq(col: string, val: string): { gte(col: string, val: number): Promise<{ error: unknown }> };
-      };
-    };
-  };
+  return getSupabaseAdminClient();
 }
 
 function toSlot(r: Row): MediaSlot {
@@ -139,11 +137,6 @@ export async function mediaForTool(toolId: string): Promise<MediaSlot[]> {
 /** In saved order, not display order — this is what the editor shows. */
 export async function mediaForToolInEditOrder(toolId: string): Promise<MediaSlot[]> {
   return readMedia(toolId);
-}
-
-export function mediaSlotByKey(slots: MediaSlot[], key: string | null): MediaSlot | undefined {
-  if (!key) return undefined;
-  return slots.find((s) => s.key === key);
 }
 
 export interface MediaSlotInput {
