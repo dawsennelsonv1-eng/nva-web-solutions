@@ -1,27 +1,48 @@
 'use client';
 
-import React, { useMemo, useState, useTransition } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { submitConciergeRequest, type ActionResult } from '@/app/actions/queue';
 
 /**
  * components/queue/Concierge.tsx — for a visitor whose trade is not listed.
+ * Restyled, 16I. This closes the last legacy-styled block on /queue.
  *
  * THREE OUTCOMES, AND THE THIRD IS THE HONEST ONE:
  *   built        -> route him to the tool
  *   spec only    -> show him the specification and the vote, not an email box
- *   nothing      -> take his trade, city and what he wants priced, then tell
- *                   him plainly that it is not built and what would have to
- *                   happen for it to be
+ *   nothing      -> take his trade, city and what he wants priced, then tell him
+ *                   plainly that it is not built and what would have to happen
+ *                   for it to be
  *
  * NO TURNAROUND PROMISE. There is no "custom build in 1-3 days" here, because
  * that is one person working from a phone and it cannot be held. A missed
- * promise to this audience is fatal in a way that an admitted limitation is
- * not. The urgency comes from the queue being real and monthly: one tool enters
- * build per month, and his trade and city are what move it.
+ * promise to this audience is fatal in a way an admitted limitation is not. The
+ * urgency comes from the queue being real and monthly.
  *
- * The index is passed in from the server rather than importing the catalogue,
- * so the spec sheets' trade math never ships to the browser.
+ * The index is passed in from the server rather than importing the catalogue, so
+ * the spec sheets' trade math never ships to the browser. Unchanged.
+ *
+ * ============================================================================
+ * THIS IS NOT THE SAME THING AS THE HOMEPAGE'S ProblemIntake
+ * ============================================================================
+ *
+ * They look similar and they are not. This asks WHICH TRADE, and its answer is a
+ * demand signal that changes build order — it writes to concierge_requests and
+ * feeds the queue. ProblemIntake asks WHAT IS BROKEN in a business, and its
+ * answer is a sales lead for a custom build — it writes to
+ * implementation_requests.
+ *
+ * Two different questions, two different tables, two different next actions. If
+ * they are ever merged, the queue loses the input that decides what gets built.
+ *
+ * ============================================================================
+ * NO useTransition — same compatibility fix as VoteForm
+ * ============================================================================
+ *
+ * startTransition with an async callback does not typecheck under this repo's
+ * pinned @types/react. Pending is plain useState. onSubmit rather than the form
+ * `action` prop, unchanged, for the reason VoteForm documents.
  */
 
 export interface ConciergeEntry {
@@ -32,15 +53,12 @@ export interface ConciergeEntry {
   keywords: string[];
 }
 
-type Outcome =
-  | { kind: 'none' }
-  | { kind: 'match'; entry: ConciergeEntry }
-  | { kind: 'miss' };
+type Outcome = { kind: 'none' } | { kind: 'match'; entry: ConciergeEntry } | { kind: 'miss' };
 
 export function Concierge({ index }: { index: ConciergeEntry[] }) {
   const [query, setQuery] = useState('');
   const [searched, setSearched] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
   const [result, setResult] = useState<ActionResult | null>(null);
 
   const outcome: Outcome = useMemo(() => {
@@ -56,31 +74,36 @@ export function Concierge({ index }: { index: ConciergeEntry[] }) {
     return hit ? { kind: 'match', entry: hit } : { kind: 'miss' };
   }, [index, query, searched]);
 
-  /** onSubmit, not the form `action` prop — see VoteForm for why. */
-  const onCapture = (event: React.FormEvent<HTMLFormElement>) => {
+  const onCapture = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    startTransition(async () => {
-      setResult(await submitConciergeRequest(formData));
-    });
+    setPending(true);
+    void (async () => {
+      try {
+        setResult(await submitConciergeRequest(formData));
+      } catch {
+        setResult({ ok: false, message: 'That did not go through. Try again.' });
+      } finally {
+        setPending(false);
+      }
+    })();
   };
 
   return (
-    <section className="bg-sheet px-4 py-12" aria-labelledby="concierge-h">
-      <div className="mx-auto max-w-5xl">
-        <h2 id="concierge-h" className="font-display text-2xl font-extrabold uppercase">
+    <section className="n15-sec" aria-labelledby="concierge-h">
+      <div className="n15-in">
+        <p className="n15-eyebrow">Not on the list</p>
+        <h2 id="concierge-h" className="n15-h2">
           Your trade is not on the list
         </h2>
-        <p className="mt-2 max-w-[60ch] text-base">
-          Type it in. You will get one of three answers, and one of them is that it does not exist
-          yet.
+        <p className="n15-lede">
+          Type it in. You will get one of three answers, and one of them is that
+          it does not exist yet.
         </p>
 
-        <div className="mt-4 max-w-xl">
-          <label className="block" htmlFor="concierge-q">
-            <span className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
-              What do you do
-            </span>
+        <div className="cg-search">
+          <label className="rf-field" htmlFor="concierge-q">
+            <span className="rf-label">What do you do</span>
             <input
               id="concierge-q"
               value={query}
@@ -91,100 +114,98 @@ export function Concierge({ index }: { index: ConciergeEntry[] }) {
               }}
               placeholder="Septic pumping"
               maxLength={80}
-              className="mt-1 w-full rounded-none border border-rule bg-sheet px-3 py-3 text-base"
+              className="rf-input"
             />
           </label>
           <button
             type="button"
             onClick={() => setSearched(true)}
-            className="press mt-3 w-full rounded-milled border border-ink bg-hazard px-4 py-3 text-base text-sheet"
+            className="n15-btn n15-btn-primary cg-go"
           >
             Check the queue
           </button>
         </div>
 
         {outcome.kind === 'match' && (
-          <div className="mt-5 max-w-xl border border-rule bg-concrete p-4">
-            <p className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
+          <div className="cg-result">
+            <p className="rf-label">
               {outcome.entry.built ? 'Built and running' : 'Specified, not built'}
             </p>
-            <h3 className="mt-1 font-display text-lg font-semibold">{outcome.entry.name}</h3>
-            <p className="mt-2 text-sm">
+            <h3 className="n15-h3 cg-result-h">{outcome.entry.name}</h3>
+            <p className="n15-body">
               {outcome.entry.built
                 ? 'This one exists and is running on live sites. The spec sheet shows exactly what it prices and how.'
                 : 'The specification is written and the trade math is published. It is not built. You can read the whole thing and put your weight behind it.'}
             </p>
-            <Link
-              href={`/queue/${outcome.entry.id}`}
-              className="press mt-3 inline-block rounded-milled border border-ink px-4 py-2.5 text-base"
-            >
-              {outcome.entry.built ? 'Open the spec sheet' : 'Read it and vote'}
-            </Link>
+            <div className="tc-actions n15-actions-wide">
+              <Link href={`/queue/${outcome.entry.id}`} className="n15-btn n15-btn-ghost">
+                {outcome.entry.built ? 'Open the spec sheet' : 'Read it and vote'}
+              </Link>
+            </div>
           </div>
         )}
 
         {outcome.kind === 'miss' && !result && (
-          <div className="mt-5 max-w-xl border border-rule bg-concrete p-4">
-            <p className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
-              Not built, and not specified
-            </p>
-            <p className="mt-2 text-sm">
-              There is no tool for this and no specification for one either. Nineteen trades are on
-              this page and yours is not among them. What decides that is the pile below — trade,
-              city, and what you would want priced. One tool enters build a month, and nothing
-              enters it without demand behind it.
+          <div className="cg-result">
+            <p className="rf-label">Not built, and not specified</p>
+            <p className="n15-body cg-result-h">
+              There is no tool for this and no specification for one either.
+              Nineteen trades are on this page and yours is not among them. What
+              decides that is the pile below — trade, city, and what you would
+              want priced. One tool enters build a month, and nothing enters it
+              without demand behind it.
             </p>
 
-            <form onSubmit={onCapture} className="mt-4">
+            <form onSubmit={onCapture} className="cg-form">
               <input type="hidden" name="trade" value={query} />
 
-              <p className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
-                Trade: {query}
+              <p className="cg-trade">
+                Trade: <strong>{query}</strong>
               </p>
 
-              <label className="mt-3 block" htmlFor="conc-city">
-                <span className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
-                  Your city
+              <label className="rf-field" htmlFor="conc-city">
+                <span className="rf-label">
+                  Your city<span className="rf-req">required</span>
                 </span>
                 <input
                   id="conc-city"
                   name="city"
                   required
                   maxLength={80}
-                  className="mt-1 w-full rounded-none border border-rule bg-sheet px-3 py-3 text-base"
+                  autoComplete="address-level2"
+                  className="rf-input"
                 />
               </label>
 
-              <label className="mt-3 block" htmlFor="conc-wants">
-                <span className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
-                  What would it need to price
-                </span>
+              <label className="rf-field" htmlFor="conc-wants">
+                <span className="rf-label">What would it need to price</span>
                 <textarea
                   id="conc-wants"
                   name="wants"
                   rows={3}
                   maxLength={400}
-                  className="mt-1 w-full rounded-none border border-rule bg-sheet px-3 py-3 text-base"
+                  className="rf-input rf-textarea"
                 />
               </label>
 
-              <label className="mt-3 block" htmlFor="conc-email">
-                <span className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
-                  Email — optional
+              <label className="rf-field" htmlFor="conc-email">
+                <span className="rf-label">
+                  Email<span className="rf-opt">optional</span>
                 </span>
                 <input
                   id="conc-email"
                   name="email"
                   type="email"
                   maxLength={160}
-                  className="mt-1 w-full rounded-none border border-rule bg-sheet px-3 py-3 text-base"
+                  autoComplete="email"
+                  className="rf-input"
                 />
               </label>
 
               <button
                 type="submit"
                 disabled={pending}
-                className="press mt-4 w-full rounded-milled border border-ink bg-hazard px-4 py-3 text-base text-sheet disabled:border-rule disabled:bg-rule"
+                className="n15-btn n15-btn-primary cg-submit"
               >
                 {pending ? 'Recording…' : 'Put it in the pile'}
               </button>
@@ -193,7 +214,7 @@ export function Concierge({ index }: { index: ConciergeEntry[] }) {
         )}
 
         {result && (
-          <p className={`mt-4 max-w-xl text-sm ${result.ok ? 'text-cure' : ''}`} role="status">
+          <p className={'vf-result' + (result.ok ? ' vf-result-ok' : '')} role="status">
             {result.message}
           </p>
         )}

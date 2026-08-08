@@ -1,0 +1,157 @@
+/* ============================================================================
+   PHASE 16I — VOTE FORM AND CONCIERGE
+   Imported last. Additions only. Reuses the .rf-* input styles from
+   phase16.css rather than defining a second set of form controls — two form
+   languages on one site is how a site starts looking assembled.
+========================================================================== */
+
+/* ----------------------------------------------------------------------------
+   VOTE FORM
+--------------------------------------------------------------------------- */
+.vf {
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  padding: 1.6rem 1.4rem;
+}
+.vf-rank {
+  margin-top: 0.8rem;
+  font-family: var(--n15-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.6);
+}
+.vf-lede {
+  margin-top: 0.9rem;
+  max-width: 54ch;
+}
+.vf-form {
+  margin-top: 1.35rem;
+  display: grid;
+  gap: 1.1rem;
+}
+.vf-submit {
+  width: 100%;
+}
+.vf-result {
+  margin-top: 1.1rem;
+  border-radius: var(--n15-r-chip);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-panel);
+  padding: 0.75rem 0.9rem;
+  font-family: var(--n15-sans);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: rgba(var(--n15-ink), 0.85);
+}
+/* Success is marked with the copper edge rather than green. There is no green in
+   this palette, and introducing one colour for one message would be a token
+   nobody else uses. */
+.vf-result-ok {
+  border-color: rgba(201, 112, 47, 0.5);
+  background: rgba(201, 112, 47, 0.08);
+}
+
+/* THE RANK FLASH — one of the three moving things 13A permits.
+   Fires when the rank PROP changes after revalidation, so it marks a real
+   change in the world rather than acknowledging a tap. Runs once, 400ms. */
+.vf-flash {
+  animation: vf-rank-flash 400ms ease-out 1;
+}
+@keyframes vf-rank-flash {
+  0%,
+  40% {
+    color: var(--n15-copper);
+  }
+  100% {
+    color: rgba(var(--n15-ink), 0.6);
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   CONCIERGE
+--------------------------------------------------------------------------- */
+.cg-search {
+  margin-top: 2rem;
+  max-width: 34rem;
+  display: grid;
+  gap: 0.9rem;
+}
+.cg-go {
+  width: 100%;
+}
+@media (min-width: 560px) {
+  .cg-go {
+    width: auto;
+    min-width: 12rem;
+    justify-self: start;
+  }
+}
+
+.cg-result {
+  margin-top: 1.6rem;
+  max-width: 34rem;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  padding: 1.5rem 1.35rem;
+}
+.cg-result-h {
+  margin-top: 0.7rem;
+}
+.cg-form {
+  margin-top: 1.5rem;
+  display: grid;
+  gap: 1.1rem;
+}
+/* The trade is echoed back as a fact rather than as an editable field, because
+   it was already typed above and a second box for the same answer invites the
+   reader to wonder which one counts. */
+.cg-trade {
+  border-radius: var(--n15-r-chip);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-panel);
+  padding: 0.65rem 0.8rem;
+  font-family: var(--n15-sans);
+  font-size: 0.9rem;
+  color: rgba(var(--n15-ink), 0.85);
+}
+.cg-submit {
+  width: 100%;
+}
+
+/* ----------------------------------------------------------------------------
+   REDUCED MOTION — the flash does not run at all. The rank still changes; it
+   simply changes without being announced.
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .vf-flash {
+    animation: none;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   LIGHT THEME
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .vf-rank {
+  color: rgba(26, 29, 34, 0.65);
+}
+html[data-n15-theme='light'] .vf-result-ok {
+  border-color: rgba(154, 83, 22, 0.5);
+  background: rgba(154, 83, 22, 0.08);
+}
+html[data-n15-theme='light'] .vf-flash {
+  animation-name: vf-rank-flash-light;
+}
+@keyframes vf-rank-flash-light {
+  0%,
+  40% {
+    color: var(--n15-copper);
+  }
+  100% {
+    color: rgba(26, 29, 34, 0.65);
+  }
+}
