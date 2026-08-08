@@ -21,29 +21,59 @@ import type { Database } from '@/types/database';
  * @supabase/ssr's own documented shape for Next.js middleware. Deviating
  * from it (e.g. reusing NextResponse.next() created before the client) is
  * the most common way this integration breaks.
+ *
+ * ============================================================================
+ * IT RETURNS null WHEN AUTH IS NOT CONFIGURED — PHASE 17A
+ * ============================================================================
+ *
+ * This crashed production. The env vars were read as
+ * `process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''`, and `??` only substitutes for
+ * `undefined` — an env var that is PRESENT BUT EMPTY passes straight through.
+ * createServerClient then throws `supabaseKey is required` at construction,
+ * synchronously, before any request handling. Nothing caught it, so every
+ * matched path returned MIDDLEWARE_INVOCATION_FAILED: a hard 500 on /login,
+ * /app/* and all of /admin.
+ *
+ * A missing env var must never be able to take a route down. The presence
+ * check below is explicit — `.length > 0` after a trim, not `??` — and the
+ * construction is wrapped, because a future version of the library could throw
+ * for a reason this check does not anticipate.
+ *
+ * The caller decides what an unconfigured deployment means for each path. See
+ * middleware.ts: it fails CLOSED for gated routes and open only for the sign-in
+ * pages themselves.
  */
 export function createSupabaseMiddlewareClient(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });
 
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          // Mirror onto the request (so THIS request's later reads see the
-          // refreshed value) and rebuild the response from that request
-          // (so the value actually reaches the browser).
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request: { headers: request.headers } });
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        },
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim();
+  const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim();
+
+  // Not configured. Return the response builder without a client so the caller
+  // can still send refreshed-cookie-free traffic through, and let it decide
+  // what to do about the missing auth.
+  if (url.length === 0 || anonKey.length === 0) {
+    return { supabase: null, getResponse: () => response };
+  }
+
+  const supabase = createServerClient<Database>(url, anonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
       },
-    }
-  );
+      setAll(cookiesToSet) {
+        // Mirror onto the request (so THIS request's later reads see the
+        // refreshed value) and rebuild the response from that request
+        // (so the value actually reaches the browser).
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request: { headers: request.headers } });
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options)
+        );
+      },
+    },
+  });
 
   return { supabase, getResponse: () => response };
 }
+

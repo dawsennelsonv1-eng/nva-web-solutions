@@ -50,16 +50,67 @@ import { createSupabaseMiddlewareClient } from '@/lib/supabase/middleware';
  * Refreshed SESSION COOKIES are always returned, even on the pass-through
  * paths, because @supabase/ssr's token refresh must reach the browser on every
  * request that touches a gated route or the session silently expires mid-visit.
+ *
+ * ============================================================================
+ * PHASE 17A — NOTHING IN HERE MAY THROW
+ * ============================================================================
+ *
+ * This file took production down. lib/supabase/middleware.ts read its env with
+ * `?? ''`, which does not catch an env var that is present but EMPTY, and
+ * createServerClient threw at construction. An uncaught throw in middleware is
+ * not a failed request — it is MIDDLEWARE_INVOCATION_FAILED, a hard 500 on
+ * every matched path, with no page-level error boundary anywhere near it.
+ *
+ * Two changes:
+ *
+ *  1. The client can now be null (auth not configured). Every path decides
+ *     explicitly what that means.
+ *  2. The whole body is wrapped. Any unexpected throw — a Supabase outage
+ *     surfacing as an exception, a library change — degrades to the same
+ *     handling as "not configured" instead of a 500.
+ *
+ * FAIL CLOSED, NOT OPEN. When identity cannot be established, a gated path
+ * redirects to its sign-in page. It never falls through to the page. An
+ * unconfigured deployment must not be a way into /admin — that would turn a
+ * missing env var from an outage into a breach.
+ *
+ * The sign-in pages themselves pass through, so /login and /admin/login render
+ * and can report their own problem. A visitor sees a form that cannot sign him
+ * in, which is the truth, instead of a Vercel 500.
  */
 
+/**
+ * What to do when identity cannot be established at all.
+ * Gated paths bounce to their door; the doors themselves render.
+ */
+function unauthenticatedFallback(
+  req: NextRequest,
+  path: string,
+  getResponse: () => NextResponse
+): NextResponse {
+  if (path === '/login' || path === '/admin/login') return getResponse();
+  if (path.startsWith('/app')) return redirectTo(req, '/login');
+  return redirectTo(req, '/admin/login');
+}
+
 export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
   const { supabase, getResponse } = createSupabaseMiddlewareClient(req);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Auth is not configured on this deployment. Nothing can be proven about who
+  // this is, so no gated path may be entered.
+  if (!supabase) {
+    return unauthenticatedFallback(req, path, getResponse);
+  }
 
-  const path = req.nextUrl.pathname;
+  let user: { id: string } | null = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user ?? null;
+  } catch {
+    // A thrown auth call is treated exactly like no session. Never a 500.
+    return unauthenticatedFallback(req, path, getResponse);
+  }
   const isMemberArea = path === '/login' || path.startsWith('/app');
 
   // ---------------------------------------------------------------- members
@@ -90,7 +141,15 @@ export async function middleware(req: NextRequest) {
     return redirectTo(req, '/admin/login');
   }
 
-  const { data: isAdmin } = await supabase.rpc('is_admin');
+  let isAdmin = false;
+  try {
+    const { data } = await supabase.rpc('is_admin');
+    isAdmin = data === true;
+  } catch {
+    // The RPC failed — a migration not run, a permissions change, an outage.
+    // Not admin, and specifically NOT a 500 and NOT a pass-through.
+    isAdmin = false;
+  }
 
   if (!isAdmin) {
     // A real Supabase Auth user who is NOT in app_admins.
@@ -126,3 +185,4 @@ function redirectTo(req: NextRequest, pathname: string, reason?: string): NextRe
 export const config = {
   matcher: ['/admin/:path*', '/app/:path*', '/login'],
 };
+
