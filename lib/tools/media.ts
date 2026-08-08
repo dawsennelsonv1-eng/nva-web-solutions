@@ -50,20 +50,30 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin';
  * this and running migration 0019.
  */
 
-export type MediaKind = 'animation' | 'still';
+/**
+ * The shape, the limits and the pure lookup live in ./media-types, which is NOT
+ * server-only and can therefore be imported by client components. They are
+ * re-exported here so server callers still have a single import.
+ *
+ * DO NOT MOVE THEM BACK. A value import of MIN_SLOTS from a client component
+ * pulls this whole module into the browser graph, `server-only` throws, and the
+ * build fails with a message about the pages/ directory that points nowhere
+ * near the real cause. That is exactly how this broke in 16E.
+ */
+export type { MediaKind, MediaSlot } from '@/lib/tools/media-types';
+export {
+  MIN_SLOTS,
+  MAX_SLOTS,
+  DEFAULT_DURATION_MS,
+  mediaSlotByKey,
+} from '@/lib/tools/media-types';
 
-export interface MediaSlot {
-  key: string;
-  kind: MediaKind;
-  src: string;
-  alt: string;
-  caption: string;
-  durationMs: number;
-}
+// Re-exporting a name does NOT bind it locally, so the shapes this file
+// actually uses are imported as well.
+import type { MediaKind, MediaSlot } from '@/lib/tools/media-types';
+import { MAX_SLOTS } from '@/lib/tools/media-types';
 
-export const MIN_SLOTS = 3;
-export const MAX_SLOTS = 10;
-export const DEFAULT_DURATION_MS = 3000;
+/** Cache tag. Invalidated by replaceToolMedia so a save is live immediately. */
 export const MEDIA_TAG = 'tool-media';
 
 interface Row {
@@ -127,11 +137,6 @@ export async function mediaForTool(toolId: string): Promise<MediaSlot[]> {
 /** In saved order, not display order — this is what the editor shows. */
 export async function mediaForToolInEditOrder(toolId: string): Promise<MediaSlot[]> {
   return readMedia(toolId);
-}
-
-export function mediaSlotByKey(slots: MediaSlot[], key: string | null): MediaSlot | undefined {
-  if (!key) return undefined;
-  return slots.find((s) => s.key === key);
 }
 
 export interface MediaSlotInput {
