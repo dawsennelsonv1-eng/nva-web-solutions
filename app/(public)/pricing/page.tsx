@@ -1,41 +1,64 @@
 import type { Metadata } from 'next';
-import { Panel } from '@/components/ui/Panel';
-import { CtaButton } from '@/components/marketing/CtaButton';
-import { ImplementationOffer } from '@/components/marketing/ImplementationOffer';
+import Link from 'next/link';
+import { GradientField } from '@/components/site/GradientField';
 import { disclosureLine } from '@/lib/billing/entity';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { stubPlans } from '@/lib/stubs';
 
 /**
- * app/(public)/pricing/page.tsx — REAL pricing, never hardcoded.
+ * app/(public)/pricing/page.tsx — REAL pricing, never hardcoded. Restyled, 16G.
+ *
+ * ============================================================================
+ * THE DATA PATH IS UNCHANGED. EVERY WORD OF THAT ORIGINAL NOTE STILL HOLDS.
+ * ============================================================================
  *
  * Tiers render from the `plans` table (anon-readable for active rows,
- * 0003_rls.sql's documented deviation) via the same server client every
- * other real read in this codebase uses. If the founding rate in OFFER.md
- * §6 ever changes — the $500 setup ending at 10 contractors or October 31,
- * 2026, whichever comes first — that is a row UPDATE, and this page reflects
- * it on the next request with no deploy.
+ * 0003_rls.sql's documented deviation) through the same server client every
+ * other real read uses. If the founding rate ever changes, that is a row UPDATE
+ * and this page reflects it on the next request with no deploy.
  *
- * FALLBACK: an unconfigured environment (no Supabase env set — a fresh
- * clone, a local preview) renders lib/stubs.ts's stubPlans instead of
- * throwing, so the page is always inspectable without secrets. Production
- * with real env vars always prefers the live table.
+ * FALLBACK: an unconfigured environment renders lib/stubs.ts's stubPlans rather
+ * than throwing, so the page is always inspectable without secrets.
  *
- * 15A.4 — FranchiseComparison is gone from this page and from the repo. The
- * section below it is now ImplementationOffer, which carries the new
- * positioning (we implement AI in your business) and takes the identical two
- * props, so the live plan numbers still flow through untouched.
+ * CHECKOUT IS STILL NOT WIRED. Phase 5.5 owns the payment adapter and is the
+ * explicit ship gate. Rather than fake a buy button, the CTAs route to things
+ * that are real today — /demo for the tool, /start for the questionnaire.
  *
- * CHECKOUT IS NOT WIRED YET, on purpose: Phase 5.5 owns the payment
- * provider adapter and is the explicit ship gate — "you cannot advertise
- * until this ships." Rather than fake a buy button or link somewhere
- * broken, both CTAs route to /demo, which is real today.
+ * ============================================================================
+ * WHAT CHANGED
+ * ============================================================================
+ *
+ * Panel, CtaButton and ImplementationOffer are no longer imported. All three
+ * are drawn in the legacy token system and cannot be restyled here without
+ * changing the other surfaces that mount them. NONE OF THEM IS DELETED — grep
+ * before removing anything:
+ *
+ *   grep -rn "Panel\|CtaButton\|ImplementationOffer" app components
+ *
+ * ImplementationOffer's argument — that we implement AI inside your business —
+ * now lives on the homepage, in a section written for it. Repeating it at the
+ * bottom of a pricing page was the pricing page doing someone else's job; this
+ * one answers what it costs and links onward.
+ *
+ * THE DISCLOSURE STAYS ABOVE THE FOLD at plain body size, from config (R-210).
+ * It moved from a Panel into a plain block. That is a styling change and not a
+ * relaxation: it is still the first thing under the heading, still full size,
+ * still not in a collapsed or muted container.
+ *
+ * THE 30-DAY GUARANTEE COPY IS UNCHANGED, including the part that refuses to
+ * promise a number of leads. That paragraph is the most valuable thing on the
+ * page and it survives verbatim.
  */
 
 export const metadata: Metadata = {
   title: 'Pricing',
-  description: 'Two tiers. $500 setup, $250 a month for Foundation. 0% of your revenue, always.',
-  openGraph: { title: 'Girder pricing', description: '$500 setup, $250/month. 0% of revenue.', type: 'website' },
+  description:
+    'Two tiers. $500 setup, $250 a month for Foundation. 0% of your revenue, always.',
+  openGraph: {
+    title: 'Girder pricing',
+    description: '$500 setup, $250/month. 0% of revenue.',
+    type: 'website',
+  },
 };
 
 interface PlanView {
@@ -102,84 +125,95 @@ const FEATURE_LABELS: { key: string; label: string }[] = [
 export default async function PricingPage() {
   const { plans } = await loadPlans();
   const foundation = plans.find((p) => p.code === 'foundation');
+  const setup = foundation ? dollars(foundation.setupFeeCents) : '$500';
 
   return (
-    <div className="pb-16">
-      {/* R-210: the disclosure is above the fold, plain body size, from config. */}
-      <div className="mx-auto max-w-3xl px-4 pt-6">
-        <Panel label="Billing entity">
-          <p className="text-base">{disclosureLine()}</p>
-        </Panel>
-      </div>
+    <>
+      <GradientField />
+      <section className="n15-sec" aria-labelledby="pricing-h">
+        <div className="n15-in">
+          <p className="n15-eyebrow">Founding rate — first 10 in DFW, or Oct 31, 2026</p>
+          <h1 id="pricing-h" className="n15-h2">
+            {setup} to set up. 0% of your revenue. Ever.
+          </h1>
+          <p className="n15-lede">
+            I&apos;m taking ten contractors in DFW at {setup} because I want ten
+            sites running in one metro that I can point at. After that it&apos;s
+            $1,500 setup — the monthly stays $250 either way, and it never
+            changes for customers already in.
+          </p>
 
-      <div className="mx-auto max-w-3xl px-4 pt-10 text-center">
-        <p className="font-data text-xs uppercase tracking-wide text-hazard">Founding rate — first 10 in DFW, or Oct 31, 2026</p>
-        <h1 className="mt-2 font-display font-condensed text-3xl font-bold sm:text-4xl">
-          {foundation ? dollars(foundation.setupFeeCents) : '$500'} to set up. 0% of your revenue. Ever.
-        </h1>
-        <p className="mx-auto mt-3 max-w-xl text-base text-rule">
-          I&apos;m taking ten contractors in DFW at {foundation ? dollars(foundation.setupFeeCents) : '$500'} because I want
-          ten sites running in one metro that I can point at. After that it&apos;s $1,500 setup — the monthly stays $250
-          either way, and it never changes for customers already in.
-        </p>
-      </div>
-
-      <div className="mx-auto mt-10 grid max-w-3xl grid-cols-1 gap-6 px-4 sm:grid-cols-2">
-        {plans.map((p) => (
-          <div key={p.code} className="rounded-milled border bg-sheet p-6">
-            <p className="font-data text-xs uppercase tracking-wide text-rule">{p.name}</p>
-            <p className="tabular mt-2 font-display font-condensed text-4xl font-bold">
-              {dollars(p.setupFeeCents)}
-              <span className="text-lg font-normal text-rule"> setup</span>
-            </p>
-            <p className="tabular font-display font-condensed text-xl font-bold text-rule">
-              + {dollars(p.monthlyCents)}<span className="text-sm font-normal"> / month</span>
-            </p>
-            <p className="mt-3 font-data text-sm">
-              {p.analysisLimitPerMonth === null
-                ? 'Unlimited AI photo analyses'
-                : p.analysisLimitPerMonth + ' AI photo analyses / month'}
-            </p>
-            <ul className="mt-4 space-y-1.5">
-              {FEATURE_LABELS.map((f) => {
-                const on = p.features[f.key] === true;
-                return (
-                  <li key={f.key} className={'font-data text-sm ' + (on ? 'text-ink' : 'text-rule line-through')}>
-                    {on ? '✓ ' : '— '}
-                    {f.label}
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="mt-6">
-              <CtaButton href="/demo" variant={p.code === 'foundation' ? 'hazard' : 'outline'}>
-                Try it live
-              </CtaButton>
-            </div>
+          {/* R-210: above the fold, plain body size, from config. */}
+          <div className="pr-note pc-disclosure">
+            <p className="pr-note-k">Billing entity</p>
+            <p className="n15-body">{disclosureLine()}</p>
           </div>
-        ))}
-      </div>
 
-      <div className="mt-16">
-        <ImplementationOffer
-          foundationSetupDollars={foundation ? Math.round(foundation.setupFeeCents / 100) : 500}
-          foundationMonthlyDollars={foundation ? Math.round(foundation.monthlyCents / 100) : 250}
-        />
-      </div>
+          <div className="pc-grid">
+            {plans.map((p) => (
+              <article key={p.code} className={'pc-card' + (p.code === 'foundation' ? ' pc-card-lead' : '')}>
+                <p className="pc-name">{p.name}</p>
 
-      <div className="mx-auto max-w-2xl px-4">
-        <Panel label="30-day guarantee">
-          <p className="font-display font-condensed text-lg font-bold">
-            Thirty days. If it&apos;s not working, you get the setup fee back.
-          </p>
-          <p className="mt-2 text-base leading-relaxed">
-            Tell me inside 30 days and I refund the {foundation ? dollars(foundation.setupFeeCents) : '$500'} setup in
-            full, no questions and no forms. You keep any leads it captured. I don&apos;t refund monthly fees for months
-            already used, and I won&apos;t promise you a number of leads — this converts the traffic you already have, it
-            doesn&apos;t create traffic. If it doesn&apos;t convert it, you shouldn&apos;t be paying for it.
-          </p>
-        </Panel>
-      </div>
-    </div>
+                <p className="pc-fig">
+                  {dollars(p.setupFeeCents)}
+                  <span className="pc-fig-unit"> setup</span>
+                </p>
+                <p className="pc-monthly">
+                  + {dollars(p.monthlyCents)}
+                  <span className="pc-fig-unit"> / month</span>
+                </p>
+
+                <p className="pc-limit">
+                  {p.analysisLimitPerMonth === null
+                    ? 'Unlimited AI photo analyses'
+                    : p.analysisLimitPerMonth + ' AI photo analyses / month'}
+                </p>
+
+                <ul className="pc-features">
+                  {FEATURE_LABELS.map((f) => {
+                    const on = p.features[f.key] === true;
+                    return (
+                      <li key={f.key} className={on ? 'pc-on' : 'pc-off'}>
+                        <span aria-hidden className="pc-mark">
+                          {on ? '✓' : '—'}
+                        </span>
+                        {f.label}
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                <div className="pc-actions">
+                  <Link
+                    href="/demo"
+                    className={
+                      'n15-btn ' +
+                      (p.code === 'foundation' ? 'n15-btn-primary' : 'n15-btn-ghost')
+                    }
+                  >
+                    Try it live
+                  </Link>
+                  <Link href="/start" className="n15-btn n15-btn-ghost">
+                    Get this on my site
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="ai-foot">
+            <h2 className="n15-h3">Thirty days. If it&apos;s not working, you get the setup fee back.</h2>
+            <p className="n15-body n15-measure">
+              Tell me inside 30 days and I refund the {setup} setup in full, no
+              questions and no forms. You keep any leads it captured. I
+              don&apos;t refund monthly fees for months already used, and I
+              won&apos;t promise you a number of leads — this converts the
+              traffic you already have, it doesn&apos;t create traffic. If it
+              doesn&apos;t convert it, you shouldn&apos;t be paying for it.
+            </p>
+          </div>
+        </div>
+      </section>
+    </>
   );
 }

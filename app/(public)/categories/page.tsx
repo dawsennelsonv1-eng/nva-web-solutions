@@ -1,37 +1,51 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Plate } from '@/components/ui/Plate';
+import { GradientField } from '@/components/site/GradientField';
 import { getQueueSections, type QueueRow } from '@/lib/queue/data';
 import { CATEGORIES, assertCategories, demoHrefFor } from '@/lib/queue/categories';
 
 /**
- * app/(public)/categories/page.tsx — EVERY TRADE, GROUPED.
+ * app/(public)/categories/page.tsx — EVERY TRADE, GROUPED. Restyled, 16G.
  *
- * The build queue is a schedule: it answers "when". This answers "whether",
- * which is the question a visitor actually arrives with. He does not want to
- * read nineteen rows in build order to discover that gutters are on the list.
- * He wants to find the word "Gutters" and tap it.
+ * ============================================================================
+ * WHY THIS PAGE HAD TO MOVE INTO THE NEW SYSTEM
+ * ============================================================================
  *
- * STATUS COMES FROM getQueueSections(), NOT FROM THE CATALOGUE. That function
- * reconciles every declared status against the vertical registry — a trade
- * that claims to be in service but whose module is not registered is demoted
- * before it reaches this page. So this route is structurally incapable of
- * showing a green Plate for a trade that cannot actually be priced, and it
- * inherits that property rather than reimplementing it.
+ * It is linked from the header on every page and from the foot of the tool
+ * deck, so it is one tap from the homepage. Until now it was still ink-on-white
+ * in the old industrial language — square corners, hairline rules, 10px mono
+ * plates — while everything around it had moved. Tapping "Categories" from a
+ * page of tilting cards landed you in what looked like a different product.
  *
- * WHERE A CARD GOES:
- *   IN SERVICE with a demo surface  -> the live demo
- *   IN SERVICE without one          -> its spec sheet, with the reason stated
- *   everything else                 -> its spec sheet
+ * ============================================================================
+ * THE LOGIC IS UNCHANGED. ALL OF IT.
+ * ============================================================================
  *
- * The middle case is real today. See demoHrefFor() in lib/queue/categories.ts:
- * painting is registered and therefore genuinely IN SERVICE, but /demo is
- * hardwired to epoxy, so a painter sent there would be shown a garage floor.
- * Saying "no public demo yet" is a small admission. Showing him the wrong
- * trade's arithmetic under his own trade's name would end the visit.
+ * Same getQueueSections() reconciliation, same demoHrefFor() routing, same
+ * assertCategories() guard at module scope, same three destinations, same
+ * stated reason when a live trade has no demo. Only the markup changed.
  *
- * NOTHING ON THIS PAGE OBSERVES SCROLL, and nothing animates except the 70ms
- * press state on the cards.
+ * That matters because the honesty properties of this page are load-bearing:
+ * it is structurally incapable of showing an "in service" badge for a trade
+ * whose module is not registered, and it says out loud when it cannot send a
+ * painter to a demo rather than showing him a garage floor. None of that is
+ * presentation and none of it was touched.
+ *
+ * ============================================================================
+ * THE PLATE IS GONE FROM THIS PAGE, NOT FROM THE REPO
+ * ============================================================================
+ *
+ * components/ui/Plate.tsx is untouched and still serves /queue and
+ * /queue/[toolId]. It is simply not imported here any more: it is drawn in the
+ * old token system and cannot be restyled without changing those pages too.
+ *
+ * What replaces it carries the same two facts — the status and the unit number
+ * — in the pill the tool cards already use, so a visitor arriving from the
+ * homepage recognises it. The revision and date it also carried are dropped
+ * here on purpose: they are spec-sheet detail, and this page answers "is my
+ * trade on here", not "what revision is it at".
+ *
+ * Server component. No client JavaScript. Nothing observes scroll.
  */
 
 export const metadata: Metadata = {
@@ -41,7 +55,7 @@ export const metadata: Metadata = {
 };
 
 // Fails loudly at request time if a tool has been added to the catalogue and
-// not to a category — see the note on assertCategories().
+// not to a category — unchanged from the original.
 assertCategories();
 
 export default async function CategoriesPage() {
@@ -60,100 +74,95 @@ export default async function CategoriesPage() {
   const liveCount = sections.inService.length;
 
   return (
-    <div className="px-4 pb-16 pt-8">
-      <div className="mx-auto max-w-5xl">
-        <h1 className="max-w-[20ch] font-display text-display font-extrabold uppercase">
-          Find your trade
-        </h1>
-        <p className="mt-3 max-w-[60ch] text-base">
-          {liveCount === 1
-            ? 'One trade is in service and can be priced today.'
-            : `${liveCount} trades are in service and can be priced today.`}{' '}
-          The rest are specified — the inputs and the arithmetic are written down and you can read
-          them — and they are built in the order contractors ask for them.
-        </p>
-        <p className="mt-2 max-w-[60ch] text-sm text-rule">
-          Every plate below is the real status of that module, checked against the code at the
-          moment you loaded this page. Nothing here is aspirational.
-        </p>
-
-        {CATEGORIES.map((cat) => (
-          <section key={cat.id} className="mt-10" aria-labelledby={`cat-${cat.id}`}>
-            <h2
-              id={`cat-${cat.id}`}
-              className="font-display text-2xl font-extrabold uppercase"
-            >
-              {cat.label}
-            </h2>
-            <p className="mt-1 max-w-[60ch] text-sm text-rule">{cat.blurb}</p>
-
-            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-              {cat.toolIds.map((id) => {
-                const row = byId.get(id);
-                if (!row) return null;
-
-                const live = row.status === 'IN SERVICE';
-                const demo = live ? demoHrefFor(id) : null;
-                const href = demo ?? `/queue/${id}`;
-
-                return (
-                  <li key={id}>
-                    <Link
-                      href={href}
-                      className="press block h-full border border-rule bg-sheet p-4"
-                    >
-                      <Plate
-                        unit={row.tool.unit}
-                        status={row.status === 'QUEUED' ? 'QUEUED' : row.status}
-                        rev={row.tool.rev}
-                        date={row.tool.date}
-                        count={
-                          row.deploys !== null
-                            ? { label: 'Deploys', value: row.deploys }
-                            : { label: 'Votes', value: row.votes }
-                        }
-                      />
-
-                      <p className="mt-3 font-display text-lg font-extrabold uppercase leading-tight">
-                        {row.tool.trade}
-                      </p>
-                      <p className="mt-1 text-sm">{row.tool.prices}</p>
-
-                      <p className="mt-3 font-data text-2xs uppercase tracking-[0.08em] text-hazard">
-                        {demo
-                          ? 'Price a job now →'
-                          : live
-                            ? 'In service — read the spec →'
-                            : 'Read the spec and the math →'}
-                      </p>
-
-                      {live && !demo && (
-                        <p className="mt-1 text-2xs text-rule">
-                          The module prices this trade. There is no public demo for it yet, and
-                          sending you to the epoxy one would show you the wrong arithmetic.
-                        </p>
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
-
-        <div className="mt-12 border-t border-rule pt-6">
-          <p className="max-w-[60ch] text-base">
-            Not here? The build queue takes your trade and your city, and that is what decides
-            which one enters build next.
+    <>
+      <GradientField />
+      <section className="n15-sec" aria-labelledby="cats-h">
+        <div className="n15-in">
+          <p className="n15-eyebrow">Find your trade</p>
+          <h1 id="cats-h" className="n15-h2">
+            Is there a tool for what you do?
+          </h1>
+          <p className="n15-lede">
+            {liveCount === 1
+              ? 'One trade is in service and can be priced today.'
+              : `${liveCount} trades are in service and can be priced today.`}{' '}
+            The rest are specified — the inputs and the arithmetic are written
+            down and you can read them — and they are built in the order
+            contractors ask for them.
           </p>
-          <Link
-            href="/queue"
-            className="press mt-3 inline-block rounded-milled bg-hazard px-4 py-3 font-body font-semibold text-sheet"
-          >
-            Check for tools in my niche
-          </Link>
+          <p className="n15-small n15-measure">
+            Every status below is the real state of that module, checked against
+            the code at the moment you loaded this page. Nothing here is
+            aspirational.
+          </p>
+
+          {CATEGORIES.map((cat) => (
+            <section key={cat.id} className="cat-group" aria-labelledby={`cat-${cat.id}`}>
+              <h2 id={`cat-${cat.id}`} className="n15-h3">
+                {cat.label}
+              </h2>
+              <p className="n15-small cat-blurb">{cat.blurb}</p>
+
+              <ul className="cat-grid">
+                {cat.toolIds.map((id) => {
+                  const row = byId.get(id);
+                  if (!row) return null;
+
+                  const live = row.status === 'IN SERVICE';
+                  const demo = live ? demoHrefFor(id) : null;
+                  const href = demo ?? `/queue/${id}`;
+
+                  return (
+                    <li key={id}>
+                      <Link href={href} className={'cat-card' + (live ? ' cat-card-live' : '')}>
+                        <span className="tc-status cat-status">
+                          <span aria-hidden className="tc-dot" />
+                          {row.status}
+                          <span className="tc-unit">· {row.tool.unit}</span>
+                        </span>
+
+                        <span className="cat-trade">{row.tool.trade}</span>
+                        <span className="cat-prices">{row.tool.prices}</span>
+
+                        <span className="cat-go">
+                          {demo
+                            ? 'Price a job now →'
+                            : live
+                              ? 'In service — read the spec →'
+                              : 'Read the spec and the math →'}
+                        </span>
+
+                        {live && !demo && (
+                          <span className="cat-note">
+                            The module prices this trade. There is no public demo
+                            for it yet, and sending you to the epoxy one would
+                            show you the wrong arithmetic.
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+
+          <div className="ai-foot">
+            <p className="n15-body">
+              Not here? The build queue takes your trade and your city, and that
+              is what decides which one enters build next.
+            </p>
+            <div className="tc-actions n15-actions-wide">
+              <Link href="/queue" className="n15-btn n15-btn-primary">
+                Check the build queue
+              </Link>
+              <Link href="/#problem-h" className="n15-btn n15-btn-ghost">
+                Tell us what is broken instead
+              </Link>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </>
   );
 }

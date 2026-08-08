@@ -1,0 +1,219 @@
+/* ============================================================================
+   PHASE 16G — /categories AND /pricing
+   Imported last. Additions only; light overrides at the foot, scoped as
+   phase17.css is. globals.css and the legacy tokens are untouched, so /queue,
+   /demo and admin still render exactly as before.
+========================================================================== */
+
+/* ----------------------------------------------------------------------------
+   CATEGORIES
+--------------------------------------------------------------------------- */
+.cat-group {
+  margin-top: 3.25rem;
+}
+.cat-blurb {
+  margin-top: 0.5rem;
+  max-width: 60ch;
+}
+.cat-grid {
+  margin-top: 1.25rem;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.9rem;
+}
+@media (min-width: 720px) {
+  .cat-grid {
+    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  }
+}
+
+/* A whole card is the tap target, not a link inside it. On a phone, a 19rem
+   card with a small link in it is a card you will miss. */
+.cat-card {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 0.35rem;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  padding: 1.25rem 1.15rem;
+  transition: border-color 160ms ease, transform 110ms ease;
+}
+.cat-card:hover {
+  border-color: var(--n15-card-edge-lit);
+}
+.cat-card:active {
+  transform: scale(0.99);
+}
+
+/* The status pill sits on its own line here rather than beside the trade name.
+   In a two-column grid the trade names are short and the pill is wide; putting
+   them on one row makes every card wrap differently. */
+.cat-status {
+  align-self: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.cat-trade {
+  font-family: var(--n15-serif);
+  font-size: 1.35rem;
+  line-height: 1.15;
+  color: rgb(var(--n15-ink));
+}
+.cat-prices {
+  font-family: var(--n15-sans);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: rgba(var(--n15-ink), 0.68);
+}
+/* Pushed to the bottom so the arrow line is level across a row of cards whose
+   descriptions are different lengths. */
+.cat-go {
+  margin-top: auto;
+  padding-top: 0.85rem;
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.8rem;
+  color: var(--n15-copper);
+}
+.cat-note {
+  margin-top: 0.5rem;
+  font-family: var(--n15-sans);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: rgba(var(--n15-ink), 0.55);
+}
+
+/* ----------------------------------------------------------------------------
+   PRICING
+--------------------------------------------------------------------------- */
+.pc-disclosure {
+  margin-top: 2rem;
+}
+
+.pc-grid {
+  margin-top: 2.5rem;
+  display: grid;
+  gap: 1.25rem;
+}
+@media (min-width: 760px) {
+  .pc-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.pc-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  padding: 1.75rem 1.5rem;
+}
+/* The founding tier is marked with the copper edge rather than a "MOST POPULAR"
+   ribbon. There are two plans and one operator; a popularity claim about two
+   rows would be invented. */
+.pc-card-lead {
+  border-color: rgba(201, 112, 47, 0.5);
+  box-shadow: var(--n15-shadow-lift), 0 0 0 1px rgba(201, 112, 47, 0.2);
+}
+
+.pc-name {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.5);
+}
+.pc-fig {
+  margin-top: 0.65rem;
+  font-family: var(--n15-sans);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: clamp(2.2rem, 7vw, 2.9rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: rgb(var(--n15-ink));
+}
+.pc-monthly {
+  margin-top: 0.45rem;
+  font-family: var(--n15-sans);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 1.25rem;
+  color: rgba(var(--n15-ink), 0.78);
+}
+.pc-fig-unit {
+  font-weight: 400;
+  font-size: 0.95rem;
+  color: rgba(var(--n15-ink), 0.55);
+}
+.pc-limit {
+  margin-top: 0.9rem;
+  font-family: var(--n15-sans);
+  font-size: 0.92rem;
+  color: rgba(var(--n15-ink), 0.8);
+}
+
+.pc-features {
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+.pc-features li {
+  display: flex;
+  gap: 0.55rem;
+  font-family: var(--n15-sans);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.pc-mark {
+  flex-shrink: 0;
+  width: 1em;
+}
+.pc-on {
+  color: rgba(var(--n15-ink), 0.85);
+}
+/* Absent features are dimmed, NOT struck through. A line through a feature name
+   reads as "removed" or "was included and is not any more"; dimming reads as
+   "this tier does not have it", which is what is true. */
+.pc-off {
+  color: rgba(var(--n15-ink), 0.38);
+}
+.pc-off .pc-mark {
+  color: rgba(var(--n15-ink), 0.3);
+}
+
+.pc-actions {
+  margin-top: auto;
+  padding-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* ----------------------------------------------------------------------------
+   LIGHT THEME
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .cat-note,
+html[data-n15-theme='light'] .pc-off {
+  color: rgba(26, 29, 34, 0.55);
+}
+html[data-n15-theme='light'] .pc-off .pc-mark {
+  color: rgba(26, 29, 34, 0.45);
+}
+html[data-n15-theme='light'] .pc-name,
+html[data-n15-theme='light'] .pc-fig-unit {
+  color: rgba(26, 29, 34, 0.62);
+}
+html[data-n15-theme='light'] .pc-card-lead {
+  border-color: rgba(154, 83, 22, 0.55);
+  box-shadow: var(--n15-shadow-lift), 0 0 0 1px rgba(154, 83, 22, 0.22);
+}
