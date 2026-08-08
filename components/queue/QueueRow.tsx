@@ -1,21 +1,47 @@
 import Link from 'next/link';
-import { Plate } from '@/components/ui/Plate';
 import { VOTE_DISPLAY_FLOOR } from '@/lib/queue/tools';
 import type { QueueRow as Row } from '@/lib/queue/data';
 
 /**
- * components/queue/QueueRow.tsx — one line of the queue.
+ * components/queue/QueueRow.tsx — one line of the queue. Restyled, 16H.
  *
- * ORDERED ROWS, NOT A GRID. A grid of cards reads as a catalogue you could buy
- * from, which would make seventeen unbuilt entries seventeen offers. A stack of
- * rows reads as a schedule, which is what this is, and which is a document the
- * reader already runs one of every week.
+ * ============================================================================
+ * STILL ROWS. STILL NOT A GRID. THIS IS THE ONE THING NOT TO CHANGE.
+ * ============================================================================
  *
- * THE VOTE DISPLAY RULE. Rank is shown always; the count is shown only above
- * ten. Rank is honest at any scale and is never embarrassing — #4 is #4 whether
- * the field has forty votes or four. A bare "2 votes" is worse than silence,
- * because it invites the reader to conclude nobody is here, and the fix for
- * that is more votes rather than a hidden number.
+ * Everything else on the site moved to cards in 15B, and the obvious instinct
+ * here is to follow. It would be wrong, for the reason the original file gives:
+ * a grid of cards reads as a catalogue you could buy from, and seventeen unbuilt
+ * entries in a catalogue are seventeen offers that do not exist. A stack of rows
+ * reads as a schedule — a document the reader already runs one of every week.
+ *
+ * So this stays a list. What changed is the type, the spacing and the status
+ * treatment; the shape of the information is identical.
+ *
+ * ============================================================================
+ * THE VOTE DISPLAY RULE IS UNTOUCHED
+ * ============================================================================
+ *
+ * Rank always, count only above VOTE_DISPLAY_FLOOR. Rank is honest at any scale
+ * and never embarrassing — #4 is #4 whether the field has forty votes or four. A
+ * bare "2 votes" is worse than silence because it invites the reader to conclude
+ * nobody is here, and the fix for that is more votes, not a hidden number.
+ *
+ * ============================================================================
+ * THE PLATE IS REPLACED, NOT REMOVED FROM THE REPO
+ * ============================================================================
+ *
+ * components/ui/Plate.tsx is untouched and still serves /queue/[toolId], which
+ * is not restyled yet. It cannot be redrawn without changing that page too.
+ *
+ * The pill that replaces it carries the status and the unit number — the two
+ * facts a scanning reader uses. The revision and date are dropped from the ROW
+ * and remain on the spec sheet, where somebody who wants them is already
+ * looking. The install count moves into the metadata line beside the votes.
+ *
+ * That last point preserves the original's distinction exactly: this line
+ * reports OPERATION (installs, including the honest zero) separately from
+ * DEMAND (rank and votes), and the vote display rule governs only the second.
  */
 
 function voteLabel(row: Row): string {
@@ -30,40 +56,33 @@ function voteLabel(row: Row): string {
 
 export function QueueRow({ row }: { row: Row }) {
   const label = voteLabel(row);
+  const live = row.status === 'IN SERVICE';
 
   return (
-    <li className="border-b border-rule last:border-b-0">
-      <Link href={`/queue/${row.tool.id}`} className="press block py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="font-display text-lg font-semibold">{row.tool.name}</h3>
-            <p className="mt-1 max-w-[52ch] text-sm">{row.tool.prices}</p>
+    <li className="qr">
+      <Link href={`/queue/${row.tool.id}`} className="qr-link">
+        <div className="qr-main">
+          <h3 className="qr-name">{row.tool.name}</h3>
+          <p className="qr-prices">{row.tool.prices}</p>
 
-            <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-data text-2xs uppercase tracking-[0.08em] text-rule">
-              {row.status === 'IN SERVICE' && row.deploys !== null && (
-                <span>
-                  {row.deploys} live {row.deploys === 1 ? 'install' : 'installs'}
-                </span>
-              )}
-              {row.status === 'IN BUILD' && row.tool.targetMonth && (
-                <span>Expected {row.tool.targetMonth}</span>
-              )}
-              {label && <span>{label}</span>}
-            </p>
-          </div>
-
-          <Plate
-            unit={row.tool.unit}
-            status={row.status}
-            rev={row.tool.rev}
-            date={row.tool.date}
-            /* The Plate's count field reports OPERATION, not demand. Installs,
-               always — including the honest zero on everything unbuilt. Demand
-               lives in the line above, where the vote display rule governs it
-               and a bare small number never appears. */
-            count={{ label: 'Installs', value: row.deploys ?? 0 }}
-          />
+          <p className="qr-meta">
+            {live && row.deploys !== null && (
+              <span>
+                {row.deploys} live {row.deploys === 1 ? 'install' : 'installs'}
+              </span>
+            )}
+            {row.status === 'IN BUILD' && row.tool.targetMonth && (
+              <span>Expected {row.tool.targetMonth}</span>
+            )}
+            {label && <span>{label}</span>}
+          </p>
         </div>
+
+        <span className={'tc-status qr-status' + (live ? '' : ' qr-status-quiet')}>
+          <span aria-hidden className="tc-dot" />
+          {row.status}
+          <span className="tc-unit">· {row.tool.unit}</span>
+        </span>
       </Link>
     </li>
   );

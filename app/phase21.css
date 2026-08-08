@@ -1,0 +1,217 @@
+/* ============================================================================
+   PHASE 16H — /queue
+   Imported last. Additions only; light overrides at the foot, scoped as
+   phase17.css is. The legacy tokens are untouched, so /queue/[toolId], /demo,
+   Concierge, VoteForm and admin render exactly as before.
+========================================================================== */
+
+.q-sec {
+  margin-top: 3rem;
+}
+.q-blurb {
+  margin-top: 0.45rem;
+  max-width: 60ch;
+}
+.q-empty {
+  margin-top: 0.9rem;
+  max-width: 60ch;
+}
+
+/* A rule above the first row and under each one — the schedule reading the
+   original file argued for. No card, no gap, no grid. */
+.q-list {
+  margin: 1.1rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--n15-card-edge);
+}
+
+.qr {
+  border-bottom: 1px solid var(--n15-card-edge);
+}
+/* The whole row is the target, and it is 4rem+ tall by content alone. A
+   background tint on hover rather than a border change, because a border change
+   on a stack of rules makes the neighbouring rows appear to move. */
+.qr-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 1.15rem 0.75rem 1.15rem;
+  margin: 0 -0.75rem;
+  border-radius: var(--n15-r-inner);
+  transition: background-color 150ms ease;
+}
+.qr-link:hover {
+  background: rgba(244, 242, 237, 0.04);
+}
+.qr-main {
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+.qr-name {
+  font-family: var(--n15-serif);
+  font-size: 1.3rem;
+  line-height: 1.2;
+  color: rgb(var(--n15-ink));
+}
+.qr-prices {
+  margin-top: 0.3rem;
+  max-width: 52ch;
+  font-family: var(--n15-sans);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: rgba(var(--n15-ink), 0.68);
+}
+/* Operation on the left, demand on the right of the same line — the original's
+   distinction, kept. Mono because these are measured values. */
+.qr-meta {
+  margin-top: 0.55rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  font-family: var(--n15-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.5);
+}
+.qr-status {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+}
+/* An unbuilt tool's dot is not copper. Copper is the live colour on this site
+   and seventeen copper dots on a page that says seventeen things do not exist
+   would be the page arguing with itself. */
+.qr-status-quiet .tc-dot {
+  background: rgba(244, 242, 237, 0.3);
+}
+
+.q-warn {
+  margin-top: 1.25rem;
+  max-width: 62ch;
+  border-radius: var(--n15-r-inner);
+  border: 1px solid rgba(201, 112, 47, 0.4);
+  background: rgba(201, 112, 47, 0.07);
+  padding: 0.8rem 0.95rem;
+  font-family: var(--n15-sans);
+  font-size: 0.88rem;
+  color: rgba(var(--n15-ink), 0.85);
+}
+
+/* Previous months. Three columns on a wide screen, stacked on a phone, with the
+   date in mono so the column aligns. */
+.q-month {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 1rem;
+  border-bottom: 1px solid var(--n15-card-edge);
+  padding: 0.9rem 0;
+}
+.q-month:last-child {
+  border-bottom: 0;
+}
+.q-month-date {
+  font-family: var(--n15-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  color: rgba(var(--n15-ink), 0.55);
+}
+.q-month-tool {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-family: var(--n15-sans);
+  font-size: 0.98rem;
+  color: rgb(var(--n15-ink));
+}
+.q-month-state {
+  font-family: var(--n15-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.5);
+}
+
+/* ----------------------------------------------------------------------------
+   THE BUILD LOG
+
+   The one restyled section that paints its own ground, because it is a terminal
+   and the register should change when the reader reaches it. TRANSLUCENT, not
+   opaque — it darkens the gradient field rather than covering it, which is what
+   keeps it from reintroducing the 15A.3 seam.
+--------------------------------------------------------------------------- */
+.bl {
+  position: relative;
+  padding: 4rem 1.25rem 4.5rem;
+  background: rgba(6, 8, 11, 0.55);
+  border-top: 1px solid var(--n15-card-edge);
+  color: rgb(var(--n15-ink));
+}
+.bl-h {
+  margin-bottom: 1.5rem;
+}
+.bl-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 70ch;
+}
+.bl-entry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.85rem;
+  border-bottom: 1px solid rgba(244, 242, 237, 0.08);
+  padding: 0.65rem 0;
+  font-family: var(--n15-mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.bl-entry:last-child {
+  border-bottom: 0;
+}
+.bl-date {
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--n15-ink), 0.5);
+}
+.bl-text {
+  flex: 1 1 16rem;
+  min-width: 0;
+  color: rgba(var(--n15-ink), 0.85);
+}
+
+/* ----------------------------------------------------------------------------
+   LIGHT THEME
+
+   The build log stays DARK on the light theme. That is deliberate and it is not
+   an oversight: a terminal reads as a terminal, the register change is the whole
+   point of the section, and its ink token is already the warm off-white that
+   works on it. It is the one band on the site that does not invert.
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .qr-link:hover {
+  background: rgba(26, 29, 34, 0.04);
+}
+html[data-n15-theme='light'] .qr-status-quiet .tc-dot {
+  background: rgba(26, 29, 34, 0.3);
+}
+html[data-n15-theme='light'] .qr-meta,
+html[data-n15-theme='light'] .q-month-date,
+html[data-n15-theme='light'] .q-month-state {
+  color: rgba(26, 29, 34, 0.6);
+}
+html[data-n15-theme='light'] .q-warn {
+  border-color: rgba(154, 83, 22, 0.45);
+  background: rgba(154, 83, 22, 0.08);
+}
+html[data-n15-theme='light'] .bl {
+  border-top-color: rgba(26, 29, 34, 0.16);
+}
+html[data-n15-theme='light'] .bl,
+html[data-n15-theme='light'] .bl .n15-h2,
+html[data-n15-theme='light'] .bl .n15-body {
+  color: #f4f2ed;
+}
+html[data-n15-theme='light'] .bl .n15-eyebrow {
+  color: rgba(244, 242, 237, 0.55);
+}
