@@ -1,7 +1,27 @@
 /**
- * types/database.ts — HAND-WRITTEN, exactly matching supabase/migrations
- * 0001–0005 as verified by execution. If the SQL and this file
- * disagree, the SQL that actually ran wins and this file is the defect.
+ * types/database.ts — HAND-WRITTEN. If the SQL and this file disagree, the SQL
+ * that actually ran wins and this file is the defect.
+ *
+ * ===========================================================================
+ * COVERAGE — READ THIS BEFORE TRUSTING IT
+ * ===========================================================================
+ *
+ * Verified by execution against migrations 0001–0005, PLUS 0017, 0018 and 0019
+ * which were written in Phase 16 and are transcribed here from their own SQL.
+ *
+ * MIGRATIONS 0006–0016 ARE STILL MISSING FROM THIS FILE. Tables added by them
+ * — concierge_requests, companies, company_members, build_log and whatever else
+ * those migrations created — do not appear below, so a .from() call naming one
+ * of them will not typecheck and needs a cast at the call site.
+ *
+ * That gap is deliberate rather than forgotten: adding a table here without the
+ * migration open beside it is how a hand-written type file starts disagreeing
+ * with the schema in ways nothing catches, which is worse than an honest hole.
+ * Fill them in one at a time, with the SQL in front of you.
+ *
+ * WHEN YOU ADD ONE, GREP FOR ITS CASTS. Three files carried structural casts
+ * because of this gap and all three were cleaned up when 0017–0019 landed here:
+ * app/actions/implementation.ts, lib/site/theme.ts, lib/tools/media.ts.
  *
  * WHY EVERY SHAPE HERE IS A `type` AND NOT AN `interface`:
  * @supabase/postgrest-js constrains a schema to `Record<string, GenericTable>`,
@@ -466,6 +486,78 @@ export type PrototypePreviewInsert = Partial<PrototypePreviewRow> & {
 export type PrototypePreviewUpdate = Partial<PrototypePreviewRow>;
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// PHASE 16 TABLES — 0017_implementation_requests, 0018_site_settings,
+// 0019_tool_media. Transcribed from those migrations.
+//
+// Every column that is nullable in the SQL is `| null` here, and every column
+// with a DEFAULT is optional on Insert. Getting that pairing wrong is the
+// failure mode of a hand-written type file: it compiles, and then a NOT NULL
+// violation appears at runtime in production instead of at the keyboard.
+// ---------------------------------------------------------------------------
+
+export type DbImplementationRequestKind = 'tool_install' | 'custom_build';
+export type DbImplementationRequestStatus = 'new' | 'contacted' | 'closed';
+
+export type ImplementationRequestRow = {
+  id: string;
+  created_at: string;
+  kind: DbImplementationRequestKind;
+  tool_id: string | null;
+  name: string;
+  email: string;
+  phone: string | null;
+  business_name: string | null;
+  business_field: string | null;
+  website_url: string | null;
+  customer_type: string | null;
+  description: string;
+  source: string | null;
+  status: DbImplementationRequestStatus;
+  delivery_status: Json;
+};
+// id, created_at, status and delivery_status all have DEFAULTs, so only the
+// four genuinely required columns are demanded here.
+export type ImplementationRequestInsert = Partial<ImplementationRequestRow> & {
+  kind: DbImplementationRequestKind;
+  name: string;
+  email: string;
+  description: string;
+};
+export type ImplementationRequestUpdate = Partial<ImplementationRequestRow>;
+
+export type SiteSettingRow = {
+  key: string;
+  value: string;
+  updated_at: string;
+};
+export type SiteSettingInsert = Partial<SiteSettingRow> & { key: string; value: string };
+export type SiteSettingUpdate = Partial<SiteSettingRow>;
+
+export type DbToolMediaKind = 'animation' | 'still';
+
+export type ToolMediaRow = {
+  tool_id: string;
+  position: number;
+  kind: DbToolMediaKind;
+  src: string;
+  alt: string;
+  caption: string;
+  duration_ms: number;
+  updated_at: string;
+};
+// duration_ms and updated_at have DEFAULTs; the composite primary key
+// (tool_id, position) does not, so both are required.
+export type ToolMediaInsert = Partial<ToolMediaRow> & {
+  tool_id: string;
+  position: number;
+  kind: DbToolMediaKind;
+  src: string;
+  alt: string;
+  caption: string;
+};
+export type ToolMediaUpdate = Partial<ToolMediaRow>;
+
 // the Database interface consumed by createClient<Database>()
 // ---------------------------------------------------------------------------
 
@@ -500,6 +592,9 @@ export type Database = {
       app_admins: { Row: AppAdminRow; Insert: AppAdminInsert; Update: AppAdminUpdate; Relationships: [] };
       rate_limit_hits: { Row: RateLimitHitRow; Insert: RateLimitHitInsert; Update: RateLimitHitUpdate; Relationships: [] };
       prototype_previews: { Row: PrototypePreviewRow; Insert: PrototypePreviewInsert; Update: PrototypePreviewUpdate; Relationships: [] };
+      implementation_requests: { Row: ImplementationRequestRow; Insert: ImplementationRequestInsert; Update: ImplementationRequestUpdate; Relationships: [] };
+      site_settings: { Row: SiteSettingRow; Insert: SiteSettingInsert; Update: SiteSettingUpdate; Relationships: [] };
+      tool_media: { Row: ToolMediaRow; Insert: ToolMediaInsert; Update: ToolMediaUpdate; Relationships: [] };
     };
     Views: Record<string, never>;
     Functions: {
@@ -609,4 +704,5 @@ export type Database = {
     CompositeTypes: Record<string, never>;
   };
 };
+
 

@@ -61,16 +61,7 @@ function normalise(value: string | null | undefined): SiteTheme {
 const readTheme = unstable_cache(
   async (): Promise<SiteTheme> => {
     try {
-      const db = getSupabaseAdminClient() as unknown as {
-        from(table: string): {
-          select(cols: string): {
-            eq(
-              col: string,
-              val: string
-            ): { maybeSingle(): Promise<{ data: { value: string } | null }> };
-          };
-        };
-      };
+      const db = getSupabaseAdminClient();
       const { data } = await db
         .from('site_settings')
         .select('value')
@@ -97,14 +88,7 @@ export async function getSiteTheme(): Promise<SiteTheme> {
  */
 export async function setSiteTheme(theme: SiteTheme): Promise<boolean> {
   try {
-    const db = getSupabaseAdminClient() as unknown as {
-      from(table: string): {
-        upsert(
-          values: Record<string, unknown>,
-          opts: { onConflict: string }
-        ): Promise<{ error: unknown }>;
-      };
-    };
+    const db = getSupabaseAdminClient();
     const { error } = await db
       .from('site_settings')
       .upsert(

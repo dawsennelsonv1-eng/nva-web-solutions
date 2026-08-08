@@ -36,25 +36,13 @@ import { checkScopedRateLimit, clientIpFromHeaders } from '@/lib/quote/guards';
  * person will never reach.
  *
  * ============================================================================
- * THE TYPE CAST ON THE INSERT — READ THIS
+ * FULLY TYPED AS OF PHASE 16K
  * ============================================================================
  *
- * types/database.ts is hand-written and its own header says it matches
- * migrations 0001–0005. The repo is on 0016, and `implementation_requests` is
- * 0017, so this table does not exist in the generated types and the client is
- * typed without it.
- *
- * The cast below is the narrowest possible workaround: it is applied at the
- * `.from()` call only, the inserted object is still fully typed by Zod above
- * it, and nothing downstream consumes an untyped row. CONVENTIONS.md §8 bans
- * `skipLibCheck` tricks to make a build pass — this is not that; the code is
- * correct and the type file is stale.
- *
- * THE REAL FIX is adding this table to types/database.ts. That file is large,
- * hand-maintained, and was not in scope here; adding a table to it blind is how
- * a hand-written type file starts disagreeing with the schema in ways nothing
- * catches. Do it in the same session you run the migration, with the migration
- * open beside it.
+ * This shipped with a structural cast on the insert, because types/database.ts
+ * stopped at migration 0005 and this table is 0017. That table is now declared
+ * there and the cast is gone — the insert is checked against the real column
+ * list, so a renamed column fails the build instead of the request.
  *
  * ============================================================================
  * VERIFY: NOBODY IS EMAILED WHEN THIS FIRES
@@ -139,22 +127,11 @@ export async function submitImplementationRequest(
 
   // 3 — the write. The one thing that may not fail silently.
   /**
-   * The cast, and why it is a cast rather than @ts-expect-error.
-   *
-   * A @ts-expect-error here would be correct today and would FAIL THE BUILD the
-   * moment types/database.ts is brought up to date, because the error it
-   * expects would stop happening. That turns a good deed into a red deploy.
-   *
-   * This structural cast compiles either way. It names exactly what is being
-   * relied on — a `from` that takes a table name and an `insert` that returns
-   * an error — and nothing wider. The values are already fully validated by Zod
-   * above, so no untyped data reaches the database and no untyped row leaves it.
+   * No cast. types/database.ts gained `implementation_requests` in Phase 16K,
+   * so the insert below is fully typed: a renamed column or a missing required
+   * field is now a build error rather than a runtime constraint violation.
    */
-  const db = getSupabaseAdminClient() as unknown as {
-    from(table: string): {
-      insert(values: Record<string, unknown>): Promise<{ error: { message: string } | null }>;
-    };
-  };
+  const db = getSupabaseAdminClient();
 
   const { error } = await db.from('implementation_requests').insert({
       kind: input.kind,
