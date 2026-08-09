@@ -80,9 +80,14 @@ export default function SupportPage() {
               questions on its own.
             </dd>
           </div>
+          {/* Hours, not an address. What a contractor needs from this row is
+              when he will hear back; the city was decoration, and it was wrong. */}
           <div>
-            <dt>Where we are</dt>
-            <dd>Dallas, Texas. Replies land during US business hours.</dd>
+            <dt>When we reply</dt>
+            <dd>
+              During US business hours, usually the same day and always within
+              one working day.
+            </dd>
           </div>
         </dl>
 

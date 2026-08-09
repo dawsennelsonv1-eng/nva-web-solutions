@@ -145,7 +145,7 @@ export default function PrivacyPage() {
           </p>
         </div>
 
-        <p className="pr-stamp">Last updated {UPDATED} · NVA Digital Solutions, Dallas, Texas</p>
+        <p className="pr-stamp">Last updated {UPDATED} · NVA Digital Solutions</p>
       </article>
     </>
   );

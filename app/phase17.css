@@ -123,15 +123,36 @@ html[data-n15-theme='light'] .gf-c .gf-i {
 html[data-n15-theme='light'] .hero {
   color: #1a1d22;
 }
+/*
+ * THE WHITE WASH IS GONE — PHASE 17B.
+ *
+ * The first version laid a 0.9-alpha radial of stone over the middle of the
+ * photograph to carry dark type. It worked as contrast and looked like a smear:
+ * a bright soft blob sitting on top of the image, which is exactly what it was.
+ *
+ * The photograph now shows through. What is left is a gradient at the TOP EDGE
+ * ONLY, at low alpha, doing one job — separating the fixed header from the
+ * image beneath it so the wordmark does not sit on glass. Below the first
+ * third, nothing is applied at all.
+ *
+ * WHAT THIS COSTS, so it is a decision and not a surprise: the headline is now
+ * dark ink over a photograph whose mid-frame luminance is around 150. That is
+ * legible, but it is no longer guaranteed legible — a brighter replacement
+ * photograph, or reading it in direct sun, could push it under. If the headline
+ * ever becomes hard to read, raise the two stops below rather than bringing the
+ * radial back; a band at the top is a designed edge, a blob in the middle is a
+ * mistake.
+ *
+ * The DARK theme is untouched. Its scrim is 15A's and it is doing necessary
+ * work there — white type on a bright photograph genuinely needs it.
+ */
 html[data-n15-theme='light'] .hero-scrim {
-  background:
-    radial-gradient(72% 58% at 26% 34%, rgba(236, 231, 223, 0.9), rgba(236, 231, 223, 0) 76%),
-    linear-gradient(
-      180deg,
-      rgba(236, 231, 223, 0.72) 0%,
-      rgba(236, 231, 223, 0.34) 46%,
-      rgba(236, 231, 223, 0.78) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    rgba(236, 231, 223, 0.55) 0%,
+    rgba(236, 231, 223, 0.16) 22%,
+    rgba(236, 231, 223, 0) 42%
+  );
 }
 html[data-n15-theme='light'] .hero-eyebrow {
   color: rgba(26, 29, 34, 0.66);
@@ -313,4 +334,11 @@ html[data-n15-theme='light'] .rf-hint,
 html[data-n15-theme='light'] .ft-mark,
 html[data-n15-theme='light'] .mg-cap {
   color: rgba(26, 29, 34, 0.55);
+}
+
+/* The relocated seller disclosure on /pricing — one quiet line at the foot,
+   not a bordered card under the headline. */
+.pc-seller {
+  margin-top: 2rem;
+  max-width: 62ch;
 }

@@ -295,7 +295,23 @@ export function Footer() {
           </div>
         ))}
       </div>
-      <p className="ft-mark">NVA Digital Solutions · Dallas, Texas</p>
+      {/*
+        NO PHYSICAL LOCATION HERE, and that is a correction rather than an
+        omission. Earlier phases printed "Dallas, Texas" in this line, on
+        /privacy, on /terms and on /support. I wrote that, and it was simply not
+        true — Dallas is the market this is aimed at, not where the business
+        sits.
+
+        A false address is worse than no address. It is exactly the kind of
+        small claim a suspicious buyer checks, and finding it wrong costs more
+        trust than never having made it. There is no obligation to publish where
+        a founder physically works, so this line names the company and the
+        market it serves, both of which are true.
+
+        The legal selling entity IS still disclosed, on /pricing and /terms,
+        which is where a payment disclosure belongs.
+      */}
+      <p className="ft-mark">NVA Digital Solutions · Serving Dallas–Fort Worth</p>
     </footer>
   );
 }

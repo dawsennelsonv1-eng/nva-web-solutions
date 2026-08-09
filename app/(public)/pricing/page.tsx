@@ -132,22 +132,16 @@ export default async function PricingPage() {
       <GradientField />
       <section className="n15-sec" aria-labelledby="pricing-h">
         <div className="n15-in">
-          <p className="n15-eyebrow">Founding rate — first 10 in DFW, or Oct 31, 2026</p>
+          <p className="n15-eyebrow">Discount season</p>
           <h1 id="pricing-h" className="n15-h2">
             {setup} to set up. 0% of your revenue. Ever.
           </h1>
           <p className="n15-lede">
-            I&apos;m taking ten contractors in DFW at {setup} because I want ten
-            sites running in one metro that I can point at. After that it&apos;s
-            $1,500 setup — the monthly stays $250 either way, and it never
-            changes for customers already in.
+            Setup is {setup} while the discount season is running. When it ends
+            it goes back to $1,000. The monthly is $250 either way, and it never
+            goes up for an account that is already open — including yours, for
+            as long as you stay.
           </p>
-
-          {/* R-210: above the fold, plain body size, from config. */}
-          <div className="pr-note pc-disclosure">
-            <p className="pr-note-k">Billing entity</p>
-            <p className="n15-body">{disclosureLine()}</p>
-          </div>
 
           <div className="pc-grid">
             {plans.map((p) => (
@@ -212,6 +206,27 @@ export default async function PricingPage() {
               doesn&apos;t convert it, you shouldn&apos;t be paying for it.
             </p>
           </div>
+
+          {/*
+            R-210 — THE SELLER DISCLOSURE. Moved, not deleted, and this is worth
+            reading before deleting it in a later pass.
+
+            It was a bordered card directly under the headline, which is where
+            it looked worst and where the request to remove it came from. It is
+            now one quiet line at the foot of the page.
+
+            It is NOT removed outright because it is not decoration. Naming the
+            entity that will appear on a card statement is a payment-processor
+            and consumer-protection expectation, not a stylistic choice, and a
+            buyer who sees an unfamiliar name on his statement and cannot find
+            it explained anywhere is a chargeback. One small line at the bottom
+            of the pricing page is the ordinary place for it.
+
+            It renders from config. If it shows a bracketed placeholder, the env
+            var is unset — set LEGAL_SELLER_NAME and LEGAL_SELLER_COUNTRY rather
+            than deleting the line.
+          */}
+          <p className="n15-small pc-seller">{disclosureLine()}</p>
         </div>
       </section>
     </>
