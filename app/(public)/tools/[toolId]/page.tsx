@@ -10,6 +10,7 @@ import { SimilarTools } from '@/components/tools/SimilarTools';
 import { ToolCtaRail } from '@/components/tools/ToolCtaRail';
 import { Machinery } from '@/components/site/Sections';
 import { DemoExperience } from '@/components/demo/DemoExperience';
+import { MotionProvider } from '@/lib/motion';
 import { toolPageFor, toolPageIds } from '@/lib/tools/catalogue';
 import { mediaForTool } from '@/lib/tools/media';
 import { PUBLIC_TOOLS, QUIET_REASON, pricerFor, tintFor } from '@/lib/tools/card-config';
@@ -154,10 +155,43 @@ export default async function ToolPage({ params }: { params: { toolId: string } 
               see precisely what a homeowner does end to end on your own site.
             </p>
             <div className="tp-widget">
-              {/* VERIFY: this rendered blank on /demo before it moved here.
-                  Moving a mount does not fix a component — if it is still blank
-                  the fault is inside DemoExperience, which I have not seen. */}
-              <DemoExperience surface="demo" entryPoint="demo_page" />
+              {/*
+                ============================================================
+                MotionProvider IS LOAD-BEARING HERE. DO NOT REMOVE IT.
+                ============================================================
+
+                This is why the widget rendered blank on /demo, and it had been
+                blank since Phase 13B rather than since I moved it.
+
+                DemoExperience's root is <AnimatePresence><m.div
+                initial={{opacity: 0}} animate={{opacity: 1}}>. `m` components
+                come from framer-motion's LazyMotion build and only receive
+                animation features inside a <LazyMotion> tree — which is what
+                MotionProvider is.
+
+                Outside one, they still render. They simply never animate. So
+                `initial` applies, `animate` never runs, and the entire widget
+                sits in the DOM at opacity 0 — present, focusable, invisible.
+                That is worse than a crash: nothing appears in the console and
+                the element is there in the inspector with the right markup.
+
+                13B removed MotionProvider from app/(public)/layout.tsx on the
+                stated reasoning that "the widget brings its own MotionProvider
+                (see QuoteWidget), so routes that mount it are unaffected."
+                That is true of QuoteWidget, which does mount one — but
+                DemoExperience wraps QuoteWidget in its own m.div, one level
+                ABOVE that provider. The layer that needed the context was the
+                one nobody checked.
+
+                THE LESSON FOR THE NEXT MOUNT: any route rendering
+                DemoExperience directly must provide this. The safest permanent
+                fix is moving the provider inside DemoExperience itself so it
+                cannot be forgotten — worth doing, but it is that component's
+                file and this phase does not own it.
+              */}
+              <MotionProvider>
+                <DemoExperience surface="demo" entryPoint="demo_page" />
+              </MotionProvider>
             </div>
           </div>
         </section>
