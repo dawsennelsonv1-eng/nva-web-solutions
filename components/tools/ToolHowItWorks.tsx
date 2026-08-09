@@ -13,10 +13,32 @@ import type { ToolStep } from '@/lib/tools/catalogue';
  * "you". He is not going to use this himself; he is deciding whether a
  * homeowner on a phone at nine at night will get to the end.
  *
- * A STEP WITHOUT A PICTURE RENDERS AS TEXT, not as an empty frame. `mediaKey:
- * null` and an unresolved key behave identically, which matters because a key
- * only resolves once a recording exists in tool_media — so text-only is the
- * normal state today, not a fallback.
+ * ============================================================================
+ * A DECLARED PICTURE SHOWS ITS SLOT. AN UNDECLARED ONE SHOWS NOTHING.
+ * ============================================================================
+ *
+ * These two cases used to behave identically and that was the bug:
+ *
+ *   mediaKey: null          the author decided this step needs no picture.
+ *                           Text runs full width. Correct, and unchanged.
+ *
+ *   mediaKey: 'epoxy-lead'  the author decided a picture BELONGS here and the
+ *                           file does not exist yet. This now renders a
+ *                           reserved frame naming the key.
+ *
+ * Treating the second like the first made every picture position on the page
+ * invisible, because a key only resolves once a row exists in tool_media — so
+ * "declared but missing" is the normal state right now, not an edge case. There
+ * was no way to see where the pictures go, or that the feature existed.
+ *
+ * THE FRAME NAMES ITS KEY. Not "image missing" — the actual mediaKey, so the
+ * person looking at the page knows which slot in /admin/media fills it. An
+ * empty state that does not tell you how to fix it is just a hole.
+ *
+ * This is a PRE-LAUNCH state and it should not survive contact with real
+ * traffic: a visitor seeing five reserved frames learns the product is
+ * unfinished. Fill them, or set mediaKey to null on the steps that will never
+ * have one.
  *
  * Server component.
  */
@@ -35,8 +57,11 @@ export function ToolHowItWorks({ steps, slots }: { steps: ToolStep[]; slots: Med
         <ol className="hw-list">
           {steps.map((step, i) => {
             const media = mediaSlotByKey(slots, step.mediaKey);
+            // Declared but not yet filled. The slot is shown, not skipped.
+            const reserved = !media && step.mediaKey !== null;
+            const hasFrame = Boolean(media) || reserved;
             return (
-              <li key={step.head} className={'hw-step' + (media ? '' : ' hw-step-plain')}>
+              <li key={step.head} className={'hw-step' + (hasFrame ? '' : ' hw-step-plain')}>
                 <div className="hw-text">
                   <span className="hw-n">{String(i + 1).padStart(2, '0')}</span>
                   <h3 className="n15-h3 hw-head">{step.head}</h3>
@@ -50,6 +75,19 @@ export function ToolHowItWorks({ steps, slots }: { steps: ToolStep[]; slots: Med
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={media.src} alt={media.alt} loading="lazy" decoding="async" />
                   </figure>
+                )}
+
+                {reserved && (
+                  // aria-hidden: it is scaffolding for whoever is building the
+                  // page, not content. A screen reader announcing "slot,
+                  // epoxy-lead" to a contractor would be noise.
+                  <div aria-hidden className="hw-media hw-media-slot">
+                    <div className="hw-slot-inner">
+                      <span className="hw-slot-k">Picture slot</span>
+                      <span className="hw-slot-t">{step.mediaKey}</span>
+                      <span className="hw-slot-h">Add it in /admin/media</span>
+                    </div>
+                  </div>
                 )}
               </li>
             );

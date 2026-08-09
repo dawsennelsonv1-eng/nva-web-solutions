@@ -75,6 +75,54 @@
   height: auto;
 }
 
+/* A DECLARED-BUT-EMPTY PICTURE POSITION.
+
+   Dashed, not solid, and holding a 4:3 box. The dash is the difference between
+   "a frame that is empty" and "a frame reserved for something" — a solid border
+   around nothing reads as a broken image, which is the thing this exists to
+   avoid. The aspect ratio means the layout does not move when the real file
+   lands, so what you are looking at now is the page you will have.
+
+   Deliberately quiet. It is scaffolding for whoever is building the page, and
+   it should never compete with the paragraph beside it. */
+.hw-media-slot {
+  border-style: dashed;
+  border-color: rgba(201, 112, 47, 0.35);
+  background: rgba(201, 112, 47, 0.04);
+  box-shadow: none;
+}
+.hw-slot-inner {
+  display: flex;
+  aspect-ratio: 4 / 3;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 1.25rem;
+  text-align: center;
+}
+.hw-slot-k {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.45);
+}
+/* The key, in mono, because it is an identifier the reader will type into an
+   admin field — not prose. */
+.hw-slot-t {
+  font-family: var(--n15-mono);
+  font-size: 0.85rem;
+  color: rgba(var(--n15-ink), 0.8);
+  overflow-wrap: anywhere;
+}
+.hw-slot-h {
+  font-family: var(--n15-sans);
+  font-size: 0.74rem;
+  color: rgba(var(--n15-ink), 0.42);
+}
+
 /* ----------------------------------------------------------------------------
    THE RELISTING — the tool stated once more, at the decision point
 --------------------------------------------------------------------------- */
@@ -151,6 +199,14 @@
 --------------------------------------------------------------------------- */
 html[data-n15-theme='light'] .hw-media {
   background: rgba(255, 255, 255, 0.6);
+}
+html[data-n15-theme='light'] .hw-media-slot {
+  border-color: rgba(154, 83, 22, 0.4);
+  background: rgba(154, 83, 22, 0.05);
+}
+html[data-n15-theme='light'] .hw-slot-k,
+html[data-n15-theme='light'] .hw-slot-h {
+  color: rgba(26, 29, 34, 0.58);
 }
 html[data-n15-theme='light'] .rv-biz {
   color: rgba(26, 29, 34, 0.7);
