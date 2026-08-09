@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { MemberLoginForm } from '@/components/member/MemberLoginForm';
 
 export const metadata: Metadata = {
@@ -11,6 +12,10 @@ export const metadata: Metadata = {
  *
  * Not gated by middleware (it has to be reachable), but middleware DOES bounce
  * an already-signed-in user straight to /app.
+ *
+ * THE SIGN-UP LINK IS BELOW THE FORM, not above it. Everyone who arrives here
+ * from the menu is trying to sign in; the minority who need an account should
+ * find the route without it competing with the thing most people came for.
  */
 export default function MemberLoginPage({
   searchParams,
@@ -22,12 +27,17 @@ export default function MemberLoginPage({
       <div className="w-full">
         <p className="font-data text-xs uppercase tracking-wide text-rule">Your account</p>
         <h1 className="mt-1 font-display text-2xl font-extrabold uppercase">Sign in</h1>
-        <p className="mt-2 text-sm text-rule">
-          Your leads, your crew, your numbers.
-        </p>
+        <p className="mt-2 text-sm text-rule">Your leads, your crew, your numbers.</p>
         <div className="mt-6">
           <MemberLoginForm reason={searchParams.reason} />
         </div>
+        <p className="mt-6 text-sm text-rule">
+          No account yet?{' '}
+          <Link href="/signup" className="underline">
+            Create one
+          </Link>
+          .
+        </p>
       </div>
     </div>
   );
