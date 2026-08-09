@@ -80,85 +80,74 @@ html[data-n15-theme='light'] {
 }
 
 /* ----------------------------------------------------------------------------
-   THE FIELD
+   THE FIELD ON LIGHT
 
-   Alphas roughly double. A wash that reads at 0.30 over #0a0d12 is barely
-   present over #ece7df, because the eye judges these against the ground rather
-   than absolutely.
+   The complaint was that it read as a fixed patch near the bottom rather than
+   as a gradient — "people will think it's a coding error". That was accurate,
+   and it had two causes.
+
+   FIRST, the discs were too small relative to the page and too opaque at their
+   centres, so each one had a visible edge. A wash with a discernible boundary
+   is a shape, and a shape sitting on a page for no reason looks like a mistake.
+   The stops below fall away over a much longer distance — the colour never
+   fully arrives anywhere, which is what makes it read as light rather than as
+   an object.
+
+   SECOND, and this is the real cause: three discs on a page several screens
+   tall leave most of it plain. Whatever they happened to be over looked
+   deliberate and everything else looked untouched. So .gf now carries a
+   full-height base wash of its own, spanning the whole viewport, with the
+   discs drifting on top of it as variation rather than as the entire effect.
+
+   Still compositor-only. The base wash is a static background on an element
+   that already exists; the discs animate on transform exactly as before. No
+   new animated layer, no filter, no change to the frame budget.
 --------------------------------------------------------------------------- */
-html[data-n15-theme='light'] .gf-a .gf-i {
-  background: radial-gradient(closest-side, rgba(154, 83, 22, 0.24), rgba(154, 83, 22, 0) 70%);
+html[data-n15-theme='light'] .gf {
+  background:
+    linear-gradient(
+      168deg,
+      rgba(255, 253, 250, 0.9) 0%,
+      rgba(243, 238, 230, 0.55) 34%,
+      rgba(232, 224, 212, 0.75) 68%,
+      rgba(246, 241, 233, 0.95) 100%
+    );
 }
+
+/* Copper, warm, upper-left — the same corner the hero photograph is brightest
+   in, so the page carries that warmth downward instead of dropping it. */
+html[data-n15-theme='light'] .gf-a .gf-i {
+  background: radial-gradient(
+    closest-side,
+    rgba(201, 138, 74, 0.3) 0%,
+    rgba(201, 138, 74, 0.14) 42%,
+    rgba(201, 138, 74, 0) 78%
+  );
+  transform: scale(1.5);
+}
+
+/* Steel, cool, the counterweight. Kept weaker than the copper: two washes of
+   equal strength cancel into grey. */
 html[data-n15-theme='light'] .gf-b .gf-i {
   background: radial-gradient(
     closest-side,
-    rgba(var(--n15-steel), 0.2),
-    rgba(var(--n15-steel), 0) 70%
+    rgba(var(--n15-steel), 0.2) 0%,
+    rgba(var(--n15-steel), 0.09) 45%,
+    rgba(var(--n15-steel), 0) 80%
   );
+  transform: scale(1.6);
 }
+
+/* Teal, faintest of the three. Present mainly so the lower half of a long page
+   is not the same two colours as the top. */
 html[data-n15-theme='light'] .gf-c .gf-i {
   background: radial-gradient(
     closest-side,
-    rgba(var(--n15-teal), 0.16),
-    rgba(var(--n15-teal), 0) 70%
+    rgba(var(--n15-teal), 0.16) 0%,
+    rgba(var(--n15-teal), 0.07) 45%,
+    rgba(var(--n15-teal), 0) 80%
   );
-}
-
-/* ----------------------------------------------------------------------------
-   THE HERO
-
-   THIS IS THE PART THE BRIEF WAS ABOUT. The shipped photograph is no longer
-   pre-darkened — public/hero/floor-master.jpg is now the ungraded original at
-   mean luminance 151, where the old file had been crushed to 49.
-
-   On the light theme the scrim therefore inverts: instead of dropping a
-   near-black wash to carry white type, it lays a warm white wash to carry dark
-   type. The photograph stays bright, which is the whole point, and the headline
-   sits on stone rather than on shadow.
-
-   The scrim is heaviest at the top-left, where the eyebrow and the first two
-   lines of the cycling headline sit, and clears toward the vanishing point so
-   the corridor keeps its depth.
---------------------------------------------------------------------------- */
-html[data-n15-theme='light'] .hero {
-  color: #1a1d22;
-}
-/*
- * THE WHITE WASH IS GONE — PHASE 17B.
- *
- * The first version laid a 0.9-alpha radial of stone over the middle of the
- * photograph to carry dark type. It worked as contrast and looked like a smear:
- * a bright soft blob sitting on top of the image, which is exactly what it was.
- *
- * The photograph now shows through. What is left is a gradient at the TOP EDGE
- * ONLY, at low alpha, doing one job — separating the fixed header from the
- * image beneath it so the wordmark does not sit on glass. Below the first
- * third, nothing is applied at all.
- *
- * WHAT THIS COSTS, so it is a decision and not a surprise: the headline is now
- * dark ink over a photograph whose mid-frame luminance is around 150. That is
- * legible, but it is no longer guaranteed legible — a brighter replacement
- * photograph, or reading it in direct sun, could push it under. If the headline
- * ever becomes hard to read, raise the two stops below rather than bringing the
- * radial back; a band at the top is a designed edge, a blob in the middle is a
- * mistake.
- *
- * The DARK theme is untouched. Its scrim is 15A's and it is doing necessary
- * work there — white type on a bright photograph genuinely needs it.
- */
-html[data-n15-theme='light'] .hero-scrim {
-  background: linear-gradient(
-    180deg,
-    rgba(236, 231, 223, 0.55) 0%,
-    rgba(236, 231, 223, 0.16) 22%,
-    rgba(236, 231, 223, 0) 42%
-  );
-}
-html[data-n15-theme='light'] .hero-eyebrow {
-  color: rgba(26, 29, 34, 0.66);
-}
-html[data-n15-theme='light'] .hero-sub {
-  color: rgba(26, 29, 34, 0.8);
+  transform: scale(1.7);
 }
 
 /* ----------------------------------------------------------------------------
