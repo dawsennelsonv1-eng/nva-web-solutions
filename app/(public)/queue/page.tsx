@@ -101,7 +101,6 @@ export default async function QueuePage() {
   const [sections, months] = await Promise.all([getQueueSections(), getBuildMonths()]);
 
   const built = sections.inService.length;
-  const unbuilt = TOOLS.length - built;
 
   const index: ConciergeEntry[] = TOOLS.map((t) => ({
     id: t.id,
@@ -117,25 +116,52 @@ export default async function QueuePage() {
 
       <section className="n15-sec" aria-labelledby="queue-h">
         <div className="n15-in">
-          <p className="n15-eyebrow">The schedule</p>
+          <p className="n15-eyebrow">The build schedule</p>
           <h1 id="queue-h" className="n15-h2">
-            The order work happens in
+            What gets built next, and who decides
           </h1>
 
-          {/* THE DISCLOSURE. Voluntary admission of your own weakness is the one
-              thing an agency would never do, and it is the strongest move
-              available with a buyer who has been burned before. It goes ABOVE
-              the list, not below it. */}
+          {/*
+            PHASE 17G — THE FRAMING CHANGED. NO HONESTY WAS REMOVED.
+
+            This used to open by counting what does not exist: "17 of the 19
+            tools on this page do not exist." That was written as a trust
+            device, and as a device it works — voluntarily naming your own
+            weakness is the one thing an agency never does.
+
+            But it was doing that job twice. EVERY ROW BELOW ALREADY CARRIES ITS
+            REAL STATUS, reconciled against the registry at request time, and a
+            reader learns more from four honest section headings than from a
+            deficit total. The sentence added no fact; it only chose the
+            emphasis, and the emphasis it chose was "we have not built this".
+
+            So the page now leads with the MECHANISM — one tool a month, votes
+            decide the order — which is the genuinely unusual thing here and the
+            reason to believe the rest. A contractor scanning this wants to know
+            when his trade arrives and what moves it. The count told him neither.
+
+            WHAT IS NOT ALLOWED BACK: any status that is not computed, any
+            ordering that is not the real vote ordering, any empty section that
+            pretends to be full. Those are the load-bearing parts. The opening
+            sentence was not.
+          */}
           <p className="n15-lede">
-            {unbuilt} of the {TOOLS.length} tools on this page do not exist.{' '}
-            {built === 1 ? 'One does' : `${built} do`}. Everything below says which
-            it is, and none of it is a catalogue you can buy from today.
+            One tool enters build every month, and whichever one leads this queue
+            on the 1st is the one that does. That is the whole rule. There is no
+            roadmap meeting and nothing jumps the line.
           </p>
           <p className="n15-body n15-measure">
-            What decides the next one: whichever tool leads the queue on the 1st
-            of the month enters build that month. One per month, not one per week
-            — that is a pace holdable in a bad month, and a queue that stalls is
-            worse than no queue at all.
+            {built === 1
+              ? 'One tool is running on live sites today.'
+              : `${built} tools are running on live sites today.`}{' '}
+            The rest are at the stage this page says they are — being built,
+            waiting on votes, or written up and not started. Every status below
+            is checked against the code as the page loads, so it goes down as
+            well as up.
+          </p>
+          <p className="n15-body n15-measure">
+            One a month rather than one a week is deliberate: it is a pace that
+            survives a bad month, and a queue that stalls is worse than no queue.
           </p>
 
           {!sections.votesLoaded && (
@@ -145,39 +171,39 @@ export default async function QueuePage() {
           )}
 
           <Section
-            heading="In service"
-            blurb="Built, deployed, running on live sites."
+            heading="Running now"
+            blurb="Built, installed, and quoting jobs on live sites today."
             rows={sections.inService.map((r) => <QueueRow key={r.tool.id} row={r} />)}
-            empty={sections.inService.length === 0 ? 'Nothing is in service.' : undefined}
+            empty={sections.inService.length === 0 ? 'Nothing is running yet.' : undefined}
           />
 
           <Section
-            heading="In build"
-            blurb="One at a time, with the month it is expected in service."
+            heading="Being built this month"
+            blurb="One at a time, with the month it should be running."
             rows={sections.inBuild.map((r) => <QueueRow key={r.tool.id} row={r} />)}
             empty={
               sections.inBuild.length === 0
-                ? 'Nothing is in build this month. The queue leader on the 1st takes the slot.'
+                ? 'Nothing is being built this month. Whichever tool leads the list below on the 1st takes the slot.'
                 : undefined
             }
           />
 
           <Section
-            heading="Queued"
-            blurb="Ordered by real votes. A tool appears here the moment it has one."
+            heading="Next up — the order is yours"
+            blurb="Ranked by votes from contractors. A tool joins this list the moment it gets its first one."
             rows={sections.queued.map((r) => <QueueRow key={r.tool.id} row={r} />)}
             empty={
               sections.queued.length === 0
-                ? 'Nothing has a vote yet. The first tool to get one appears here, ranked, and the section fills from there. No votes have been seeded to make this look busier.'
+                ? 'No votes yet. The first tool to get one appears here, ranked, and the list fills from there. Nothing has been seeded to make this look busier than it is.'
                 : undefined
             }
           />
 
           <Section
-            heading="Spec only"
-            blurb="Specification written and published. Not built. Open one and check the maths."
+            heading="Written up, not started"
+            blurb="What it would ask and how it would price is published. Open one and check the arithmetic against a job you have done."
             rows={sections.specOnly.map((r) => <QueueRow key={r.tool.id} row={r} />)}
-            empty={sections.specOnly.length === 0 ? 'Nothing is unspecified.' : undefined}
+            empty={sections.specOnly.length === 0 ? 'Everything specified has been started.' : undefined}
           />
 
           {/* THE RECEIPTS. Empty until a month completes; the moment one row
@@ -187,9 +213,9 @@ export default async function QueuePage() {
             <h2 className="n15-h3">Previous months</h2>
             {months.length === 0 ? (
               <p className="n15-body q-empty">
-                No month has completed under this commitment yet. When one has, it
-                appears here with the tool that took the slot and whether the vote
-                put it there.
+                No month has finished under this rule yet. When one has, it shows
+                up here with the tool that took the slot and whether the vote is
+                what put it there.
               </p>
             ) : (
               <ul className="q-list">

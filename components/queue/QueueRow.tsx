@@ -44,13 +44,39 @@ import type { QueueRow as Row } from '@/lib/queue/data';
  * DEMAND (rank and votes), and the vote display rule governs only the second.
  */
 
+/**
+ * PHASE 17G — THE STATUS IS TRANSLATED FOR THE READER.
+ *
+ * The rows printed the raw status: IN SERVICE, IN BUILD, QUEUED, SPEC ONLY.
+ * Those are the codebase's words. "SPEC ONLY" tells a contractor nothing, and
+ * "QUEUED" reads like his support ticket.
+ *
+ * THE UNDERLYING VALUE IS UNCHANGED — still row.status, still reconciled
+ * against the vertical registry by getQueueSections(), still incapable of
+ * saying a tool is running when its module is not registered. This maps that
+ * value onto words a reader already owns. It is a label, not a computation.
+ *
+ * The map is total and falls through to the raw status, so a new status added
+ * to the pipeline shows up as itself rather than silently disappearing.
+ */
+const STATUS_WORDS: Record<string, string> = {
+  'IN SERVICE': 'Running',
+  'IN BUILD': 'Being built',
+  QUEUED: 'Taking votes',
+  'SPEC ONLY': 'Written up',
+};
+
+function statusWord(status: string): string {
+  return STATUS_WORDS[status] ?? status;
+}
+
 function voteLabel(row: Row): string {
   if (row.status === 'QUEUED' && row.rank !== null) {
     return row.votes >= VOTE_DISPLAY_FLOOR
-      ? `#${row.rank} in queue · ${row.votes} votes`
-      : `#${row.rank} in queue`;
+      ? `#${row.rank} next · ${row.votes} votes`
+      : `#${row.rank} next`;
   }
-  if (row.status === 'SPEC ONLY') return 'Taking votes';
+  if (row.status === 'SPEC ONLY') return 'No votes yet';
   return '';
 }
 
@@ -80,7 +106,7 @@ export function QueueRow({ row }: { row: Row }) {
 
         <span className={'tc-status qr-status' + (live ? '' : ' qr-status-quiet')}>
           <span aria-hidden className="tc-dot" />
-          {row.status}
+          {statusWord(row.status)}
           <span className="tc-unit">· {row.tool.unit}</span>
         </span>
       </Link>
