@@ -508,7 +508,11 @@ export function ToolCard({
             )}
 
             <div className="tc-actions">
-              <Link href="/demo" className="n15-btn n15-btn-primary">
+              {/* The tool's own page, not /demo. That page now carries the
+                  working tool AND how it is used; /demo is the directory of
+                  every tool. Sending "Try it out" to a directory made the
+                  visitor pick his trade a second time. */}
+              <Link href={specHref} className="n15-btn n15-btn-primary">
                 Try it out
               </Link>
               <Link href={specHref} className="n15-btn n15-btn-ghost">

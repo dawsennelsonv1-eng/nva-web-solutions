@@ -1,51 +1,76 @@
 import type { Metadata } from 'next';
-import { DemoExperience } from '@/components/demo/DemoExperience';
+import { GradientField } from '@/components/site/GradientField';
+import { ToolDirectory } from '@/components/tools/ToolDirectory';
+import { getQueueSections } from '@/lib/queue/data';
 
 /**
- * app/(public)/demo/page.tsx — the dedicated test-drive funnel.
+ * app/(public)/demo/page.tsx — EVERY TOOL, FINISHED OR NOT. Phase 17C.
  *
- * "/demo — the widget in 'live' mode, framed so the contractor understands
- * he is walking the homeowner's path." The framing copy above the widget
- * addresses the CONTRACTOR directly (second person, explicit about the
- * role-play); the widget itself then runs exactly as a homeowner would
- * experience it on his own future site — same server actions, same real AI
- * analysis, same lead write, same split-screen payoff as the public hub's
- * embedded version (components/demo/DemoExperience.tsx — one engine, two
- * routes).
+ * ============================================================================
+ * WHAT THIS PAGE USED TO BE, AND WHERE THAT WENT
+ * ============================================================================
+ *
+ * It mounted <DemoExperience surface="demo" entryPoint="demo_page" /> — the
+ * four-step widget, framed for a contractor walking the homeowner's path.
+ *
+ * THAT MOUNT IS NOT DELETED. It moved to the epoxy tool page as a declared
+ * extra (lib/tools/catalogue.ts, 'live-widget'), which is where the brief puts
+ * it: the page you reach from "Try me out" should BE the tool.
+ *
+ * VERIFY: DemoExperience was rendering nothing on this route — the heading and
+ * the lede appeared and the widget did not. I have never seen that component,
+ * so I could not diagnose it, and moving a mount does not fix it. If it is
+ * still blank on the tool page, send me components/demo/DemoExperience.tsx and
+ * it becomes a five-minute problem instead of a guess.
+ *
+ * ============================================================================
+ * WHY A DIRECTORY BELONGS HERE
+ * ============================================================================
+ *
+ * A visitor who reaches this page has stopped asking whether the thing is real
+ * and started asking whether there is one for HIM. A single epoxy widget
+ * answers that question wrongly for eighteen trades out of nineteen.
+ *
+ * Unfinished tools are shown, tagged, and still openable. See ToolDirectory for
+ * why the tag is a label rather than a lock.
+ *
+ * force-dynamic because status is reconciled against the registry per request.
  */
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
-  title: 'Test drive the AI quoting engine',
+  title: 'Every tool',
   description:
-    'Walk through exactly what your future homeowner customers would experience — real pricing, real photo analysis, real lead capture.',
+    'Every tool in the system — the ones running, the ones in testing, and the ones still on paper. Open any of them.',
   openGraph: {
-    title: 'Test drive the AI quoting engine',
-    description: 'This is exactly what your customer sees on their phone. Try it yourself.',
+    title: 'Every tool · Girder',
+    description: 'The ones running, the ones in testing, and the ones still on paper.',
     type: 'website',
-  },
-  twitter: {
-    card: 'summary',
-    title: 'Test drive the AI quoting engine',
-    description: 'This is exactly what your customer sees on their phone. Try it yourself.',
   },
 };
 
-export default function DemoPage() {
-  return (
-    <div className="mx-auto max-w-md px-4 pb-16 pt-8">
-      <p className="font-data text-xs uppercase tracking-wide text-hazard">For contractors</p>
-      <h1 className="mt-2 font-display font-condensed text-2xl font-bold sm:text-3xl">
-        Walk it exactly as your customer would.
-      </h1>
-      <p className="mt-3 text-base text-rule">
-        Everything below is the real thing — the actual pricing engine, the actual AI photo
-        reading, running as &ldquo;{'Anchor Point Epoxy'}&rdquo; so you can see precisely what a
-        homeowner does on your own future site. Add a photo if you want to see the AI work.
-      </p>
+export default async function DemoPage() {
+  const sections = await getQueueSections();
 
-      <div className="mt-6">
-        <DemoExperience surface="demo" entryPoint="demo_page" />
-      </div>
-    </div>
+  return (
+    <>
+      <GradientField />
+      <section className="n15-sec" aria-labelledby="demo-h">
+        <div className="n15-in">
+          <p className="n15-eyebrow">For contractors</p>
+          <h1 id="demo-h" className="n15-h2">
+            Every tool, including the ones we are still building.
+          </h1>
+          <p className="n15-lede">
+            Open any of them. The ones marked in testing work — they are just not
+            finished, and you can see exactly how far along they are rather than
+            being told to wait.
+          </p>
+
+          <ToolDirectory sections={sections} />
+        </div>
+      </section>
+    </>
   );
 }

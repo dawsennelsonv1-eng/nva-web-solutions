@@ -1,0 +1,129 @@
+/* ============================================================================
+   PHASE 17C — THE TOOL DIRECTORY
+   Imported last. Additions only; light overrides at the foot.
+========================================================================== */
+
+.td-grid {
+  margin-top: 2.5rem;
+  display: grid;
+  gap: 1.1rem;
+}
+@media (min-width: 700px) {
+  .td-grid {
+    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  }
+}
+
+.td-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  padding: 1.4rem 1.3rem;
+}
+
+.td-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.td-unit {
+  font-family: var(--n15-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+/* THE TAG.
+
+   Red is used here and nowhere else on this site. That is what makes it work:
+   a colour that appears once is read as a signal, and a colour that appears on
+   every third element is read as decoration. It is deliberately NOT the copper,
+   because copper is the action colour — a copper tag beside a copper button
+   would look like a second button. */
+.td-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.td-tag-live {
+  color: rgba(var(--n15-ink), 0.72);
+  background: rgba(244, 242, 237, 0.06);
+  border: 1px solid var(--n15-card-edge);
+}
+.td-tag-testing {
+  color: #ffb4a2;
+  background: rgba(190, 62, 40, 0.16);
+  border: 1px solid rgba(190, 62, 40, 0.5);
+}
+.td-tag-spec {
+  color: rgba(var(--n15-ink), 0.5);
+  background: transparent;
+  border: 1px solid var(--n15-card-edge);
+}
+
+.td-name {
+  margin-top: 0.9rem;
+  font-family: var(--n15-serif);
+  font-size: 1.4rem;
+  line-height: 1.18;
+  color: rgb(var(--n15-ink));
+}
+.td-prices {
+  margin-top: 0.5rem;
+  font-family: var(--n15-sans);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: rgba(var(--n15-ink), 0.68);
+}
+.td-note {
+  margin-top: 0.85rem;
+  font-family: var(--n15-sans);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(var(--n15-ink), 0.5);
+}
+/* Pushed to the bottom so buttons line up across a row of cards whose
+   descriptions are different lengths. */
+.td-actions {
+  margin-top: auto;
+  padding-top: 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+/* ----------------------------------------------------------------------------
+   LIGHT THEME — the red has to survive on stone, so it darkens rather than
+   keeping the same hue at a different alpha.
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .td-tag-live {
+  color: rgba(26, 29, 34, 0.72);
+  background: rgba(26, 29, 34, 0.04);
+}
+html[data-n15-theme='light'] .td-tag-testing {
+  color: #8f2c18;
+  background: rgba(190, 62, 40, 0.1);
+  border-color: rgba(143, 44, 24, 0.45);
+}
+html[data-n15-theme='light'] .td-tag-spec,
+html[data-n15-theme='light'] .td-note {
+  color: rgba(26, 29, 34, 0.58);
+}
+
+/* The live widget mounted on a tool page as an extra. Constrained to the
+   widget's own natural measure — it was designed for a 28rem column and
+   stretching it across a 68rem container makes a four-step form look like a
+   settings screen. */
+.tp-widget {
+  margin-top: 2rem;
+  max-width: 28rem;
+}

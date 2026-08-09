@@ -6,6 +6,7 @@ import { ToolStory } from '@/components/tools/ToolStory';
 import { SimilarTools } from '@/components/tools/SimilarTools';
 import { ToolCtaRail } from '@/components/tools/ToolCtaRail';
 import { Machinery } from '@/components/site/Sections';
+import { DemoExperience } from '@/components/demo/DemoExperience';
 import { toolPageFor, toolPageIds } from '@/lib/tools/catalogue';
 import { mediaForTool } from '@/lib/tools/media';
 
@@ -152,7 +153,33 @@ export default async function ToolPage({ params }: { params: { toolId: string } 
         </div>
       </section>
 
-      {/* 5 — extras, in a fixed slot */}
+      {/* 5 — extras, in a fixed slot.
+
+          'live-widget' comes FIRST: somebody who arrived on "Try me out" wants
+          the thing itself, and the published arithmetic is what he reads after
+          he has seen a number come out of it. */}
+      {page.extras.includes('live-widget') && (
+        <section className="n15-sec tp-tight" aria-labelledby="live-h">
+          <div className="n15-in">
+            <p className="n15-eyebrow">For contractors</p>
+            <h2 id="live-h" className="n15-h2">
+              Walk it exactly as your customer would.
+            </h2>
+            <p className="n15-lede">
+              Everything below is the real thing — the actual pricing engine and
+              the actual AI photo reading, running as a sample company so you can
+              see precisely what a homeowner does on your own future site.
+            </p>
+            <div className="tp-widget">
+              {/* VERIFY: this rendered blank on /demo before it was moved here.
+                  Moving a mount does not fix a component. If it is still blank,
+                  the fault is inside DemoExperience. */}
+              <DemoExperience surface="demo" entryPoint="demo_page" />
+            </div>
+          </div>
+        </section>
+      )}
+
       {page.extras.includes('pricing-model') && <Machinery />}
 
       {/* 6 */}

@@ -53,6 +53,27 @@ import { MIN_SLOTS, type MediaSlot } from '@/lib/tools/media-types';
  * The tab check covers the case that actually costs a user something.
  *
  * ============================================================================
+ * IT PADS TO THREE INSTEAD OF VANISHING — PHASE 17C
+ * ============================================================================
+ *
+ * It used to render NOTHING below MIN_SLOTS, on the argument that a two-frame
+ * carousel undersells a tool worse than no carousel does.
+ *
+ * That argument was right about a finished site and wrong about this one. The
+ * effect in practice was that the picture area was invisible — not sparse,
+ * absent — so there was no way to see where the recordings go or that the
+ * feature existed at all. A slot you cannot see is a slot nobody fills.
+ *
+ * So: with at least one real frame it renders, padding up to three with
+ * reserved frames that say what belongs there. With NO frames at all it still
+ * renders nothing, because a gallery made entirely of empty boxes is an
+ * announcement that the product is unfinished.
+ *
+ * IF YOU ARE SEEING NO GALLERY AT ALL, the likely cause is not this file:
+ * migration 0019_tool_media.sql seeds five epoxy rows, and until it has been
+ * run the table is empty and there is nothing to pad.
+ *
+ * ============================================================================
  * MISSING FILES ARE A DESIGNED STATE
  * ============================================================================
  *
@@ -74,10 +95,11 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
   const [paused, setPaused] = useState(false);
   const timer = useRef<number>(0);
 
-  // Below three filled slots this is a shortage, not a showcase. Render
-  // nothing rather than a two-frame carousel that undersells the tool.
-  const enough = slots.length >= MIN_SLOTS;
-  const count = slots.length;
+  // Reserved frames, so the shape of the section is visible while the real
+  // recordings are still being made. Never shown when there are none at all.
+  const padding = slots.length > 0 ? Math.max(0, MIN_SLOTS - slots.length) : 0;
+  const enough = slots.length > 0;
+  const count = slots.length + padding;
 
   const clear = useCallback(() => {
     if (timer.current) {
@@ -90,8 +112,8 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
     if (!enough || count <= 1 || paused) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-    const current = slots[index];
-    const hold = current?.durationMs ?? 3000;
+    // A reserved frame has no declared duration; it holds for the default.
+    const hold = slots[index]?.durationMs ?? 3000;
     timer.current = window.setTimeout(() => {
       setIndex((i) => (i + 1) % count);
     }, hold);
@@ -114,22 +136,34 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
         {slots.map((slot, i) => (
           <MediaFrame key={slot.key} slot={slot} active={i === index} eager={i === 0} />
         ))}
+        {Array.from({ length: padding }, (_, n) => (
+          <div
+            key={'reserved-' + n}
+            className={'mg-frame' + (slots.length + n === index ? ' mg-frame-on' : '')}
+            aria-hidden={slots.length + n !== index}
+          >
+            <div className="mg-ph">
+              <span className="mg-ph-k">Slot {slots.length + n + 1}</span>
+              <span className="mg-ph-t">Add a recording in admin</span>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* aria-live so the caption is announced as it changes; the frames
           themselves are hidden from the tree when inactive. */}
       <figcaption className="mg-cap" aria-live="polite">
-        {slots[index]?.caption ?? ''}
+        {slots[index]?.caption ?? 'Nothing here yet'}
       </figcaption>
 
       <div className="mg-dots" role="tablist" aria-label="Choose a frame">
-        {slots.map((slot, i) => (
+        {Array.from({ length: count }, (_, i) => (
           <button
-            key={slot.key}
+            key={'dot-' + i}
             type="button"
             role="tab"
             aria-selected={i === index}
-            aria-label={slot.caption}
+            aria-label={slots[i]?.caption ?? 'Empty slot ' + (i + 1)}
             className={'mg-dot' + (i === index ? ' mg-dot-on' : '')}
             onClick={() => {
               clear();

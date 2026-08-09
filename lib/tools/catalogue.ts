@@ -14,6 +14,11 @@
  * Adding a tool page is adding an entry to this file. It requires no new
  * component and no new route.
  *
+ * 'live-widget' mounts components/demo/DemoExperience — the four-step widget
+ * that used to live at /demo. It is an extra rather than part of the template
+ * because it is the epoxy funnel specifically; another tool's live surface will
+ * be its own module, not this one.
+ *
  * EXCEPTIONS ARE EXPLICIT, NOT IMPROVISED. Some tools need a section no other
  * tool needs — the floor coating tool publishes its full pricing arithmetic,
  * and a future tool might need a chart or a calculator nothing else uses. Those
@@ -50,7 +55,7 @@ export interface ToolStoryPoint {
 }
 
 /** Sections that exist for one tool and not for others. */
-export type ToolExtra = 'pricing-model';
+export type ToolExtra = 'pricing-model' | 'live-widget';
 
 export interface ToolPage {
   /** Matches lib/queue/tools.ts id, and the URL segment. */
@@ -99,7 +104,7 @@ const EPOXY: ToolPage = {
       mediaKey: 'epoxy-lead',
     },
   ],
-  extras: ['pricing-model'],
+  extras: ['live-widget', 'pricing-model'],
   similar: ['painting', 'concrete-polishing', 'pressure-washing'],
   tryHref: '/demo',
 };
