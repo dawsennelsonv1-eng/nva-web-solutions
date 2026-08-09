@@ -102,11 +102,14 @@ export function isProviderWired(provider: PaymentProvider): boolean {
   if (provider === 'stripe') {
     return (process.env.STRIPE_SECRET_KEY ?? '').trim().length > 0;
   }
-  // PayPal: registered in lib/payments but every method refuses. This stays
-  // false until lib/payments/paypal.ts can create an order, capture it and
-  // verify a webhook — and it must be flipped in the SAME commit as
-  // isProviderImplemented in lib/payments/index.ts, never separately.
-  return false;
+  // PayPal is implemented and gated on its credentials, matching how Stripe is
+  // judged here. Credentials present does NOT mean a transaction has ever
+  // succeeded — see isProviderImplemented in lib/payments/index.ts. Run a
+  // sandbox subscription before setting live credentials.
+  return (
+    (process.env.PAYPAL_CLIENT_ID ?? '').trim().length > 0 &&
+    (process.env.PAYPAL_CLIENT_SECRET ?? '').trim().length > 0
+  );
 }
 
 /**

@@ -119,14 +119,32 @@ export async function resolveSelectedProvider(): Promise<PaymentProvider> {
 }
 
 /**
- * Whether an adapter can actually move money. Not "is it registered" and not
- * "are its env vars set" — whether the code exists.
+ * Whether an adapter can actually move money on THIS deployment.
  *
- * paypal is false and stays false until lib/payments/paypal.ts can create an
- * order, capture it, and verify a webhook signature. Flip it in the same commit
- * that makes those three true, not before.
+ * PayPal is now implemented (lib/payments/paypal.ts) and gated on its
+ * credentials, which is the same standard Stripe is held to — STRIPE_SECRET_KEY
+ * present means wired.
+ *
+ * ============================================================================
+ * CONFIGURED IS NOT THE SAME AS PROVEN, AND THIS FUNCTION CANNOT TELL
+ * ============================================================================
+ *
+ * Setting PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET makes this return true. It
+ * does NOT mean a subscription has ever completed, that the plan carries the
+ * setup fee, or that a webhook has ever verified. No function can check those
+ * from here.
+ *
+ * POINT IT AT SANDBOX FIRST (PAYPAL_ENV=sandbox) and run one subscription end
+ * to end before putting live credentials in. The gate that protects a real
+ * customer is which credentials you set, and that gate is yours, not this
+ * function's.
  */
 export function isProviderImplemented(id: ProviderId): boolean {
-  if (id === 'paypal') return false;
+  if (id === 'paypal') {
+    return (
+      (process.env.PAYPAL_CLIENT_ID ?? '').trim().length > 0 &&
+      (process.env.PAYPAL_CLIENT_SECRET ?? '').trim().length > 0
+    );
+  }
   return true;
 }
