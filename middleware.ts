@@ -43,7 +43,7 @@ import { createSupabaseMiddlewareClient } from '@/lib/supabase/middleware';
  *
  * ROUTING, unchanged: /s/[slug]'s 404 semantics still live in its own route.
  *
- * /admin/login and /login are MATCHED but NOT GATED — they have to be
+ * /admin/login, /login and /signup are MATCHED but NOT GATED — they have to be
  * reachable to sign in at all — with one exception each: an already-signed-in
  * user visiting either is bounced to where he belongs.
  *
@@ -88,7 +88,7 @@ function unauthenticatedFallback(
   path: string,
   getResponse: () => NextResponse
 ): NextResponse {
-  if (path === '/login' || path === '/admin/login') return getResponse();
+  if (path === '/login' || path === '/signup' || path === '/admin/login') return getResponse();
   if (path.startsWith('/app')) return redirectTo(req, '/login');
   return redirectTo(req, '/admin/login');
 }
@@ -111,18 +111,30 @@ export async function middleware(req: NextRequest) {
     // A thrown auth call is treated exactly like no session. Never a 500.
     return unauthenticatedFallback(req, path, getResponse);
   }
-  const isMemberArea = path === '/login' || path.startsWith('/app');
+  /**
+   * /signup is a member DOOR, same as /login — Phase 17N.
+   *
+   * It was not matched at all before, so middleware never ran on it and a
+   * signed-in contractor tapping "Sign up" got the form instead of his
+   * dashboard. Submitting it would then create a second auth account, or fail
+   * on the already-provisioned guard in app/actions/signup.ts. Neither is a
+   * disaster; both are a confusing dead end for somebody who is already a
+   * customer.
+   *
+   * Treated as a door rather than a gated page: reachable signed out, and a
+   * signed-in visitor is bounced to /app exactly as /login does.
+   */
+  const isMemberDoor = path === '/login' || path === '/signup';
+  const isMemberArea = isMemberDoor || path.startsWith('/app');
 
   // ---------------------------------------------------------------- members
   if (isMemberArea) {
-    const isMemberLogin = path === '/login';
-
     if (!user) {
-      if (isMemberLogin) return getResponse();
+      if (isMemberDoor) return getResponse();
       return redirectTo(req, '/login');
     }
 
-    if (isMemberLogin) {
+    if (isMemberDoor) {
       const url = req.nextUrl.clone();
       url.pathname = '/app';
       url.search = '';
@@ -183,6 +195,6 @@ function redirectTo(req: NextRequest, pathname: string, reason?: string): NextRe
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/app/:path*', '/login'],
+  matcher: ['/admin/:path*', '/app/:path*', '/login', '/signup'],
 };
 
