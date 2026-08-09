@@ -80,6 +80,81 @@ html[data-n15-theme='light'] {
 }
 
 /* ----------------------------------------------------------------------------
+   THE HERO — DARK IN BOTH THEMES, STATED EXPLICITLY
+
+   17K tried to achieve this by DELETING the light-theme hero rules and letting
+   15A's dark treatment win through the cascade. That was fragile reasoning and
+   it also shipped broken: the patch that wrote the replacement block had its
+   range swallowed by a second edit, so the file went out with no hero rules at
+   all.
+
+   Both problems have the same fix. Say what the hero IS under the light theme
+   rather than saying nothing and hoping the base wins. Every rule below is
+   explicit and scoped to the light theme, so it cannot touch dark.
+
+   THE PHOTOGRAPH IS DARKENED AGAIN. public/hero/floor-master.jpg is back to
+   mean luminance ~49, regraded from the full-resolution crop rather than
+   upscaled from the old 900x600 file.
+
+   16D had swapped in the ungraded original at ~150, on the reasoning that
+   darkening belongs in CSS rather than baked into an asset. That reasoning is
+   right in general and was wrong here: a scrim heavy enough to carry text over
+   a bright photograph is a scrim you can SEE, which is exactly the "weird
+   whitening" complaint. Grading the file does it once, invisibly, at full
+   quality, and leaves the scrim to do the small job it is good at.
+
+   The scrim on top is 15A's, unchanged. It deepens the centre and the lower
+   edge where the headline and CTA sit, over an image that is already dark.
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .hero-h,
+html[data-n15-theme='light'] .hero-line,
+html[data-n15-theme='light'] .hero-sub {
+  color: #f4f2ed;
+}
+html[data-n15-theme='light'] .hero-eyebrow {
+  color: rgba(244, 242, 237, 0.62);
+}
+html[data-n15-theme='light'] .hero-scrim {
+  background:
+    radial-gradient(62% 46% at 50% 50%, rgba(7, 9, 13, 0.3), rgba(7, 9, 13, 0) 72%),
+    linear-gradient(
+      180deg,
+      rgba(7, 9, 13, 0.5) 0%,
+      rgba(7, 9, 13, 0.14) 42%,
+      rgba(7, 9, 13, 0.56) 100%
+    );
+}
+
+/* The join between a dark banner and a light page. Without it the two meet on a
+   hard line and the banner reads as an unstyled block; with it the hero
+   dissolves into the page's own ground colour.
+
+   NOT theme-scoped: on dark it fades into the dark base and is invisible, which
+   is correct, and means one rule rather than two that must be kept in step. */
+.hero {
+  position: relative;
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 18vh;
+  min-height: 96px;
+  max-height: 180px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, var(--n15-base) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+/* Verified against Hero.tsx: .hero-inner is the real content wrapper. Without
+   this the CTA washes out on tall phones where the text runs low enough to
+   overlap the transition. */
+.hero-inner {
+  position: relative;
+  z-index: 2;
+}
+
+/* ----------------------------------------------------------------------------
    THE FIELD ON LIGHT
 
    The complaint was that it read as a fixed patch near the bottom rather than
