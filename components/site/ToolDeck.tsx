@@ -1,14 +1,8 @@
-import { ToolCard, type ToolCardFinish } from '@/components/site/ToolCard';
+import { ToolCard } from '@/components/site/ToolCard';
 import { getQueueSections } from '@/lib/queue/data';
 import { isVisualiserConfigured } from '@/lib/site/render-config';
 import { mediaForTool } from '@/lib/tools/media';
-import {
-  DEFAULT_TIER,
-  REFERENCE_FINISHES,
-  REFERENCE_RULES,
-  REFERENCE_SQFT_MAX,
-  REFERENCE_SQFT_MIN,
-} from '@/lib/site/reference-rates';
+import { PUBLIC_TOOLS, QUIET_REASON, pricerFor, tintFor } from '@/lib/tools/card-config';
 
 /**
  * components/site/ToolDeck.tsx — "The tools that are running."
@@ -60,106 +54,10 @@ import {
  */
 
 /**
- * Per-card gradient stops. Distinct per tool so the cards feel individually
- * alive, and drawn from the 15A palette rather than from a new one: copper and
- * steel for the resin trade, teal and steel for the coatings trade. The
- * durations are deliberately coprime-ish so two cards on a wide screen do not
- * visibly pulse in lockstep.
- */
-const TINTS: Record<string, { a: string; b: string; durationSeconds: number }> = {
-  epoxy: {
-    a: 'rgba(201, 112, 47, 0.34)',
-    b: 'rgba(38, 72, 112, 0.30)',
-    durationSeconds: 34,
-  },
-  painting: {
-    a: 'rgba(22, 84, 70, 0.30)',
-    b: 'rgba(38, 72, 112, 0.26)',
-    durationSeconds: 41,
-  },
-};
-
-const DEFAULT_TINT = {
-  a: 'rgba(38, 72, 112, 0.28)',
-  b: 'rgba(22, 84, 70, 0.24)',
-  durationSeconds: 37,
-};
-
-/**
- * Swatch colours for the finish chips, used ONLY when the photograph for that
- * finish is missing — which is currently all of them.
- *
- * VERIFY: these three are read off the epoxy module's own colour deck
- * (lib/verticals/epoxy) — Tuxedo from Flake Blends, Copper Burl from Metallic
- * Pours, Charcoal from Solid Colours. They are a representative colour of the
- * family, not a claim that a specific product matches this hex on screen. The
- * chip is captioned with the finish type in words either way, so the swatch is
- * never the only thing telling a visitor what he is choosing.
- */
-const SWATCH: Record<string, string> = {
-  flake: '#3B3B3F',
-  metallic: '#9C5B33',
-  solid_polyaspartic: '#4A4D50',
-};
-
-/** Tools with a published rate document. Absence is meaningful. */
-const PRICERS: Record<
-  string,
-  {
-    verticalId: string;
-    surfaceTypeId: string;
-    surfaceLabel: string;
-    defaultSqft: number;
-  }
-> = {
-  epoxy: {
-    verticalId: 'epoxy',
-    surfaceTypeId: 'garage',
-    surfaceLabel: 'garage',
-    // A two-car garage — the middle typical dimension in the epoxy module.
-    defaultSqft: 480,
-  },
-};
-
-const QUIET_REASON: Record<string, string> = {
-  painting:
-    'The module prices this trade and the arithmetic is written down. There is no live demo on this page yet, because the published rate document a demo prices against does not exist for painting.',
-};
-
-/**
- * ============================================================================
- * THE PUBLIC ALLOWLIST — READ THIS BEFORE CHANGING IT
- * ============================================================================
- *
- * ONLY the tool ids in this array are shown to visitors. Everything else in the
- * catalogue is built, registered, reconciled and fully wired — it is simply not
- * rendered yet.
- *
- * WHY AN ALLOWLIST AND NOT A DELETION. Painting is registered in
- * lib/verticals/manifest.ts, it has a working module with a state machine and a
- * widget, and getQueueSections() correctly reports it as IN SERVICE. What it
- * does not have is a published rate document, so its card had no live pricer
- * and read as a half-finished thing on the most important page of the site.
- *
- * Hiding it is a PRESENTATION decision, reversed by adding one string here.
- * None of the painting code is deleted, disabled, or commented out. If you are
- * an AI reading this repo in a later session and wondering where painting went:
- * it is complete, it is in lib/verticals/painting/, and it is hidden ONLY by
- * this array. Add 'painting' below and it returns instantly, though it will
- * return as a quiet card until lib/site/reference-rates gains a painting rate
- * document and ToolDeck's PRICERS gains a matching entry.
- *
- * The same applies to every other trade in lib/queue/tools.ts. Nineteen are
- * specified; one is shown.
- * ============================================================================
- */
-const PUBLIC_TOOLS: readonly string[] = ['epoxy'];
-
-/*
- * VERIFY: app/(public)/tools/[toolId]/page.tsx holds its own copy of this list.
- * lib/queue is a data layer and "what is public" is a presentation decision, so
- * the two are deliberately not shared yet — but they MUST agree. When a third
- * surface needs it, lift it into lib/site/ and import it in all three.
+ * PHASE 17D: the tints, swatches, pricer wiring, quiet reasons and the public
+ * allowlist all moved to lib/tools/card-config, because the tool page now
+ * mounts the same card. Two copies of a rate document is how one surface starts
+ * pricing a job differently from another while both look correct.
  */
 
 export async function ToolDeck() {
@@ -174,27 +72,14 @@ export async function ToolDeck() {
   // Filtered AFTER the registry reconciliation, never instead of it. A tool
   // still has to genuinely be in service to reach this line; the allowlist only
   // decides whether an in-service tool is shown yet.
-  const shown = live.filter((row) => PUBLIC_TOOLS.includes(row.tool.id));
-  if (shown.length === 0) return null;
-
-  /**
-   * Recordings for every visible tool, fetched once here rather than per card.
-   * mediaForTool is async-shaped against the day it becomes a table query
-   * (see lib/tools/media.ts) — resolving them together keeps that a single
-   * round trip instead of one per card.
-   */
   const mediaByTool = new Map(
     await Promise.all(
-      shown.map(async (row) => [row.tool.id, await mediaForTool(row.tool.id)] as const)
+      live.map(async (row) => [row.tool.id, await mediaForTool(row.tool.id)] as const)
     )
   );
 
-  const finishes: ToolCardFinish[] = REFERENCE_FINISHES.map((f) => ({
-    id: f.id,
-    label: f.label,
-    tierKey: f.tierKey,
-    swatchHex: SWATCH[f.tierKey],
-  }));
+  const shown = live.filter((row) => PUBLIC_TOOLS.includes(row.tool.id));
+  if (shown.length === 0) return null;
 
   return (
     <section className="n15-sec" aria-labelledby="tools-h">
@@ -211,8 +96,6 @@ export async function ToolDeck() {
 
         <div className="tc-deck">
           {shown.map((row) => {
-            const spec = PRICERS[row.tool.id];
-            const tint = TINTS[row.tool.id] ?? DEFAULT_TINT;
 
             return (
               <ToolCard
@@ -222,26 +105,12 @@ export async function ToolDeck() {
                 summary={row.tool.prices}
                 unit={row.tool.unit}
                 inService
-                tint={tint}
+                tint={tintFor(row.tool.id)}
                 renderEnabled={renderEnabled}
                 media={mediaByTool.get(row.tool.id) ?? []}
                 specHref={`/tools/${row.tool.id}`}
                 quietReason={QUIET_REASON[row.tool.id]}
-                pricer={
-                  spec
-                    ? {
-                        verticalId: spec.verticalId,
-                        surfaceTypeId: spec.surfaceTypeId,
-                        surfaceLabel: spec.surfaceLabel,
-                        rules: REFERENCE_RULES,
-                        finishes,
-                        sqftMin: REFERENCE_SQFT_MIN,
-                        sqftMax: REFERENCE_SQFT_MAX,
-                        defaultSqft: spec.defaultSqft,
-                        defaultTier: DEFAULT_TIER,
-                      }
-                    : null
-                }
+                pricer={pricerFor(row.tool.id)}
               />
             );
           })}

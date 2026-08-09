@@ -1,0 +1,160 @@
+/* ============================================================================
+   PHASE 17D — THE TOOL PAGE
+   Imported last. Additions only; light overrides at the foot.
+========================================================================== */
+
+/* The live card at the top. Constrained so it keeps the proportions it has on
+   the homepage — a card designed for a two-column grid becomes a banner when
+   stretched across 68rem, and the price band ends up marooned on the left. */
+.tp-card {
+  margin-top: 2.5rem;
+  max-width: 34rem;
+}
+
+/* ----------------------------------------------------------------------------
+   HOW IT WORKS
+--------------------------------------------------------------------------- */
+.hw-list {
+  margin: 3rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 3.5rem;
+}
+.hw-step {
+  display: grid;
+  gap: 1.5rem;
+  align-items: center;
+}
+@media (min-width: 860px) {
+  .hw-step {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3rem;
+  }
+  /* Every odd step flips. Done with grid order, not direction, so the DOM
+     order stays text-then-image and a screen reader reads one sequence. */
+  .hw-step:nth-child(even) .hw-text {
+    order: 2;
+  }
+  .hw-step:nth-child(even) .hw-media {
+    order: 1;
+  }
+  .hw-step-plain {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hw-step-plain .hw-text {
+    max-width: 62ch;
+  }
+}
+.hw-n {
+  display: block;
+  font-family: var(--n15-sans);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  color: var(--n15-copper);
+}
+.hw-head {
+  margin-top: 0.6rem;
+}
+.hw-text p {
+  margin-top: 0.75rem;
+}
+.hw-media {
+  margin: 0;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: rgba(10, 13, 18, 0.5);
+  overflow: hidden;
+  box-shadow: var(--n15-shadow-rest);
+}
+.hw-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ----------------------------------------------------------------------------
+   THE RELISTING — the tool stated once more, at the decision point
+--------------------------------------------------------------------------- */
+.tp-relist {
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  padding: 1.75rem 1.5rem;
+}
+.tp-relist-h {
+  margin-top: 0.6rem;
+}
+.tp-relist p {
+  margin-top: 0.75rem;
+  max-width: 54ch;
+}
+
+/* ----------------------------------------------------------------------------
+   REVIEWS — styled for the day they exist, which is not today
+--------------------------------------------------------------------------- */
+.rv-grid {
+  margin-top: 2.5rem;
+  display: grid;
+  gap: 1.25rem;
+}
+@media (min-width: 760px) {
+  .rv-grid {
+    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  }
+}
+.rv-card {
+  margin: 0;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: var(--n15-card);
+  box-shadow: var(--n15-shadow-rest);
+  padding: 1.6rem 1.4rem;
+}
+/* The quote is set in the display serif at reading size — a testimonial in the
+   same face as the body copy reads as more body copy. No decorative quote mark:
+   it is already inside a blockquote, and the glyph is ornament. */
+.rv-quote {
+  margin: 0;
+  font-family: var(--n15-serif);
+  font-size: 1.2rem;
+  line-height: 1.45;
+  color: rgb(var(--n15-ink));
+}
+.rv-who {
+  margin-top: 1.15rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--n15-card-edge);
+  display: grid;
+  gap: 0.15rem;
+  font-family: var(--n15-sans);
+}
+.rv-name {
+  font-weight: 500;
+  font-size: 0.92rem;
+  color: rgb(var(--n15-ink));
+}
+.rv-biz {
+  font-size: 0.85rem;
+  color: rgba(var(--n15-ink), 0.68);
+}
+.rv-date {
+  font-size: 0.75rem;
+  color: rgba(var(--n15-ink), 0.45);
+}
+
+/* ----------------------------------------------------------------------------
+   LIGHT THEME
+--------------------------------------------------------------------------- */
+html[data-n15-theme='light'] .hw-media {
+  background: rgba(255, 255, 255, 0.6);
+}
+html[data-n15-theme='light'] .rv-biz {
+  color: rgba(26, 29, 34, 0.7);
+}
+html[data-n15-theme='light'] .rv-date {
+  color: rgba(26, 29, 34, 0.55);
+}

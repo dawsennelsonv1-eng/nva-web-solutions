@@ -57,6 +57,45 @@ export interface ToolStoryPoint {
 /** Sections that exist for one tool and not for others. */
 export type ToolExtra = 'pricing-model' | 'live-widget';
 
+/** One step of "how it works", shown in order with its own frame. */
+export interface ToolStep {
+  head: string;
+  body: string;
+  mediaKey: string | null;
+}
+
+/** A benefit, stated as an outcome rather than a capability. */
+export interface ToolFeature {
+  head: string;
+  body: string;
+}
+
+export interface ToolFaqItem {
+  q: string;
+  a: string;
+}
+
+/**
+ * A real review from a real customer, or nothing.
+ *
+ * THE ARRAY IS EMPTY AND IT STAYS EMPTY UNTIL SOMEBODY SAYS SOMETHING. Writing
+ * three plausible testimonials here would be the single most damaging thing
+ * that could be done to this site: it is the one place arguing that every
+ * number on it is real and checkable, and a contractor who suspects one fake
+ * review stops believing the pricing table too.
+ *
+ * The section renders an honest empty state instead, which is a far better look
+ * for one quarter than a fabricated one is forever.
+ */
+export interface ToolReview {
+  quote: string;
+  name: string;
+  business: string;
+  city: string;
+  /** ISO date. Shown so the reader can see it is not ancient. */
+  date: string;
+}
+
 export interface ToolPage {
   /** Matches lib/queue/tools.ts id, and the URL segment. */
   id: string;
@@ -67,6 +106,14 @@ export interface ToolPage {
   /** Two short lines of context above the fold. */
   intro: string;
   storyPoints: ToolStoryPoint[];
+  /** How it works, in order. The reader is deciding whether he could run it. */
+  howItWorks: ToolStep[];
+  /** Benefits. Outcomes in his week, never capability lists. */
+  features: ToolFeature[];
+  /** Questions about using it, not about buying it. Buying is on /pricing. */
+  faq: ToolFaqItem[];
+  /** Real ones only. Empty renders an honest empty state. */
+  reviews: ToolReview[];
   /** Rendered in a fixed slot, after the story and before the CTA block. */
   extras: ToolExtra[];
   /** Tool ids shown in the "others like this" row. Order is meaningful. */
@@ -104,6 +151,86 @@ const EPOXY: ToolPage = {
       mediaKey: 'epoxy-lead',
     },
   ],
+  howItWorks: [
+    {
+      head: 'They land on your site and see a price control, not a form',
+      body: 'It sits on the page you already have, in your colours. Nothing to download and no account to make — the first thing they can do is start answering.',
+      mediaKey: 'epoxy-widget-mobile',
+    },
+    {
+      head: 'They send one photo of the floor',
+      body: 'The camera opens on their phone. They do not need to measure anything or tidy up, which is the whole reason this works: most people have no idea what their garage is in square feet, and asking is where they leave.',
+      mediaKey: 'epoxy-visualiser',
+    },
+    {
+      head: 'It reads the photo and works out the size',
+      body: 'The model estimates the floor area and the condition of the slab. If it is confident it says so and shows the number; if it is not, it asks. Either way they can correct it with one tap.',
+      mediaKey: 'epoxy-widget-quote',
+    },
+    {
+      head: 'It prices the job from your rates',
+      body: 'Your rate per square foot, your prep charge, your adjustments, your minimum. The AI never sets a price and never adjusts one — it only reads the photo. The number is yours.',
+      mediaKey: 'epoxy-rates',
+    },
+    {
+      head: 'The lead reaches you either way',
+      body: 'Name, phone, floor size, chosen finish and the photo they sent — whether or not they book. Even the ones who go quiet leave you something worth a call next week.',
+      mediaKey: 'epoxy-lead',
+    },
+  ],
+  features: [
+    {
+      head: 'You stop losing the nine-o-clock jobs',
+      body: 'People price floors after work, comparing three companies at once. A contact form asks them to wait until Tuesday, and by Tuesday they have booked somebody else.',
+    },
+    {
+      head: 'You stop driving out to measure jobs you were never going to win',
+      body: 'A range up front filters the ones who were never serious. The site visits you do make are for people who already know roughly what this costs.',
+    },
+    {
+      head: 'You answer "what will it look like" with a picture',
+      body: 'Describing a metallic finish loses to whoever showed one. They see their own floor, in their own light, before they call you.',
+    },
+    {
+      head: 'You change your prices in a minute, from your phone',
+      body: 'Material goes up, you change one number in the dashboard, and the next customer sees the new figure. No developer and no waiting.',
+    },
+    {
+      head: 'Nothing is taken out of what you invoice',
+      body: 'A setup fee and a monthly fee. No share of a job, no commission on a lead, no percentage of anything, for as long as you stay.',
+    },
+  ],
+  faq: [
+    {
+      q: 'What if the AI gets the size wrong?',
+      a: 'Your customer can correct it with one tap, and the control is right under the estimate. The estimate is a starting point that saves them measuring, not a measurement — and you confirm the real number on site before any work is agreed.',
+    },
+    {
+      q: 'Do I have to use the photo part?',
+      a: 'No. There is a plain "enter the size yourself" option on every quote, and the pricing works exactly the same without a photo. The photo just makes it faster and lets them see the finish.',
+    },
+    {
+      q: 'Where do the prices come from?',
+      a: 'A rate table you own and edit — rate per square foot for each finish, prep charge, condition adjustments, mobilisation and your job minimum. The whole calculation is published further down this page so you can check it against a job you have already done.',
+    },
+    {
+      q: 'Can my customer see a price I would not honour?',
+      a: 'Only if your rate table says so. It quotes a range around the midpoint and never goes below your minimum, and any job outside the size range you set is handed to you as a lead instead of being guessed at.',
+    },
+    {
+      q: 'What happens to the photos people send?',
+      a: 'They are stored so you have a record of what was quoted, and deleted automatically on a schedule. They are not used to train anything.',
+    },
+    {
+      q: 'How do I put it on my site?',
+      a: 'One line of code where you want it to appear. If somebody else built your site, send them the line — or send it to us and we will do it and show you the confirmation.',
+    },
+    {
+      q: 'What if I do not like it?',
+      a: 'We build the branded version and send you a link before you pay anything. After that, tell us inside 30 days and the setup fee comes back in full, and you keep any leads it captured.',
+    },
+  ],
+  reviews: [],
   extras: ['live-widget', 'pricing-model'],
   similar: ['painting', 'concrete-polishing', 'pressure-washing'],
   tryHref: '/demo',
@@ -134,6 +261,44 @@ const PAINTING: ToolPage = {
       mediaKey: null,
     },
   ],
+  howItWorks: [
+    {
+      head: 'They land on your site and see a price control',
+      body: 'In your colours, on the page you already have. Nothing to download and no account to make.',
+      mediaKey: null,
+    },
+    {
+      head: 'They describe the walls',
+      body: 'Wall area, how many coats, and what condition the surface is in. Three questions, all of which a homeowner can actually answer.',
+      mediaKey: null,
+    },
+    {
+      head: 'It prices the job from your rates',
+      body: 'Your rate per square foot, your coat pricing, your prep adjustments and your minimum. The figure is yours.',
+      mediaKey: null,
+    },
+  ],
+  features: [
+    {
+      head: 'A number before the site visit, not after it',
+      body: 'Driving out to measure a job you were never going to win is the most expensive hour in the week.',
+    },
+    {
+      head: 'You set every number',
+      body: 'Changed from your dashboard, live for the next customer.',
+    },
+  ],
+  faq: [
+    {
+      q: 'Where do the prices come from?',
+      a: 'A rate table you own and edit. The AI never sets a price.',
+    },
+    {
+      q: 'How do I put it on my site?',
+      a: 'One line of code. If somebody else built your site, send them the line or send it to us.',
+    },
+  ],
+  reviews: [],
   extras: [],
   similar: ['epoxy'],
   tryHref: '/demo',
