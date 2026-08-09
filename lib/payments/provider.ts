@@ -20,7 +20,18 @@ import type { Tier } from '@/types';
  * legitimate caller for one.
  */
 
-export type ProviderId = 'stripe' | 'manual' | 'stub';
+/**
+ * PHASE 17F: 'paypal' registered.
+ *
+ * Adding it here rather than anywhere else is the point of this file — the
+ * contract below is already normalised, so a second real processor is one new
+ * implementation of PaymentProvider and nothing downstream changes shape.
+ *
+ * SEE lib/payments/paypal.ts BEFORE SELECTING IT. It is registered, not
+ * implemented: every method refuses. That is deliberate, and the reasoning is
+ * in that file.
+ */
+export type ProviderId = 'stripe' | 'paypal' | 'manual' | 'stub';
 
 /** Normalised subscription status — deliberately identical to the DB enum. */
 export type NormalizedSubscriptionStatus =
@@ -154,3 +165,4 @@ export class PaymentProviderError extends Error {
     this.name = 'PaymentProviderError';
   }
 }
+

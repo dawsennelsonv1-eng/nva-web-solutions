@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
-import { getPaymentProvider } from '@/lib/payments';
+import { getProviderById } from '@/lib/payments';
 import { processBillingEvent } from '@/lib/billing/process';
 import { trackServer } from '@/lib/analytics.server';
 
@@ -46,7 +46,27 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   // 2 — verify + normalise in one step (the provider contract deliberately
   // offers no way to parse without verifying first)
-  const provider = getPaymentProvider();
+  /**
+   * PINNED TO STRIPE BY THE ROUTE PATH — PHASE 17F.
+   *
+   * This used getPaymentProvider(), the GLOBAL selection. That was correct
+   * while selection was a fixed env var and becomes a money bug the moment an
+   * operator can change it from /admin/payments: a Stripe event arriving at
+   * /api/webhooks/stripe would be handed to whatever provider happened to be
+   * selected, fail signature verification, and be rejected.
+   *
+   * Rejected webhooks are not harmless. Stripe retries and then gives up, so a
+   * subscription would silently never activate for a customer who has paid —
+   * and the switch that caused it would be days in the past by the time anyone
+   * connected the two.
+   *
+   * A WEBHOOK IS ANSWERED BY THE PROVIDER THAT SENT IT, identified by the URL
+   * it arrived on. Never by current configuration. Both processors can have
+   * in-flight events during a switch, and both must keep working.
+   *
+   * PayPal gets its own route when its adapter exists. Do not add a branch here.
+   */
+  const provider = getProviderById('stripe');
   const verification = await provider.handleWebhook(rawBody, signature);
 
   if (!verification.ok) {
@@ -133,3 +153,4 @@ export function GET(): NextResponse {
     { status: 405 }
   );
 }
+

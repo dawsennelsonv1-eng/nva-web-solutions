@@ -52,6 +52,14 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin';
  * existing, and this function is what the checkout is going to trust.
  */
 
+/**
+ * PHASE 17F: this is the SELECTION, and lib/payments owns the implementations.
+ *
+ * The type is deliberately a subset of lib/payments' ProviderId. 'manual' and
+ * 'stub' are real providers there but are not offered here — manual is chosen
+ * per-payment by an admin recording a cheque, and stub must never be selectable
+ * from a UI at all.
+ */
 export type PaymentProvider = 'paypal' | 'stripe';
 
 export const DEFAULT_PAYMENT_PROVIDER: PaymentProvider = 'paypal';
@@ -94,6 +102,10 @@ export function isProviderWired(provider: PaymentProvider): boolean {
   if (provider === 'stripe') {
     return (process.env.STRIPE_SECRET_KEY ?? '').trim().length > 0;
   }
+  // PayPal: registered in lib/payments but every method refuses. This stays
+  // false until lib/payments/paypal.ts can create an order, capture it and
+  // verify a webhook — and it must be flipped in the SAME commit as
+  // isProviderImplemented in lib/payments/index.ts, never separately.
   return false;
 }
 
