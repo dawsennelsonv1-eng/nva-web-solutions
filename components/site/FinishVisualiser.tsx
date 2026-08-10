@@ -77,6 +77,11 @@ export function FinishVisualiser({
 }: FinishVisualiserProps) {
   const [phase, setPhase] = useState<Phase>({ k: 'idle' });
 
+  // 1. ALL REFS MOVED TO THE TOP LEVEL
+  const renderedFor = useRef<string | null>(null);
+  const runRef = useRef<(() => void) | null>(null);
+  const started = useRef(false);
+
   /**
    * A render belongs to the finish that was selected when it ran. If the
    * visitor changes finish afterwards, the result is cleared.
@@ -88,23 +93,11 @@ export function FinishVisualiser({
    * It does NOT re-render automatically. That would spend money on a finish he
    * may have only glanced at.
    */
-  const renderedFor = useRef<string | null>(null);
   useEffect(() => {
     if (renderedFor.current !== null && renderedFor.current !== finishLabel) {
       setPhase({ k: 'idle' });
     }
   }, [finishLabel]);
-
-  if (!enabled) {
-    return (
-      <p className="tc-up-note">
-        The photo preview is switched off on this deployment. Everything else
-        here is live.
-      </p>
-    );
-  }
-
-  const runRef = useRef<(() => void) | null>(null);
 
   const run = () => {
     setPhase({ k: 'rendering' });
@@ -131,6 +124,8 @@ export function FinishVisualiser({
     })();
   };
 
+  runRef.current = run;
+
   /**
    * Fires ONCE per mount, and only from idle.
    *
@@ -144,14 +139,21 @@ export function FinishVisualiser({
    * already resets to idle in that case, and auto-rendering every finish a
    * visitor taps through would spend the balance on curiosity.
    */
-  const started = useRef(false);
   useEffect(() => {
     if (!autoStart || !enabled || started.current) return;
     started.current = true;
     runRef.current?.();
   }, [autoStart, enabled]);
 
-  runRef.current = run;
+  // 2. EARLY RETURN MOVED DOWN HERE, AFTER ALL HOOKS
+  if (!enabled) {
+    return (
+      <p className="tc-up-note">
+        The photo preview is switched off on this deployment. Everything else
+        here is live.
+      </p>
+    );
+  }
 
   return (
     <div className="tc-render">
@@ -200,4 +202,3 @@ export function FinishVisualiser({
     </div>
   );
 }
-
