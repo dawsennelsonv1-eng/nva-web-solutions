@@ -7,6 +7,8 @@ import { AreaRule } from '@/components/site/AreaRule';
 import { FinishVisualiser, type PreparedPhoto } from '@/components/site/FinishVisualiser';
 import { MediaGallery } from '@/components/tools/MediaGallery';
 import { analyzePhotoAction } from '@/app/actions/quote';
+import { persistDemoQuote, submitDemoLead, attachRenderToLead } from '@/app/actions/lead';
+import { ContactGate, type ContactGateFields } from '@/components/site/ContactGate';
 import { calculateQuote, type PricingRules } from '@/lib/quote/pricing';
 import { finishPhotoFor } from '@/lib/site/finish-photos';
 // media-types rather than media. This was already legal — a type-only import
@@ -220,6 +222,21 @@ export function ToolCard({
    */
   const [photos, setPhotos] = useState<PreparedPhoto[]>([]);
   const photo = photos[0] ?? null;
+  /**
+   * THE GATE.
+   *
+   * null            — the price is a locked plate and there is no render
+   * { open: true }  — the form is showing
+   * { leadId }      — details given; price visible, render running
+   *
+   * Once unlocked it never re-locks. Taking a price back off somebody who
+   * already gave you his phone number would be the single most hostile thing
+   * this card could do.
+   */
+  /** Storage path of the first uploaded photo, carried onto the quote row. */
+  const [photoPath, setPhotoPath] = useState<string | null>(null);
+  const [gateOpen, setGateOpen] = useState(false);
+  const [unlocked, setUnlocked] = useState<{ leadId: string } | null>(null);
   const [sqft, setSqft] = useState(pricer?.defaultSqft ?? 0);
   const [tierKey, setTierKey] = useState(pricer?.defaultTier ?? '');
   const [ruleOpen, setRuleOpen] = useState(false);
@@ -375,6 +392,8 @@ export function ToolCard({
       const areaUnsure = res.hints?.handToUser?.includes('estimated_area_sqft') ?? true;
       const confident = res.status === 'ok' && typeof estimated === 'number' && !areaUnsure;
 
+      setPhotoPath(res.photoPath ?? null);
+
       if (confident && typeof estimated === 'number') {
         setSqft(Math.min(pricer.sqftMax, Math.max(pricer.sqftMin, estimated)));
       }
@@ -388,10 +407,17 @@ export function ToolCard({
     }
   }, [pricer, photos, sessionId]);
 
-  const band = useMemo(() => {
+  /**
+   * The WHOLE computation is kept now, not just the two figures. The gate has
+   * to persist a quote row so the contractor's email carries a price, and
+   * persistDemoQuote takes the computation and recomputes it server-side from
+   * the stored rules — the client's cents are never written, which is the same
+   * rule the real product's persistQuoteAction enforces.
+   */
+  const computation = useMemo(() => {
     if (!pricer) return null;
     try {
-      const q = calculateQuote(
+      return calculateQuote(
         {
           sqft,
           surfaceTypeId: pricer.surfaceTypeId,
@@ -402,11 +428,88 @@ export function ToolCard({
         },
         pricer.rules
       );
-      return { lowCents: q.lowCents, highCents: q.highCents };
     } catch {
       return null;
     }
   }, [pricer, sqft, tierKey]);
+
+  const band = computation
+    ? { lowCents: computation.lowCents, highCents: computation.highCents }
+    : null;
+
+  /**
+   * The gate's server work, in the only order it can run in.
+   *
+   *   1. persist the quote  — so the lead can point at a real price
+   *   2. write the lead     — THE ONE STEP THAT MAY NOT FAIL SILENTLY
+   *   3. unlock             — price visible, render starts on mount
+   *
+   * Step 1 is allowed to fail. A missing quote id costs a line in the
+   * contractor's email; it must never cost the lead, which is the thing the
+   * visitor actually handed over his details for. Step 2 failing is the only
+   * outcome that returns a message and keeps the form on screen.
+   *
+   * VERIFY: persistDemoQuote recomputes against DEMO_RULES rather than against
+   * this card's own pricer.rules. On the homepage and the tool pages those are
+   * the same constants today, so the stored figures match what the visitor is
+   * shown. If a card is ever configured with different rules, the quote row
+   * would disagree with the screen — at which point persistDemoQuote needs a
+   * rules argument rather than this comment.
+   */
+  const submitGate = useCallback(
+    async (fields: ContactGateFields): Promise<string | null> => {
+      if (!pricer) return 'Something is misconfigured here. Try reloading.';
+
+      let quotePublicId: string | null = null;
+      if (computation) {
+        try {
+          quotePublicId = await persistDemoQuote(computation, {
+            surface: 'public_hub',
+            sessionId,
+            usedAiAnalysis: photos.length > 0,
+            photoPath,
+          });
+        } catch {
+          quotePublicId = null;
+        }
+      }
+
+      const res = await submitDemoLead({
+        surface: 'public_hub',
+        sessionId,
+        name: fields.name,
+        phone: fields.phone,
+        email: fields.email,
+        timeline: fields.timeline,
+        wasDegraded: false,
+        degradedReason: null,
+        quotePublicId,
+        renderPath: null,
+      });
+
+      if (!res.ok) return res.error;
+
+      setUnlocked({ leadId: res.payload.leadId });
+      setGateOpen(false);
+      return null;
+    },
+    [pricer, computation, sessionId, photos.length, photoPath]
+  );
+
+  /**
+   * The render lands after the lead is already written, so the picture is
+   * attached in a second call. Fire-and-forget: the visitor is looking at his
+   * floor by now and nothing on screen depends on this.
+   */
+  const handleRendered = useCallback(
+    (storagePath: string | null) => {
+      if (!storagePath || !unlocked) return;
+      void attachRenderToLead({ leadId: unlocked.leadId, renderPath: storagePath }).catch(
+        () => {}
+      );
+    },
+    [unlocked]
+  );
 
   const selectedFinish = pricer?.finishes.find((f) => f.tierKey === tierKey);
   const onDragState = useCallback((dragging: boolean) => setPressed(dragging), []);
@@ -572,16 +675,16 @@ export function ToolCard({
                   {photos.length} of {MAX_PHOTOS} photos
                 </p>
 
-                <ul className="tc-shots">
+                <ul className="tc-picks">
                   {photos.map((p, i) => (
-                    <li key={p.previewUrl} className="tc-shot">
+                    <li key={p.previewUrl} className="tc-pick">
                       {/* A plain img: these are blob: URLs from the browser's
                           own pipeline, and next/image cannot optimise those. */}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={p.previewUrl} alt={'Photo ' + (i + 1) + ' of your floor'} />
                       <button
                         type="button"
-                        className="tc-shot-x"
+                        className="tc-pick-x"
                         onClick={() => removePhoto(i)}
                         aria-label={'Remove photo ' + (i + 1)}
                       >
@@ -704,32 +807,89 @@ export function ToolCard({
                   })}
                 </div>
 
-                <div className="tc-price">
-                  <p className="tc-price-label">Your range</p>
-                  <div className="tc-band" aria-live="polite">
-                    {band ? (
-                      <>
-                        <span className="tc-fig">{money(band.lowCents)}</span>
-                        <span aria-hidden className="tc-dash" />
-                        <span className="tc-fig">{money(band.highCents)}</span>
-                      </>
-                    ) : (
-                      <span className="tc-fig">—</span>
-                    )}
-                  </div>
-                  <p className="tc-free">
-                    From this contractor&apos;s own published rates. Adjusting
-                    anything here costs nothing.
-                  </p>
-                </div>
+                {/* ------------------------------------------------------------
+                    THE PRICE, AND WHAT STANDS IN FRONT OF IT.
 
-                {photo && (
+                    Locked, the plate does NOT show a blurred number or a
+                    partial one. A blurred price is a dark pattern wearing a
+                    costume: it implies a figure exists and is being withheld
+                    to extract something, and a visitor who squints at it and
+                    guesses wrong has been misled by the software. It says
+                    plainly that the number is calculated and where it goes.
+
+                    Unlocked, it is the same band it always was, from the same
+                    published rates, with the same free-to-adjust line. Nothing
+                    about the arithmetic changed — only when it is shown.
+                   ------------------------------------------------------------ */}
+                {unlocked ? (
+                  <div className="tc-price">
+                    <p className="tc-price-label">Your range</p>
+                    <div className="tc-band" aria-live="polite">
+                      {band ? (
+                        <>
+                          <span className="tc-fig">{money(band.lowCents)}</span>
+                          <span aria-hidden className="tc-dash" />
+                          <span className="tc-fig">{money(band.highCents)}</span>
+                        </>
+                      ) : (
+                        <span className="tc-fig">—</span>
+                      )}
+                    </div>
+                    <p className="tc-free">
+                      From this contractor&apos;s own published rates. Adjusting
+                      anything here costs nothing.
+                    </p>
+                  </div>
+                ) : gateOpen ? (
+                  <ContactGate
+                    headline="Where should we send it?"
+                    blurb={
+                      renderEnabled
+                        ? 'Your price range, and a picture of your own floor in ' +
+                          (selectedFinish?.label ?? 'this finish').toLowerCase() +
+                          '. Both on this screen in about thirty seconds.'
+                        : 'Your price range, on this screen as soon as you send this.'
+                    }
+                    submitLabel="Show me my price"
+                    onSubmit={submitGate}
+                  />
+                ) : (
+                  <div className="tc-locked">
+                    <p className="tc-locked-h">Your range is ready</p>
+                    <p className="tc-locked-sub">
+                      Worked out from {sqft.toLocaleString('en-US')} sq ft in{' '}
+                      {(selectedFinish?.label ?? 'the finish').toLowerCase()}, at this
+                      installer&apos;s own published rates.
+                      {renderEnabled
+                        ? ' Say where to send it and you will also see it on your own floor.'
+                        : ''}
+                    </p>
+                    <button
+                      type="button"
+                      className="n15-btn n15-btn-primary tc-locked-go"
+                      onClick={() => setGateOpen(true)}
+                    >
+                      {renderEnabled ? 'See my price and my floor' : 'See my price'}
+                    </button>
+                  </div>
+                )}
+
+                {/* The render only exists on the far side of the gate. It is
+                    the expensive call in this whole funnel — ten to forty
+                    times a vision analysis — and an anonymous visitor must
+                    never be able to start one. autoStart because he has
+                    already asked for it by handing over his number; another
+                    button here would be a step between him and the thing he
+                    just paid for with his details. */}
+                {photo && unlocked && (
                   <FinishVisualiser
                     enabled={renderEnabled}
                     photo={photo}
                     finishLabel={selectedFinish?.label ?? 'the finish'}
                     surfaceLabel={pricer.surfaceLabel}
                     sessionId={sessionId}
+                    autoStart
+                    onRendered={handleRendered}
                   />
                 )}
               </div>

@@ -338,3 +338,120 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
   };
 }
 
+// ---------------------------------------------------------------------------
+// attaching the render, after the fact
+// ---------------------------------------------------------------------------
+
+/**
+ * THE ORDERING PROBLEM THIS SOLVES.
+ *
+ * The contact gate writes the lead and THEN starts the render, because the
+ * render is what the details were exchanged for and because an anonymous
+ * visitor must never be able to trigger a paid image generation. That order is
+ * correct and is not negotiable.
+ *
+ * It also means the render does not exist when submitDemoLead runs. So the
+ * lead lands with render_path null and the notification goes out without the
+ * picture — which is precisely the thing the contractor most wants to see,
+ * missing from the one email that is supposed to prove the product works.
+ *
+ * This closes the gap: the render finishes, the browser calls this with the
+ * storage path, the row is updated and ONE follow-up email goes out carrying
+ * the picture.
+ *
+ * ============================================================================
+ * WHY NOT JUST CALL submitDemoLead AGAIN
+ * ============================================================================
+ *
+ * It would appear to work. The 15-minute duplicate guard would find the
+ * existing row, skip the insert, and re-send the notification with the render
+ * URL attached. But render_path on the row itself would stay null forever —
+ * that column is only ever written on INSERT — so the contractor's dashboard
+ * would show a lead with no picture while his inbox had one. Two surfaces
+ * disagreeing about the same lead is worse than neither having it.
+ *
+ * ============================================================================
+ * WHAT AN ATTACKER CAN DO WITH THIS, STATED PLAINLY
+ * ============================================================================
+ *
+ * A leadId and a path are both guessable in principle. The worst outcome is a
+ * wrong image path on somebody else's lead, and one extra email to the
+ * operator. That is annoying, not dangerous: the path is not a URL, reading it
+ * still requires a signed link minted server-side from a private bucket, and
+ * nothing here returns data about the lead to the caller.
+ *
+ * It is still rate limited, and it refuses to overwrite a render_path that is
+ * already set — so a lead can gain a picture once and never have one swapped.
+ */
+export async function attachRenderToLead(raw: unknown): Promise<{ ok: boolean }> {
+  const schema = z.object({
+    leadId: z.string().uuid(),
+    renderPath: z.string().trim().min(1).max(300),
+  });
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) return { ok: false };
+
+  const ip = clientIpFromHeaders(headers());
+  const rate = await checkScopedRateLimit(ip, 'lead_attach_render', 600, 10);
+  if (!rate.ok) return { ok: false };
+
+  try {
+    const db = getSupabaseAdminClient();
+
+    const { data: lead } = await db
+      .from('leads')
+      .select('id, name, phone, email, timeline, source, created_at, quote_id, render_path')
+      .eq('id', parsed.data.leadId)
+      .maybeSingle();
+
+    // Already has one: succeed without doing anything. Idempotent, so a retry
+    // from a flaky connection cannot produce a second email.
+    if (!lead || lead.render_path) return { ok: Boolean(lead) };
+
+    const { error } = await db
+      .from('leads')
+      .update({ render_path: parsed.data.renderPath })
+      .eq('id', parsed.data.leadId);
+    if (error) return { ok: false };
+
+    // Same seven-day window submitDemoLead uses, for the same reason: a link
+    // that dies in five minutes is dead before the contractor opens his inbox.
+    const SEVEN_DAYS = 604_800;
+    const renderUrl = await getSignedPhotoUrl(parsed.data.renderPath, SEVEN_DAYS);
+
+    let priceRange: string | null = null;
+    if (lead.quote_id) {
+      const { data: q } = await db
+        .from('quotes')
+        .select('low_cents, high_cents')
+        .eq('id', lead.quote_id)
+        .maybeSingle();
+      if (q) {
+        priceRange =
+          '$' + Math.round(q.low_cents / 100).toLocaleString('en-US') +
+          ' - $' + Math.round(q.high_cents / 100).toLocaleString('en-US');
+      }
+    }
+
+    const fields = {
+      name: lead.name as string,
+      phone: lead.phone as string,
+      email: lead.email as string,
+      timeline: lead.timeline as string,
+      surface: lead.source as Surface,
+      createdAt: lead.created_at as string,
+      priceRange,
+      renderUrl,
+      renderDisclosure: renderUrl ? RENDER_DISCLOSURE : null,
+    };
+
+    // Both sends, same posture as the first notification: fired, never awaited
+    // before responding, failure logged and never propagated.
+    void notifyAdminOfDemoLead(fields).catch(() => {});
+    void sendDemoContractorConfirmation(fields).catch(() => {});
+
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+}

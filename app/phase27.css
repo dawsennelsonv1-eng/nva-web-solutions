@@ -6,8 +6,8 @@
  * ============================================================================
  *
  * Adds only. Every selector below is a name no earlier layer defines:
- * .tc-review, .tc-review-h, .tc-review-note, .tc-review-actions, .tc-shots,
- * .tc-shot, .tc-shot-x, .tc-measure-src. phase18.css keeps sole ownership of
+ * .tc-review, .tc-review-h, .tc-review-note, .tc-review-actions, .tc-picks,
+ * .tc-pick, .tc-pick-x, .tc-measure-src. phase18.css keeps sole ownership of
  * .tc-up, .tc-panel, .tc-measure and the rest of the card.
  *
  * Written against the --n15-* token set so the grid reads as part of the card
@@ -52,7 +52,7 @@
   margin: 0 0 0.75rem;
 }
 
-.tc-shots {
+.tc-picks {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -62,12 +62,12 @@
 }
 
 @media (min-width: 30rem) {
-  .tc-shots {
+  .tc-picks {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
-.tc-shot {
+.tc-pick {
   position: relative;
   aspect-ratio: 1 / 1;
   overflow: hidden;
@@ -75,14 +75,14 @@
   background: rgba(0, 0, 0, 0.06);
 }
 
-.tc-shot img {
+.tc-pick img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.tc-shot-x {
+.tc-pick-x {
   position: absolute;
   inset-inline: 0;
   bottom: 0;

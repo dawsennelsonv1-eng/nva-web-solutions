@@ -39,6 +39,25 @@ export interface FinishVisualiserProps {
   finishLabel: string;
   surfaceLabel: string;
   sessionId: string;
+  /**
+   * PHASE 3 OF THE CUSTOMER FLOW: start rendering the moment this mounts,
+   * without waiting for a second tap.
+   *
+   * The button exists for the surfaces where the render is an OPTIONAL extra
+   * beside a price that is already visible. Behind the contact gate it is not
+   * optional — the visitor has just handed over his phone number for exactly
+   * this, and putting one more button between him and the thing he paid for
+   * with his details is the worst possible place to add a step.
+   *
+   * DEFAULT FALSE, so every existing mount behaves precisely as it did.
+   */
+  autoStart?: boolean;
+  /**
+   * Reported when a render completes, so the caller can attach the stored
+   * copy to the lead it already wrote. Optional — a caller that does not care
+   * omits it and nothing changes.
+   */
+  onRendered?: (storagePath: string | null) => void;
 }
 
 type Phase =
@@ -53,6 +72,8 @@ export function FinishVisualiser({
   finishLabel,
   surfaceLabel,
   sessionId,
+  autoStart = false,
+  onRendered,
 }: FinishVisualiserProps) {
   const [phase, setPhase] = useState<Phase>({ k: 'idle' });
 
@@ -83,6 +104,8 @@ export function FinishVisualiser({
     );
   }
 
+  const runRef = useRef<(() => void) | null>(null);
+
   const run = () => {
     setPhase({ k: 'rendering' });
     renderedFor.current = finishLabel;
@@ -101,11 +124,34 @@ export function FinishVisualiser({
           return;
         }
         setPhase({ k: 'done', afterUrl: result.dataUrl, disclosure: result.disclosure });
+        onRendered?.(result.storagePath);
       } catch {
         setPhase({ k: 'failed', message: 'That did not come back. Try it again.' });
       }
     })();
   };
+
+  /**
+   * Fires ONCE per mount, and only from idle.
+   *
+   * `started` is a ref rather than a state flag because a render costs real
+   * money and a re-render must never be able to start a second one. React 18
+   * mounts effects twice in development StrictMode; without this guard that is
+   * two paid image generations for every developer page load, and the bill
+   * would arrive before anyone noticed the cause.
+   *
+   * It deliberately does NOT restart when the finish changes. The effect above
+   * already resets to idle in that case, and auto-rendering every finish a
+   * visitor taps through would spend the balance on curiosity.
+   */
+  const started = useRef(false);
+  useEffect(() => {
+    if (!autoStart || !enabled || started.current) return;
+    started.current = true;
+    runRef.current?.();
+  }, [autoStart, enabled]);
+
+  runRef.current = run;
 
   return (
     <div className="tc-render">
@@ -154,3 +200,4 @@ export function FinishVisualiser({
     </div>
   );
 }
+

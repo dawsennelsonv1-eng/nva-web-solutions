@@ -1,0 +1,214 @@
+/**
+ * app/phase28.css — THE CONTACT GATE AND THE LOCKED PRICE PLATE.
+ *
+ * ============================================================================
+ * THE LAYER RULE, AND THE MISTAKE THAT MADE IT MATTER
+ * ============================================================================
+ *
+ * Adds only. Every selector here is prefixed `.cg-` or `.tc-locked` — names no
+ * earlier layer defines.
+ *
+ * phase27.css originally used `.tc-shot` for its thumbnail grid, which
+ * phase18.css had already given to FinishVisualiser's before/after figures.
+ * Loading later, it won the cascade and centre-cropped the one image on the
+ * page whose job is to show a visitor his own garage unaltered. It was found
+ * by reading FinishVisualiser, not by checking, because phase18 was not in
+ * hand when phase27 was written.
+ *
+ * So: when an earlier layer cannot be read, use a prefix nobody would reach
+ * for by accident. `.cg-` is that prefix here.
+ *
+ * ============================================================================
+ * THE LOCKED PLATE HAS NO BLUR AND NO FAKE NUMBER
+ * ============================================================================
+ *
+ * The obvious treatment is a blurred price with a lock over it. It converts,
+ * and it is a dark pattern wearing a costume — it implies a figure exists and
+ * is being withheld to extract something, and a visitor who squints and
+ * guesses has been actively misled by software whose entire argument is that
+ * it does not do that.
+ *
+ * So the plate is a plain statement: the number is worked out, here is what it
+ * was worked out from, say where to send it. No blur, no lock glyph, no
+ * skeleton bars pretending to be digits.
+ *
+ * ============================================================================
+ * THE FORM IS ONE COLUMN ON A PHONE AND STAYS THAT WAY UNTIL IT CANNOT
+ * ============================================================================
+ *
+ * Name and phone side by side saves one scroll and costs a mis-tap on a 360px
+ * screen, where the two fields end up about 150px each. Below 30rem everything
+ * is full width. Above it, name and phone pair up and email spans — which is
+ * the shape that reads as a form rather than as a stack of boxes.
+ *
+ * Inputs are 3rem tall minimum. That is the tap target the rest of this
+ * codebase uses and it is the floor, not the aspiration.
+ */
+
+/* --------------------------------------------------------------------------
+   the locked plate
+   -------------------------------------------------------------------------- */
+
+.tc-locked {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  /* Very low alpha over whatever the card's own surface is, so this reads as a
+     recess in the card rather than as a separate panel dropped on top of it.
+     No token is hardcoded; it tints whatever it sits on, in either theme. */
+  background: rgba(127, 127, 127, 0.08);
+}
+
+.tc-locked-h {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.0625rem;
+}
+
+.tc-locked-sub {
+  margin: 0.375rem 0 0;
+  font-size: 0.9375rem;
+  opacity: 0.8;
+}
+
+.tc-locked-go {
+  margin-top: 1rem;
+  width: 100%;
+  text-align: center;
+}
+
+@media (min-width: 30rem) {
+  .tc-locked-go {
+    width: auto;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   the gate
+   -------------------------------------------------------------------------- */
+
+.cg {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  background: rgba(127, 127, 127, 0.08);
+}
+
+.cg-h {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.0625rem;
+}
+
+.cg-sub {
+  margin: 0.375rem 0 0;
+  font-size: 0.9375rem;
+  opacity: 0.8;
+}
+
+.cg-fields {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 30rem) {
+  .cg-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cg-field-wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.cg-field {
+  display: block;
+  min-width: 0;
+}
+
+.cg-label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.cg-input {
+  margin-top: 0.25rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 0.75rem;
+  /* 16px minimum. Anything smaller and iOS Safari zooms the whole page on
+     focus, which on a card mid-funnel throws the layout sideways and looks
+     like a bug. */
+  font-size: 1rem;
+  font: inherit;
+  color: inherit;
+  border: 1px solid currentColor;
+  border-radius: 0.375rem;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+html[data-n15-theme='light'] .cg-input {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.cg-when {
+  margin: 1rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.cg-when-row {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cg-when-opt {
+  flex: 1 1 auto;
+  min-height: 2.75rem;
+  padding: 0 0.875rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: inherit;
+  cursor: pointer;
+  border: 1px solid currentColor;
+  border-radius: 0.375rem;
+  background: transparent;
+  opacity: 0.65;
+}
+
+/* Selected state on aria-pressed rather than on a class, so the accessible
+   state and the visible state cannot drift apart. One source of truth. */
+.cg-when-opt[aria-pressed='true'] {
+  opacity: 1;
+  font-weight: 600;
+  border-width: 2px;
+}
+
+.cg-err {
+  margin: 0.875rem 0 0;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid currentColor;
+  border-radius: 0.375rem;
+}
+
+.cg-go {
+  margin-top: 1rem;
+  width: 100%;
+  text-align: center;
+}
+
+.cg-fine {
+  margin: 0.75rem 0 0;
+  font-size: 0.8125rem;
+  opacity: 0.65;
+}
