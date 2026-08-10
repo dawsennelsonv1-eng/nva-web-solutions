@@ -40,8 +40,16 @@ import {
 
 const MODE_DEFAULT: NonNullable<EntitlementContext['mode']> = 'live';
 
-/** Subscription states that entitle the paid feature set. */
-const ENTITLING_STATUSES = new Set([
+/**
+ * Subscription states that entitle the paid feature set.
+ *
+ * EXPORTED, as of the /app gate, so lib/entitlements/company.ts answers the
+ * company-scoped question from this same list. Two copies of it would drift
+ * the first time a status is added, and the drift would be invisible: the
+ * widget would keep working for an account the dashboard had locked, or the
+ * reverse. One definition, two consumers.
+ */
+export const ENTITLING_STATUSES = new Set([
   'trialing',
   'active',
   'past_due', // dunning days 1-7: we do NOT break his site (Product Rule 3)
@@ -229,3 +237,4 @@ export async function getUsageSnapshot(prototypeId: string) {
     periodEnd: r.periodEnd,
   };
 }
+

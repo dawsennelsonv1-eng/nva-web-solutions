@@ -28,6 +28,12 @@ import { provisionCompanyAction } from '@/app/actions/signup';
  * that says "signup failed" to a person who now cannot sign up again with that
  * email — the account is taken and they have no idea why.
  *
+ * THE BUSINESS NAME IS OPTIONAL and the field says so rather than being
+ * silently permissive. An unlabelled optional field reads as required to
+ * anyone who has filled in a form before, so leaving off `required` without
+ * saying anything would have changed the validation and not the experience.
+ * provisionCompanyAction defaults a blank one to the email prefix.
+ *
  * THIS ASSUMES EMAIL CONFIRMATION IS OFF. With it on, signUp() returns no
  * session, step 2 fails with not_signed_in, and every account lands
  * unprovisioned. If confirmation is ever switched back on in Supabase, the
@@ -79,17 +85,20 @@ export function MemberSignupForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <label className="block">
-        <span className="font-data text-xs uppercase tracking-wide text-rule">Business name</span>
+        <span className="font-data text-xs uppercase tracking-wide text-rule">
+          Business name <span className="normal-case tracking-normal">(optional)</span>
+        </span>
         <input
           type="text"
           autoComplete="organization"
-          required
-          minLength={2}
           maxLength={120}
           value={businessName}
           onChange={(e) => setBusinessName(e.target.value)}
           className="mt-1 min-h-[3rem] w-full rounded-milled border border-rule bg-sheet px-3 text-base"
         />
+        <span className="mt-1 block text-xs text-rule">
+          Leave it blank and we will use your email name. You can change it later.
+        </span>
       </label>
       <label className="block">
         <span className="font-data text-xs uppercase tracking-wide text-rule">Email</span>
@@ -136,3 +145,4 @@ export function MemberSignupForm() {
     </form>
   );
 }
+
