@@ -338,6 +338,49 @@ const BASE_PROMPT = `You are classifying a photo of a floor for a concrete coati
 }
 Rules: never invent an area without visible scale cues (vehicle, door, standard bay). If the image is not a floor, set every field to "unknown"/null with confidence 0. Uncertainty belongs in low confidence values, not in guesses.`;
 
+/**
+ * Appended when several photographs of the SAME space arrive together.
+ *
+ * ============================================================================
+ * WHY THIS IS A SEPARATE PARAGRAPH AND NOT A REWRITE
+ * ============================================================================
+ *
+ * BASE_PROMPT is the exact text Phase 3 shipped and every confidence floor in
+ * this module was calibrated against it. Rewriting it to be multi-image-aware
+ * would silently recalibrate those floors — the same 0.8 bar against a
+ * differently-worded question is not the same bar.
+ *
+ * So the base is untouched and this is added after it. A single photograph
+ * still gets the original prompt, byte for byte.
+ *
+ * ============================================================================
+ * WHAT IT ACTUALLY ASKS FOR, AND WHY EACH LINE IS THERE
+ * ============================================================================
+ *
+ * ONE ANSWER, NOT N ANSWERS. The frames are one space. Without saying so the
+ * model will sometimes describe the last image it looked at and sometimes
+ * average, and neither is a measurement.
+ *
+ * NAME THE SCALE REFERENCE. A garage door is 7 or 8 feet tall and 8, 9 or 16
+ * feet wide; a sedan is about 15 feet long; a standard bay is 10 to 12 feet
+ * wide. Being told to work from a named object rather than an impression is
+ * most of the accuracy gain here, and it is the difference between a model
+ * that estimates and one that measures.
+ *
+ * CONFIDENCE SHOULD RISE WITH CORROBORATION, AND ONLY WITH IT. Five frames
+ * that agree are worth more than one frame. Five frames that disagree are
+ * worth LESS than one, because the disagreement is information. Saying this
+ * explicitly is what stops "more photos" from becoming "more confident"
+ * mechanically — which would defeat the entire point of the 0.8 floor.
+ */
+const MULTI_PHOTO_PROMPT = `
+
+These are several photographs of THE SAME floor, taken from different positions. Treat them as one space and return ONE analysis describing that whole space, not one per image.
+
+For estimated_area_sqft, work from a named scale reference you can actually see rather than an overall impression. A single garage door is about 8 ft wide and 7 ft tall; a double door is about 16 ft. A parked sedan is about 15 ft long, a pickup about 19 ft. A standard parking bay is 10-12 ft wide. Use the clearest reference across all the images, extrapolate the floor's full footprint including any area hidden behind vehicles or shelving, and report the total.
+
+Raise your confidence in estimated_area_sqft only when the images CORROBORATE each other — when two or more views independently support the same footprint. If the images disagree about the size or shape of the space, lower it below what a single image would have earned: disagreement is evidence that you cannot see the whole floor.`;
+
 const epoxyVisionResponseSchema = z.object({
   surface_type_guess: z.enum(['garage', 'patio', 'commercial', 'unknown']),
   condition_grade: z.enum(['good', 'fair', 'poor', 'unknown']),
@@ -415,10 +458,24 @@ const INFERRED_MODIFIERS = {
 
 const vision: VisionModule<EpoxyInputs, EpoxyPricingRules> = {
   buildPrompt(ctx: VisionContext): string {
+    /**
+     * photoCount rides in on `selections` rather than as a new field on
+     * VisionContext. The context type is shared by every vertical and belongs
+     * to the registry; widening it for one trade's prompt would make painting
+     * and roofing carry a field they have no use for. selections is already
+     * the declared channel for "what the caller knows", and a module reading a
+     * key it understands out of it is exactly its purpose.
+     */
+    const rawCount = ctx.selections?.photoCount;
+    const photoCount = typeof rawCount === 'number' ? rawCount : 1;
+
+    let prompt = BASE_PROMPT;
+    if (photoCount > 1) prompt += MULTI_PHOTO_PROMPT;
+
     const surface = surfaceTypes.find((s) => s.id === ctx.surfaceTypeId);
-    if (!surface) return BASE_PROMPT;
+    if (!surface) return prompt;
     return (
-      BASE_PROMPT +
+      prompt +
       `\n\nContext: the homeowner has told us this is a ${surface.label.toLowerCase()} floor. Use that to interpret scale cues, but if the photo clearly shows something else, report what you see and lower your confidence.`
     );
   },
@@ -539,3 +596,4 @@ export const epoxyVertical: VerticalModule<EpoxyInputs, EpoxyPricingRules> = {
   finishCatalogue: legacyFinishCatalogue(finishes, colourCollections),
   photoAnalysisPrompt: BASE_PROMPT,
 };
+

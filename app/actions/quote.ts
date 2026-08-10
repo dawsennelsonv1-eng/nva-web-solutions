@@ -51,8 +51,28 @@ export interface AnalyzeRequest {
   prototypeId: string | null;
   sessionId: string;
   vertical: string;
-  imageBase64: string;
-  mediaType: 'image/jpeg' | 'image/webp' | 'image/png';
+  /**
+   * ONE photograph. Retained so every Phase 3-26 caller compiles and behaves
+   * identically; `images` supersedes it.
+   */
+  imageBase64?: string;
+  mediaType?: 'image/jpeg' | 'image/webp' | 'image/png';
+  /**
+   * SEVERAL views of the same space, analysed together in a single call.
+   *
+   * The guard sequence below runs UNCHANGED and in the same order. What
+   * changes is that steps 3 and 7a now loop: every image is validated before
+   * any of them leaves this process, and every image is uploaded after the
+   * analysis succeeds. Steps 1, 2, 4, 5 and 6 are per-REQUEST and stay that
+   * way — this is one analysis of one space, so it reserves one session slot,
+   * consumes one unit of the contractor's cap and makes one provider call, no
+   * matter how many frames it carries.
+   *
+   * That is the honest accounting. Five photographs in one call cost more
+   * input tokens than one, but nothing like five analyses, and metering it as
+   * five would charge a contractor's cap four times over for a single answer.
+   */
+  images?: { base64: string; mediaType: 'image/jpeg' | 'image/webp' | 'image/png' }[];
   /**
    * PHASE 11: what the visitor has already answered, so the module can sharpen
    * its prompt. Optional — a caller that omits it gets the module's base
@@ -80,8 +100,17 @@ export interface AnalyzeResponse {
    * Phase 6: the Storage path the photo was uploaded to, if the upload
    * succeeded. Threaded through the widget machine and attached to the
    * quote row at persist time — see lib/storage/photos.ts.
+   *
+   * With several photographs this is the FIRST successfully uploaded one, so
+   * that every existing consumer — the quote row, the leads inbox drawer —
+   * keeps working against a single path exactly as it did. The full set is
+   * `photoPaths`.
    */
   photoPath?: string | null;
+  /** Every photo that uploaded, in the order they were sent. */
+  photoPaths?: string[];
+  /** How many frames the analysis actually looked at. */
+  photoCount?: number;
 }
 
 /** Maps an entitlement decision onto the persisted degraded_reason enum. */
@@ -162,11 +191,32 @@ export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeRe
     };
   }
 
-  // 3 — payload
-  const payload = validateImagePayload(req.imageBase64, req.mediaType);
-  if (!payload.ok) {
-    trackServer('photo_rejected', { reason: payload.code === 'image_too_large' ? 'dimensions' : 'unsupported_type' }, evtCtx);
-    return { status: 'manual_entry', message: payload.message };
+  // 3 — payload. Normalised to a list first so there is exactly one code path
+  //     below; a single-photo caller is a list of one.
+  const images =
+    req.images && req.images.length > 0
+      ? req.images
+      : req.imageBase64 && req.mediaType
+        ? [{ base64: req.imageBase64, mediaType: req.mediaType }]
+        : [];
+
+  if (images.length === 0) {
+    return {
+      status: 'manual_entry',
+      message: 'No photo came through. Add one, or enter the size yourself.',
+    };
+  }
+
+  // EVERY image is validated before ANY of them leaves this process. Checking
+  // them as they are sent would mean an oversized fourth frame is discovered
+  // after three have already gone to the provider — billed, and for an answer
+  // that is then discarded.
+  for (const img of images) {
+    const payload = validateImagePayload(img.base64, img.mediaType);
+    if (!payload.ok) {
+      trackServer('photo_rejected', { reason: payload.code === 'image_too_large' ? 'dimensions' : 'unsupported_type' }, evtCtx);
+      return { status: 'manual_entry', message: payload.message };
+    }
   }
 
   // 4 — per-connection
@@ -189,13 +239,15 @@ export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeRe
   trackServer('analysis_started', {}, evtCtx);
   const started = Date.now();
   const result = await analyzeFloorPhoto({
-    imageBase64: req.imageBase64,
-    mediaType: req.mediaType,
+    images,
     vertical: req.vertical,
     prototypeId: req.prototypeId,
     context: {
       surfaceTypeId: req.surfaceTypeId,
-      selections: req.selections ?? {},
+      // photoCount rides in on selections so the module can switch to its
+      // multi-image prompt. A vertical that does not read the key is
+      // unaffected, which is why this is not a new field on VisionContext.
+      selections: { ...(req.selections ?? {}), photoCount: images.length },
     },
   });
 
@@ -241,12 +293,22 @@ export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeRe
   // hand. Never blocks or fails the response — uploadFloorPhoto degrades to
   // null on any storage problem, and a quote with no photo is a state the
   // leads inbox already renders cleanly.
-  const photoPath = await uploadFloorPhoto({
-    prototypeId: req.prototypeId,
-    sessionId: req.sessionId,
-    base64: req.imageBase64,
-    mediaType: req.mediaType,
-  });
+  //
+  // Sequential rather than Promise.all: these run after the visitor already
+  // has his answer, nothing downstream waits on them, and five concurrent
+  // uploads on a phone's connection is how you turn a working upload into a
+  // timeout. Each one degrades to null independently.
+  const photoPaths: string[] = [];
+  for (const img of images) {
+    const path = await uploadFloorPhoto({
+      prototypeId: req.prototypeId,
+      sessionId: req.sessionId,
+      base64: img.base64,
+      mediaType: img.mediaType,
+    });
+    if (path) photoPaths.push(path);
+  }
+  const photoPath = photoPaths[0] ?? null;
 
   // 6a — PHASE 11. Read the contractor's rules so inferred modifier ids can be
   // filtered against what he actually charges for. A read, after every guard,
@@ -261,6 +323,8 @@ export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeRe
     hints: { ...hints, handToUser: result.handToUser },
     remainingSession: Math.max(0, 3 - sessionReserve.used),
     photoPath,
+    photoPaths,
+    photoCount: images.length,
   };
 }
 
@@ -446,3 +510,4 @@ export async function getWidgetEntitlementAction(args: {
     remainingSession: decision.remainingSession,
   };
 }
+

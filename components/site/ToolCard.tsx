@@ -87,6 +87,30 @@ import type { PipelineStage } from '@/lib/image/pipeline';
 
 const MAX_TILT_DEG = 6;
 
+/**
+ * ============================================================================
+ * HOW MANY PHOTOGRAPHS, AND WHY THESE TWO NUMBERS
+ * ============================================================================
+ *
+ * MINIMUM THREE. One frame of a garage carries almost no scale information —
+ * the model infers area from whatever happens to be in shot and is wrong often
+ * enough to be dangerous, because the failure mode is a CONFIDENT number that
+ * is badly off. That becomes a quote a contractor cannot honour, and a wrong
+ * price in front of a homeowner is the most expensive failure this product
+ * has. Three frames from different corners give parallax, more than one
+ * known-size object, and usually the full run of at least one wall.
+ *
+ * MAXIMUM FIVE. Past five the marginal frame adds nothing a corner shot has
+ * not already established, while every frame is input tokens on a call the
+ * visitor is waiting through. Five is also about the limit of what somebody
+ * will actually do standing in their garage before they give up.
+ *
+ * The floor is enforced, the ceiling is enforced, and the visitor is told
+ * both before he starts rather than discovering them by being refused.
+ */
+const MIN_PHOTOS = 3;
+const MAX_PHOTOS = 5;
+
 export interface ToolCardFinish {
   id: string;
   label: string;
@@ -139,9 +163,20 @@ function defaultIntakeHref(toolId: string): string {
   return '/start?tool=' + encodeURIComponent(toolId);
 }
 
+/**
+ * `collecting` is the state this phase adds, and it is the important one.
+ *
+ * Before, a chosen file went straight to the model. Now the visitor gathers
+ * frames, SEES what he has gathered, and confirms. That review step is not
+ * decoration: a blurred shot or a photograph of the wrong room is obvious to a
+ * person in a thumbnail grid and invisible to a model, which will happily
+ * measure whatever it was handed and report a confident number for it. The
+ * cheapest place to catch a bad frame is before it is paid for.
+ */
 type Flow =
   | { k: 'invite' }
   | { k: 'preparing'; stage: PipelineStage }
+  | { k: 'collecting' }
   | { k: 'analysing' }
   | { k: 'ready'; confident: boolean }
   | { k: 'failed'; message: string };
@@ -178,7 +213,13 @@ export function ToolCard({
   const [pressed, setPressed] = useState(false);
 
   const [flow, setFlow] = useState<Flow>({ k: 'invite' });
-  const [photo, setPhoto] = useState<PreparedPhoto | null>(null);
+  /**
+   * Every prepared frame, in the order they were chosen. The FIRST one is what
+   * the finish visualiser renders, because that is the shot the visitor took
+   * first and it is almost always the establishing view of the whole floor.
+   */
+  const [photos, setPhotos] = useState<PreparedPhoto[]>([]);
+  const photo = photos[0] ?? null;
   const [sqft, setSqft] = useState(pricer?.defaultSqft ?? 0);
   const [tierKey, setTierKey] = useState(pricer?.defaultTier ?? '');
   const [ruleOpen, setRuleOpen] = useState(false);
@@ -239,62 +280,113 @@ export function ToolCard({
     };
   }, []);
 
-  // ---- the one upload that drives everything --------------------------------
-  const handleFile = useCallback(
-    async (file: File | undefined) => {
-      if (!file || !pricer) return;
+  // ---- gathering frames ----------------------------------------------------
+
+  /**
+   * Prepares chosen files and adds them to the set. Does NOT analyse — that is
+   * the visitor's decision, taken on the review grid once he can see what he
+   * has.
+   *
+   * Files are processed one at a time rather than in parallel. processImage
+   * decodes and re-encodes on the main thread; five at once on a mid-range
+   * Android locks the tab for long enough to look crashed, and the stage
+   * readout would be meaningless because five of them would be racing to write
+   * it.
+   */
+  const handleFiles = useCallback(
+    async (chosen: FileList | null) => {
+      if (!chosen || chosen.length === 0 || !pricer) return;
+
+      const room = MAX_PHOTOS - photos.length;
+      if (room <= 0) return;
+      const files = Array.from(chosen).slice(0, room);
 
       setFlow({ k: 'preparing', stage: 'reading' });
+      const prepared: PreparedPhoto[] = [];
+
       try {
         const { processImage } = await import('@/lib/image/pipeline');
-        const prepared = await processImage(file, {
-          onStage: (stage) => setFlow({ k: 'preparing', stage }),
-        });
-        if (!prepared.ok) {
-          setFlow({ k: 'failed', message: prepared.message });
-          return;
+        for (const file of files) {
+          const out = await processImage(file, {
+            onStage: (stage) => setFlow({ k: 'preparing', stage }),
+          });
+          if (!out.ok) {
+            // One bad file does not discard the good ones already prepared.
+            // Losing four accepted photos because the fifth was a screenshot
+            // is the kind of thing that makes somebody close the tab.
+            setPhotos((p) => [...p, ...prepared].slice(0, MAX_PHOTOS));
+            setFlow({ k: 'failed', message: out.message });
+            return;
+          }
+          urls.current.push(out.previewUrl);
+          prepared.push({
+            base64: out.base64,
+            mediaType: out.mediaType,
+            previewUrl: out.previewUrl,
+          });
         }
-        urls.current.push(prepared.previewUrl);
-        setPhoto({
-          base64: prepared.base64,
-          mediaType: prepared.mediaType,
-          previewUrl: prepared.previewUrl,
-        });
 
-        setFlow({ k: 'analysing' });
-        const res = await analyzePhotoAction({
-          mode: 'live',
-          surface: 'public_hub',
-          prototypeId: null,
-          sessionId,
-          vertical: pricer.verticalId,
-          imageBase64: prepared.base64,
-          mediaType: prepared.mediaType,
-          surfaceTypeId: pricer.surfaceTypeId,
-        });
-
-        // An unavailable analysis is NOT a failure of the card. The visitor
-        // still has a working pricer and a photo; he is simply asked for the
-        // size instead of being told it. Lead capture and pricing never depend
-        // on the model answering.
-        const estimated = res.hints?.estimatedSqft;
-        const areaUnsure = res.hints?.handToUser?.includes('estimated_area_sqft') ?? true;
-        const confident = res.status === 'ok' && typeof estimated === 'number' && !areaUnsure;
-
-        if (confident && typeof estimated === 'number') {
-          setSqft(Math.min(pricer.sqftMax, Math.max(pricer.sqftMin, estimated)));
-        }
-        setRuleOpen(!confident);
-        setFlow({ k: 'ready', confident });
+        setPhotos((p) => [...p, ...prepared].slice(0, MAX_PHOTOS));
+        setFlow({ k: 'collecting' });
       } catch {
+        setPhotos((p) => [...p, ...prepared].slice(0, MAX_PHOTOS));
         setFlow({
           k: 'failed',
-          message: 'That photo could not be read. Try another one, or enter the size yourself.',
+          message: 'Those photos could not be read. Try again, or enter the size yourself.',
         });
       }
     },
-    [pricer, sessionId]
+    [pricer, photos.length]
   );
+
+  const removePhoto = useCallback((i: number) => {
+    setPhotos((p) => p.filter((_, n) => n !== i));
+  }, []);
+
+  // ---- the one call, made when he confirms ---------------------------------
+
+  /**
+   * ONE call carrying every frame. Not one call per frame: five analyses would
+   * cost five times as much, meter five times against the contractor's cap,
+   * and return five independent guesses that nothing can honestly reconcile.
+   * One call reasons across all five, which is the whole reason for asking for
+   * five.
+   */
+  const analyse = useCallback(async () => {
+    if (!pricer || photos.length < MIN_PHOTOS) return;
+
+    setFlow({ k: 'analysing' });
+    try {
+      const res = await analyzePhotoAction({
+        mode: 'live',
+        surface: 'public_hub',
+        prototypeId: null,
+        sessionId,
+        vertical: pricer.verticalId,
+        images: photos.map((p) => ({ base64: p.base64, mediaType: p.mediaType })),
+        surfaceTypeId: pricer.surfaceTypeId,
+      });
+
+      // An unavailable analysis is NOT a failure of the card. The visitor
+      // still has a working pricer and his photos; he is simply asked for the
+      // size instead of being told it. Lead capture and pricing never depend
+      // on the model answering.
+      const estimated = res.hints?.estimatedSqft;
+      const areaUnsure = res.hints?.handToUser?.includes('estimated_area_sqft') ?? true;
+      const confident = res.status === 'ok' && typeof estimated === 'number' && !areaUnsure;
+
+      if (confident && typeof estimated === 'number') {
+        setSqft(Math.min(pricer.sqftMax, Math.max(pricer.sqftMin, estimated)));
+      }
+      setRuleOpen(!confident);
+      setFlow({ k: 'ready', confident });
+    } catch {
+      setFlow({
+        k: 'failed',
+        message: 'Those photos could not be read. Try others, or enter the size yourself.',
+      });
+    }
+  }, [pricer, photos, sessionId]);
 
   const band = useMemo(() => {
     if (!pricer) return null;
@@ -371,13 +463,18 @@ export function ToolCard({
               </div>
             )}
 
-            {/* ---- the invitation ---- */}
-            {flow.k !== 'ready' && (
+            {/* ---- the invitation. Hidden once he is reviewing what he has:
+                   the grid carries its own "Add another". ---- */}
+            {flow.k !== 'ready' && flow.k !== 'collecting' && (
               <div className="tc-up">
-                <p className="tc-up-h">Send one photo of your garage</p>
+                <p className="tc-up-h">
+                  Send {MIN_PHOTOS} to {MAX_PHOTOS} photos of your garage
+                </p>
                 <p className="tc-up-sub">
-                  It works out roughly how big the floor is and prices it. You do
-                  not need to measure anything, and you do not need to tidy up.
+                  One from each corner. It works out how big the floor is and prices
+                  it — you do not need to measure anything, and you do not need to
+                  tidy up. Get the garage door or a car in at least one shot; that is
+                  what it measures against.
                 </p>
 
                 <div className="tc-up-actions">
@@ -388,7 +485,7 @@ export function ToolCard({
                     onClick={() => fileRef.current?.click()}
                   >
                     {flow.k === 'invite' || flow.k === 'failed'
-                      ? 'Take or choose a photo'
+                      ? 'Take or choose photos'
                       : 'Working…'}
                   </button>
                 </div>
@@ -400,7 +497,7 @@ export function ToolCard({
                 )}
                 {flow.k === 'analysing' && (
                   <p className="tc-up-stage" aria-live="polite">
-                    Reading the photo and working out the size.
+                    Measuring the floor across all {photos.length} photos.
                   </p>
                 )}
                 {flow.k === 'failed' && (
@@ -446,9 +543,82 @@ export function ToolCard({
               ref={fileRef}
               type="file"
               accept="image/*"
+              multiple
               className="tc-file"
-              onChange={(e) => void handleFile(e.target.files?.[0])}
+              onChange={(e) => {
+                void handleFiles(e.target.files);
+                // Cleared so choosing the SAME file again still fires onChange.
+                // Without this, a retry after a rejected photo does nothing and
+                // reads as a dead button.
+                e.target.value = '';
+              }}
             />
+
+            {/* ------------------------------------------------------------
+                THE REVIEW GRID.
+
+                He sees what he gathered before anything is spent on it. A
+                blurred frame or a photograph of the wrong room is obvious to a
+                person here and invisible to a model, which will measure
+                whatever it was handed and report a confident number for it.
+
+                The confirm button is disabled below MIN_PHOTOS and SAYS how
+                many more are needed. A disabled button with no explanation is
+                the most common way a form dead-ends somebody.
+               ------------------------------------------------------------ */}
+            {flow.k === 'collecting' && photos.length > 0 && (
+              <div className="tc-review">
+                <p className="tc-review-h">
+                  {photos.length} of {MAX_PHOTOS} photos
+                </p>
+
+                <ul className="tc-shots">
+                  {photos.map((p, i) => (
+                    <li key={p.previewUrl} className="tc-shot">
+                      {/* A plain img: these are blob: URLs from the browser's
+                          own pipeline, and next/image cannot optimise those. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={p.previewUrl} alt={'Photo ' + (i + 1) + ' of your floor'} />
+                      <button
+                        type="button"
+                        className="tc-shot-x"
+                        onClick={() => removePhoto(i)}
+                        aria-label={'Remove photo ' + (i + 1)}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+
+                <p className="tc-review-note">
+                  {photos.length < MIN_PHOTOS
+                    ? `${MIN_PHOTOS - photos.length} more and it can measure the floor. Different corners work best.`
+                    : 'Check they all show the same floor and none are blurred.'}
+                </p>
+
+                <div className="tc-review-actions">
+                  <button
+                    type="button"
+                    className="n15-btn n15-btn-primary"
+                    disabled={photos.length < MIN_PHOTOS}
+                    onClick={() => void analyse()}
+                  >
+                    {photos.length < MIN_PHOTOS
+                      ? `Add ${MIN_PHOTOS - photos.length} more`
+                      : `Measure my floor`}
+                  </button>
+                  <button
+                    type="button"
+                    className="n15-btn n15-btn-ghost"
+                    disabled={photos.length >= MAX_PHOTOS}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    Add another
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* ---- the panel, revealed by the analysis ---- */}
             {showPanel && (
@@ -456,9 +626,21 @@ export function ToolCard({
                 <div className="tc-measure">
                   {flow.k === 'ready' && flow.confident ? (
                     <>
+                      {/* AUTHORITATIVE, BUT ONLY WHEN IT HAS EARNED IT.
+                          This branch is reached solely when the module's own
+                          confidence floor for area was cleared — 0.8, higher
+                          than every other field, because area scales the whole
+                          quote linearly. Below that bar the other branch runs
+                          and asks instead of telling. So the flat statement
+                          here is not bravado; it is what the model actually
+                          concluded, and the "adjust it" link keeps the
+                          homeowner the final authority on his own garage. */}
                       <p className="tc-measure-h">
-                        Looks like about{' '}
+                        Your floor is{' '}
                         <span className="tc-measure-n">{sqft.toLocaleString('en-US')}</span> sq ft.
+                      </p>
+                      <p className="tc-measure-src">
+                        Measured from your {photos.length} photos.
                       </p>
                       {!ruleOpen && (
                         <button

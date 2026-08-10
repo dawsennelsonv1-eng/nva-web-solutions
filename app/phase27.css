@@ -1,0 +1,134 @@
+/**
+ * app/phase27.css — THE PHOTO REVIEW GRID.
+ *
+ * ============================================================================
+ * THE LAYER RULE
+ * ============================================================================
+ *
+ * Adds only. Every selector below is a name no earlier layer defines:
+ * .tc-review, .tc-review-h, .tc-review-note, .tc-review-actions, .tc-shots,
+ * .tc-shot, .tc-shot-x, .tc-measure-src. phase18.css keeps sole ownership of
+ * .tc-up, .tc-panel, .tc-measure and the rest of the card.
+ *
+ * Written against the --n15-* token set so the grid reads as part of the card
+ * rather than as an admin control that wandered in. No hex literals: the ban
+ * on `[#` in classNames exists for the same reason a raw colour here would be
+ * wrong — one place defines the palette.
+ *
+ * ============================================================================
+ * WHY THE THUMBNAILS ARE SQUARE AND CROPPED
+ * ============================================================================
+ *
+ * A garage photographed from a corner is wide; one taken portrait is tall.
+ * Laying them out at their own aspect ratios makes a ragged grid that reads as
+ * broken, and the ragged edge is the first thing the eye goes to instead of
+ * the pictures.
+ *
+ * Square cells with object-fit: cover give a calm grid. The crop is safe here
+ * because this is a CHECKING view, not a viewing one — the visitor is
+ * confirming which room he photographed and whether it is sharp, and both
+ * survive a centre crop. The uncropped frames are what the model receives.
+ *
+ * ============================================================================
+ * THE REMOVE BUTTON IS A LABEL, NOT AN ×
+ * ============================================================================
+ *
+ * A 44px word beats a 20px glyph on a phone, and "Remove" cannot be mistaken
+ * for "close this card" the way an × on a corner can. It sits on a scrim over
+ * the foot of the image so it is legible on a dark garage floor and on a
+ * bright one.
+ */
+
+.tc-review {
+  margin-top: 1rem;
+}
+
+.tc-review-h {
+  font-family: var(--n15-font-data, inherit);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin: 0 0 0.75rem;
+}
+
+.tc-shots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (min-width: 30rem) {
+  .tc-shots {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.tc-shot {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.tc-shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tc-shot-x {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  min-height: 2rem;
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.tc-review-note {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  opacity: 0.75;
+}
+
+.tc-review-actions {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (max-width: 30rem) {
+  .tc-review-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tc-review-actions > .n15-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/*
+ * The provenance line under the measurement. Quiet on purpose: the number is
+ * the statement, and this is the receipt for it. Loud enough to be found if
+ * somebody wonders where 480 came from, quiet enough not to argue with it.
+ */
+.tc-measure-src {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  opacity: 0.65;
+}

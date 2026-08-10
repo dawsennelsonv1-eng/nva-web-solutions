@@ -149,10 +149,44 @@ function reasonFor(code: AiErrorCode): VisionUnavailableReason {
   }
 }
 
-export interface AnalyzeArgs {
-  /** Base64 WITHOUT the data: prefix. Already validated by guards.ts. */
-  imageBase64: string;
+/** One prepared photograph, already validated by guards.ts. */
+export interface VisionImage {
+  /** Base64 WITHOUT the data: prefix. */
+  base64: string;
   mediaType: 'image/jpeg' | 'image/webp' | 'image/png';
+}
+
+export interface AnalyzeArgs {
+  /**
+   * Base64 WITHOUT the data: prefix. Already validated by guards.ts.
+   *
+   * KEPT FOR THE SINGLE-PHOTO CALLERS. `images` below supersedes it; when both
+   * are absent the call cannot be made. Every Phase 3-26 caller passes this
+   * pair and keeps working unchanged.
+   */
+  imageBase64?: string;
+  mediaType?: 'image/jpeg' | 'image/webp' | 'image/png';
+  /**
+   * SEVERAL VIEWS OF THE SAME SPACE, IN ONE CALL.
+   *
+   * One photograph of a garage carries almost no scale information. A model
+   * looking at a single frame is inferring area from whatever happens to be in
+   * shot, and it is right often enough to be dangerous — the failure mode is a
+   * confident number that is forty per cent wrong, which becomes a quote a
+   * contractor cannot honour.
+   *
+   * Three to five frames from different corners give parallax, more than one
+   * known-size object, and usually the full run of at least one wall. That is
+   * the difference between guessing and measuring.
+   *
+   * THEY GO IN ONE CALL, NOT ONE CALL EACH. Five separate analyses would cost
+   * five times as much, meter five times against the contractor's cap, and
+   * return five independent guesses that something would then have to
+   * reconcile — badly, because averaging five estimates of a room is not how
+   * you measure a room. One call sees all five frames at once and reasons
+   * across them, which is the entire point.
+   */
+  images?: VisionImage[];
   /** Registry vertical id — supplies the prompt AND the schema for this trade. */
   vertical: string;
   /** For cost attribution. Null on /demo. */
@@ -200,13 +234,37 @@ export async function analyzeFloorPhoto(args: AnalyzeArgs): Promise<VisionResult
 
   const model = resolveJobModel('vision_analysis');
 
-  // Image first, then the prompt — the same order Phase 3 sent, which is the
-  // order every vertical's prompt is written against.
+  /**
+   * Normalise the two call shapes into one list. `images` wins when both are
+   * given; a caller that passes both has changed its mind mid-refactor and the
+   * newer field is the one it meant.
+   */
+  const images: VisionImage[] =
+    args.images && args.images.length > 0
+      ? args.images
+      : args.imageBase64 && args.mediaType
+        ? [{ base64: args.imageBase64, mediaType: args.mediaType }]
+        : [];
+
+  if (images.length === 0) {
+    // No photograph is a caller bug, not a provider failure. Same exit as a
+    // missing key: nothing called, nothing billed, straight to manual entry.
+    return { status: 'unavailable', reason: 'not_configured' };
+  }
+
+  // Images first, then the prompt — the same order Phase 3 sent, which is the
+  // order every vertical's prompt is written against. With several frames they
+  // are all placed before the text, so the model has seen the whole space
+  // before it is told what to do with it.
   const messages: ChatMessage[] = [
     {
       role: 'user',
       content: [
-        { type: 'image', mediaType: args.mediaType, base64: args.imageBase64 },
+        ...images.map((img) => ({
+          type: 'image' as const,
+          mediaType: img.mediaType,
+          base64: img.base64,
+        })),
         { type: 'text', text: prompt },
       ],
     },
@@ -395,3 +453,4 @@ function withFilteredModifiers(
     ),
   };
 }
+
