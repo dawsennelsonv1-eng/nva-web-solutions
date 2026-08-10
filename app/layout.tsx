@@ -15,6 +15,7 @@ import './phase22.css';
 import './phase23.css';
 import './phase24.css';
 import './phase25.css';
+import './phase26.css';
 
 /**
  * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
@@ -35,6 +36,9 @@ import './phase25.css';
  *   phase22.css   vote form and concierge (16I). Light overrides at its foot.
  *   phase24.css   the tool directory (17C). Light overrides at its foot.
  *   phase25.css   the tool page (17D). Light overrides at its foot.
+ *   phase26.css   the gallery-first card. Adds .tc-gallery-lead and a stacked
+ *                 .tc-actions below 30rem. Introduces no selector that any
+ *                 earlier layer already defines.
  *   phase23.css   the spec sheet (16J). The last public route off the legacy
  *                 token system. Light overrides at its foot.
  *   phase17.css   the LIGHT THEME. Every rule scoped to
@@ -126,3 +130,4 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     </html>
   );
 }
+

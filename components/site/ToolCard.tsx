@@ -118,8 +118,25 @@ export interface ToolCardProps {
   quietReason?: string;
   renderEnabled: boolean;
   specHref: string;
+  /**
+   * Where "Implement this in my business" goes — the intake questionnaire that
+   * captures a contractor's contact details.
+   *
+   * OPTIONAL WITH A DEFAULT, on purpose. Every mount of this card would
+   * otherwise have to be found and updated in the same commit, and ToolDeck on
+   * the homepage is one of them. A required prop here breaks that build for a
+   * value every call site would compute identically anyway. Pass it to
+   * override; leave it off and the card points at the questionnaire for its
+   * own tool.
+   */
+  intakeHref?: string;
   /** Recordings of the tool working. Fewer than three renders no gallery. */
   media: MediaSlot[];
+}
+
+/** VERIFY: repoint if the questionnaire ever moves off /start. */
+function defaultIntakeHref(toolId: string): string {
+  return '/start?tool=' + encodeURIComponent(toolId);
 }
 
 type Flow =
@@ -152,8 +169,10 @@ export function ToolCard({
   quietReason,
   renderEnabled,
   specHref,
+  intakeHref,
   media,
 }: ToolCardProps) {
+  const intake = intakeHref ?? defaultIntakeHref(toolId);
   const cardRef = useRef<HTMLElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [pressed, setPressed] = useState(false);
@@ -332,7 +351,27 @@ export function ToolCard({
 
         {pricer ? (
           <>
-            {/* ---- the invitation, now the first thing in the card ---- */}
+            {/* ------------------------------------------------------------
+                RECORDINGS FIRST — PHASE 26.
+
+                They used to sit under the upload invitation. Above it is the
+                right order for one reason: a visitor who has not yet decided
+                to photograph his garage has been asked to do something before
+                being shown why. Seeing the tool work is the argument for
+                opening the camera, so it goes first.
+
+                It still disappears the moment a photo is in flight. The
+                carousel is the pitch; once he is inside the flow it is noise,
+                and the card collapsing upward puts the result where his eye
+                already is.
+               ------------------------------------------------------------ */}
+            {flow.k === 'invite' && media.length > 0 && (
+              <div className="tc-gallery tc-gallery-lead">
+                <MediaGallery slots={media} label={trade} />
+              </div>
+            )}
+
+            {/* ---- the invitation ---- */}
             {flow.k !== 'ready' && (
               <div className="tc-up">
                 <p className="tc-up-h">Send one photo of your garage</p>
@@ -388,21 +427,28 @@ export function ToolCard({
               </div>
             )}
 
+            {/*
+              NO `capture` ATTRIBUTE. THIS IS THE FIX, NOT AN OMISSION.
+
+              `capture="environment"` does not mean "prefer the camera" — on
+              Android Chrome it means "the camera, and only the camera". The
+              chooser never opens, so there is no route to the camera roll and
+              no way to send a photo taken five minutes ago. Every visitor was
+              being forced to stand in his garage to use the tool.
+
+              Without it the browser offers camera AND gallery AND files, with
+              the camera still one tap away. Strictly more capable, and the
+              only reason to put it back is if the tool must never accept a
+              photo of somebody else's floor — which it must, because that is
+              how a contractor demonstrates it from his truck.
+            */}
             <input
               ref={fileRef}
               type="file"
               accept="image/*"
-              capture="environment"
               className="tc-file"
               onChange={(e) => void handleFile(e.target.files?.[0])}
             />
-
-            {/* ---- recordings, where the pricer used to be ---- */}
-            {flow.k === 'invite' && media.length > 0 && (
-              <div className="tc-gallery">
-                <MediaGallery slots={media} label={trade} />
-              </div>
-            )}
 
             {/* ---- the panel, revealed by the analysis ---- */}
             {showPanel && (
@@ -507,7 +553,7 @@ export function ToolCard({
               </div>
             )}
 
-            <div className="tc-actions">
+            <div className="tc-actions tc-actions-stack">
               {/* The tool's own page, not /demo. That page now carries the
                   working tool AND how it is used; /demo is the directory of
                   every tool. Sending "Try it out" to a directory made the
@@ -515,8 +561,22 @@ export function ToolCard({
               <Link href={specHref} className="n15-btn n15-btn-primary">
                 Try it out
               </Link>
-              <Link href={specHref} className="n15-btn n15-btn-ghost">
-                More information
+              {/* ------------------------------------------------------------
+                  WAS "More information", POINTED AT specHref — THE SAME PLACE
+                  AS THE BUTTON BESIDE IT.
+
+                  On a tool page that made both buttons no-ops: specHref is
+                  that page's own URL, so the card offered two ways to stay
+                  exactly where you were. The second action now does the only
+                  thing the card has no other way to do — hand a contractor to
+                  the form that takes his details.
+
+                  The label names the outcome rather than the destination.
+                  "More information" describes what the visitor receives;
+                  "Implement this in my business" describes what he gets done.
+                 ------------------------------------------------------------ */}
+              <Link href={intake} className="n15-btn n15-btn-ghost">
+                Implement this in my business
               </Link>
             </div>
           </>
@@ -557,3 +617,4 @@ function FinishThumb({ src, alt }: { src: string; alt: string }) {
     />
   );
 }
+

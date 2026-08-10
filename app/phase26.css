@@ -1,0 +1,70 @@
+/**
+ * app/phase26.css — THE GALLERY-FIRST CARD.
+ *
+ * ============================================================================
+ * THE LAYER RULE THIS FILE OBEYS
+ * ============================================================================
+ *
+ * Every layer in this stack ADDS. None overrides the one above it, and no
+ * selector is written twice across two files. So this does not touch
+ * `.tc-gallery` — phase18.css owns that and keeps owning it. The card asks for
+ * `class="tc-gallery tc-gallery-lead"`, and the modifier below is the only new
+ * name introduced.
+ *
+ * `.tc-gallery-lead` and `.tc-actions-stack` are both new names. The card is
+ * changed to ask for them alongside its existing classes, rather than this
+ * file redefining `.tc-gallery` or `.tc-actions` — phase18.css owns those and
+ * a media-query override here would win the cascade and quietly break the rule
+ * the whole stack depends on.
+ *
+ * ============================================================================
+ * WHY THE SPACING CHANGES AT ALL
+ * ============================================================================
+ *
+ * `.tc-gallery` was styled as a thing that FOLLOWS the upload block, so its
+ * margin is on the top. Leading the card, that margin pushes it away from the
+ * header and leaves it floating in the middle of nothing, while the upload
+ * invitation underneath it sits flush against it.
+ *
+ * The two rules below move that breathing room to the underside, where the
+ * separation is now needed. Nothing else about the gallery changes.
+ *
+ * ============================================================================
+ * THE SECOND ACTION GOT LONGER
+ * ============================================================================
+ *
+ * "More information" was two words. "Implement this in my business" is five and
+ * will not sit beside "Try it out" on a 360px screen — the two buttons either
+ * squash to unreadable or one wraps mid-phrase.
+ *
+ * So below 30rem the actions stack, full width, primary on top. That is the
+ * correct shape for a thumb anyway: two full-width targets beat two half-width
+ * ones on every phone this site is actually read on.
+ */
+
+.tc-gallery-lead {
+  margin-top: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/*
+ * The card collapses upward when the gallery unmounts on upload. Reserving no
+ * height is deliberate: a fixed min-height would leave a hole on tools that
+ * have no recordings yet, which is most of them until the admin uploader
+ * ships.
+ */
+.tc-gallery-lead > :first-child {
+  margin-top: 0;
+}
+
+@media (max-width: 30rem) {
+  .tc-actions-stack {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tc-actions-stack > .n15-btn {
+    width: 100%;
+    text-align: center;
+  }
+}

@@ -128,6 +128,7 @@ export default async function ToolPage({ params }: { params: { toolId: string } 
               specHref={`/tools/${row.tool.id}`}
               quietReason={QUIET_REASON[row.tool.id]}
               pricer={pricer}
+              intakeHref={intakeHref(page.id)}
               media={slots}
             />
           </div>
@@ -226,3 +227,4 @@ export default async function ToolPage({ params }: { params: { toolId: string } 
     </>
   );
 }
+
