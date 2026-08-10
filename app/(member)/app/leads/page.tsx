@@ -1,6 +1,8 @@
 import { requireMember, seesAllLeads } from '@/lib/auth/member';
 import { getMemberDb } from '@/lib/companies/db';
 import { LeadRows, type LeadRow, type Assignee } from '@/components/member/LeadRows';
+import { LockedPanel } from '@/components/member/LockedPanel';
+import { resolveCompanyAccess, hasFullAccess } from '@/lib/entitlements/company';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,10 +17,25 @@ export const dynamic = 'force-dynamic';
  *
  * A /demo lead has a null prototype_id and belongs to us, not to a contractor.
  * The policy excludes it. Nothing here has to know that.
+ *
+ * THE ENTITLEMENT CHECK BELOW IS THIS PAGE'S OWN. The layout hides the nav
+ * link for an unpaid account, but a hidden link is not a gate — a bookmark, a
+ * back button or a typed URL all arrive here directly. The check is repeated
+ * because it has to be.
  */
 export default async function MemberLeadsPage() {
   const member = await requireMember();
   if (!member) return null;
+
+  const access = await resolveCompanyAccess(member.companyId);
+  if (!hasFullAccess(access)) {
+    return (
+      <LockedPanel
+        title="Leads"
+        blurb="Every quote finished on your site lands here with the customer's name, phone and the price they were shown, so you can call them back the same day."
+      />
+    );
+  }
 
   const db = getMemberDb();
 
@@ -62,19 +79,23 @@ export default async function MemberLeadsPage() {
 
   return (
     <>
-      <h1 className="font-display text-2xl font-extrabold uppercase">Leads</h1>
-      <p className="mt-1 text-base text-rule">
+      <p className="n15-eyebrow">Pipeline</p>
+      <h1 className="mb-h">Leads</h1>
+      <p className="mb-lede">
         {canAssign
-          ? 'Every lead on this account, newest first.'
+          ? 'Every lead on this account, newest first. Each one already has a price.'
           : 'The leads assigned to you, newest first.'}
       </p>
 
       {leads.length === 0 ? (
-        <p className="mt-6 border border-rule bg-sheet p-4 text-base">
-          {canAssign
-            ? 'No leads yet. They appear the moment somebody finishes a quote on your site.'
-            : 'Nothing is assigned to you yet.'}
-        </p>
+        <div className="mb-panel">
+          <h2 className="mb-panel-h">Nothing yet</h2>
+          <p className="mb-panel-b">
+            {canAssign
+              ? 'Leads appear the moment somebody finishes a quote on your site — name, number, floor size and the range they were shown.'
+              : 'Nothing is assigned to you yet.'}
+          </p>
+        </div>
       ) : (
         <LeadRows leads={leads} assignees={assignees} canAssign={canAssign} />
       )}

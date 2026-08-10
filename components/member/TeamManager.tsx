@@ -85,21 +85,21 @@ export function TeamManager({
 
   return (
     <>
-      <p className="mt-1 font-data text-2xs uppercase tracking-[0.08em] text-rule">
+      <p className="mb-who mb-who-dark">
         {members.length} of {seatLimit} seat{seatLimit === 1 ? '' : 's'} used
       </p>
 
-      <section className="mt-6 border border-rule bg-sheet p-4">
-        <p className="font-data text-xs uppercase tracking-wide text-rule">Add someone</p>
+      <section className="mb-panel">
+        <p className="mb-label">Add someone</p>
         {seatsFull ? (
-          <p className="mt-2 text-base">
+          <p className="mb-panel-b">
             Every seat on this account is used. Adding another person is a billing change — get in
             touch and it is done the same day.
           </p>
         ) : (
-          <div className="mt-3 space-y-3">
-            <label className="block">
-              <span className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
+          <div className="mb-lead-controls">
+            <label className="mb-field">
+              <span className="mb-label">
                 Their email
               </span>
               <input
@@ -107,17 +107,17 @@ export function TeamManager({
                 autoComplete="off"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 min-h-[3rem] w-full rounded-milled border border-rule bg-sheet px-3 text-base"
+                className="mb-select"
               />
             </label>
-            <label className="block">
-              <span className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
+            <label className="mb-field">
+              <span className="mb-label">
                 What they can see
               </span>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="mt-1 min-h-[3rem] w-full rounded-milled border border-rule bg-sheet px-3 text-base"
+                className="mb-select"
               >
                 {ROLES.map((r) => (
                   <option key={r.value} value={r.value}>
@@ -130,7 +130,7 @@ export function TeamManager({
               type="button"
               onClick={invite}
               disabled={pending || email.trim() === ''}
-              className="press min-h-[3rem] w-full rounded-milled bg-hazard px-4 font-body text-base font-semibold text-sheet disabled:opacity-60"
+              className="n15-btn n15-btn-primary"
             >
               {pending ? 'Adding…' : 'Add to this account'}
             </button>
@@ -139,32 +139,32 @@ export function TeamManager({
       </section>
 
       {message && (
-        <p className={`mt-4 text-base ${message.ok ? 'text-cure' : 'text-danger'}`}>
+        <p className="mb-flag">
           {message.text}
         </p>
       )}
 
-      <ul className="mt-6 space-y-2">
+      <ul className="mb-people">
         {members.map((m) => (
-          <li key={m.id} className="border border-rule bg-sheet p-4">
-            <p className="text-base">
+          <li key={m.id} className="mb-person mb-person-block">
+            <p className="mb-person-who">
               {m.email}
-              {m.isSelf && <span className="ml-2 font-data text-2xs text-rule">YOU</span>}
+              {m.isSelf && <span className="mb-person-role">YOU</span>}
             </p>
-            <p className="mt-1 font-data text-2xs uppercase tracking-[0.08em] text-rule">
+            <p className="mb-who mb-who-dark">
               since {m.createdAt.slice(0, 10)}
             </p>
 
-            <div className="mt-3 flex flex-wrap items-end gap-2">
-              <label className="block">
-                <span className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
+            <div className="mb-lead-controls">
+              <label className="mb-field">
+                <span className="mb-label">
                   Role
                 </span>
                 <select
                   value={m.role}
                   disabled={pending}
                   onChange={(e) => changeRole(m.id, e.target.value)}
-                  className="mt-1 block min-h-[3rem] rounded-milled border border-rule bg-sheet px-3 text-base"
+                  className="mb-select"
                 >
                   {ROLES.map((r) => (
                     <option key={r.value} value={r.value}>
@@ -178,7 +178,7 @@ export function TeamManager({
                 type="button"
                 onClick={() => remove(m.id)}
                 disabled={pending}
-                className="press min-h-[3rem] rounded-milled border border-ink bg-sheet px-4 font-body text-base font-semibold text-ink disabled:opacity-60"
+                className="n15-btn n15-btn-ghost"
               >
                 {confirming === m.id ? 'Press again to remove' : 'Remove'}
               </button>
@@ -189,3 +189,4 @@ export function TeamManager({
     </>
   );
 }
+

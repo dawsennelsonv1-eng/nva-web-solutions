@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { requireMember, canManageSeats } from '@/lib/auth/member';
 import { signOutMemberAction } from '@/app/actions/member';
+import { resolveCompanyAccess, hasFullAccess } from '@/lib/entitlements/company';
 
 /**
  * (member) layout — the shell every /app route renders inside.
@@ -18,26 +19,48 @@ import { signOutMemberAction } from '@/app/actions/member';
  * session. Silently bouncing him to /login — where he would sign in
  * successfully and bounce again — is the failure this branch exists to avoid.
  *
- * NAV IS ROLE-SHAPED. A crew member has no Team link, because he cannot manage
- * seats and showing him a door that refuses him is worse than not showing it.
+ * NAV IS ROLE-SHAPED AND PLAN-SHAPED. A crew member has no Team link, because
+ * he cannot manage seats and showing him a door that refuses him is worse than
+ * not showing it. The same argument covers an unpaid account: Leads and Team
+ * are not links until there is a subscription behind them.
+ *
+ * ============================================================================
+ * THE NAV IS NOT THE GATE
+ * ============================================================================
+ *
+ * Hiding a link hides nothing. A layout cannot pass props to the page it
+ * wraps, so each gated page calls resolveCompanyAccess() for itself and
+ * renders the locked panel on its own authority. That means the lookup runs
+ * twice on a gated route — two indexed queries on an already force-dynamic
+ * render. Cheap, and the alternative is a nav that lies.
+ *
+ * ============================================================================
+ * PHASE 29: THIS IS THE SCREEN THE PRODUCT IS SOLD WITH
+ * ============================================================================
+ *
+ * Restyled onto the marketing design system. The whole pitch is "leads arrive
+ * with everything already known about them", and until now the screen where
+ * they arrive looked like an internal admin tool — a contractor walked from a
+ * considered site into something visibly built by different people.
+ *
+ * The masthead is the one INVERTED surface, in both themes, the way the hero
+ * anchors the homepage. On a long scrolling list of leads the eye always knows
+ * where the top is.
  */
 export default async function MemberLayout({ children }: { children: ReactNode }) {
   const member = await requireMember();
 
   if (!member) {
     return (
-      <div className="mx-auto flex min-h-dvh max-w-sm items-center px-4">
-        <div className="w-full">
-          <h1 className="font-display text-2xl font-extrabold uppercase">No company yet</h1>
-          <p className="mt-3 text-base">
-            You are signed in, but this account is not attached to a company. Whoever runs your
-            account needs to add you before there is anything here to see.
+      <div className="mb-alone">
+        <div className="mb-alone-in">
+          <h1 className="mb-h">No company yet</h1>
+          <p className="mb-lede">
+            You are signed in, but this account is not attached to a company. Whoever runs
+            your account needs to add you before there is anything here to see.
           </p>
-          <form action={signOutMemberAction} className="mt-6">
-            <button
-              type="submit"
-              className="min-h-[3rem] w-full rounded-milled border border-ink bg-sheet px-4 font-body text-base font-semibold text-ink"
-            >
+          <form action={signOutMemberAction} className="mb-actions">
+            <button type="submit" className="n15-btn n15-btn-ghost">
               Sign out
             </button>
           </form>
@@ -46,46 +69,36 @@ export default async function MemberLayout({ children }: { children: ReactNode }
     );
   }
 
+  const access = await resolveCompanyAccess(member.companyId);
+  const unlocked = hasFullAccess(access);
+
   return (
-    <div className="min-h-dvh bg-concrete">
-      <header className="bg-ink text-sheet">
-        <div className="mx-auto max-w-3xl px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <span className="min-w-0 truncate font-display text-lg font-extrabold uppercase">
-              {member.companyName}
-            </span>
+    <div className="mb">
+      <header className="mb-bar">
+        <div className="mb-in">
+          <div className="mb-bar-top">
+            <span className="mb-co">{member.companyName}</span>
             <form action={signOutMemberAction}>
-              <button
-                type="submit"
-                className="press font-data text-2xs uppercase tracking-[0.08em] text-rule"
-              >
+              <button type="submit" className="mb-out">
                 Sign out
               </button>
             </form>
           </div>
-          <p className="mt-0.5 font-data text-2xs uppercase tracking-[0.08em] text-rule">
+          <p className="mb-who">
             {member.email} · {member.role}
             {member.otherCompanyCount > 0 &&
               ` · +${member.otherCompanyCount} other ${
                 member.otherCompanyCount === 1 ? 'company' : 'companies'
               }`}
           </p>
-          <nav className="mt-3 flex gap-4 font-data text-sm" aria-label="Account">
-            <Link href="/app" className="whitespace-nowrap text-sheet">
-              Overview
-            </Link>
-            <Link href="/app/leads" className="whitespace-nowrap text-sheet">
-              Leads
-            </Link>
-            {canManageSeats(member.role) && (
-              <Link href="/app/team" className="whitespace-nowrap text-sheet">
-                Team
-              </Link>
-            )}
+          <nav className="mb-nav" aria-label="Account">
+            <Link href="/app">Overview</Link>
+            {unlocked && <Link href="/app/leads">Leads</Link>}
+            {unlocked && canManageSeats(member.role) && <Link href="/app/team">Team</Link>}
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-3xl px-4 py-6">{children}</main>
+      <main className="mb-main">{children}</main>
     </div>
   );
 }

@@ -15,6 +15,16 @@ import { setLeadStatusAction, assignLeadAction } from '@/app/actions/member';
  * OPTIMISTIC UI IS DELIBERATELY ABSENT. A lead's status is what a crew tells a
  * homeowner they will do next; showing "contacted" for a write that silently
  * failed is worse than a half-second of latency.
+ *
+ * PHASE 29: restyled onto the marketing design system, and the phone and email
+ * are now both tap targets. The logic is untouched — the same two actions, the
+ * same absence of optimism, the same error handling.
+ *
+ * `startTransition(async () => ...)` below does NOT typecheck under the pinned
+ * @types/react 18.3.12 and is left exactly as it was, because it is already
+ * shipping and building. Do not copy the pattern into a new file; do not
+ * "fix" it here as a drive-by either, since that is a behaviour change riding
+ * inside a restyle.
  */
 
 export interface LeadRow {
@@ -65,39 +75,46 @@ export function LeadRows({
 
   return (
     <>
-      {error && <p className="mt-4 text-base text-danger">{error}</p>}
-      <ul className="mt-4 space-y-3">
+      {error && (
+        <p className="mb-err" role="alert">
+          {error}
+        </p>
+      )}
+      <ul className="mb-leads">
         {leads.map((l) => (
-          <li key={l.id} className="border border-rule bg-sheet p-4">
-            <div className="flex items-baseline justify-between gap-3">
-              <p className="text-base font-semibold">{l.name}</p>
-              <span className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
-                {l.createdAt.slice(0, 10)}
-              </span>
+          <li
+            key={l.id}
+            className={'mb-lead' + (l.status === 'new' ? ' mb-lead-new' : '')}
+          >
+            <div className="mb-lead-top">
+              <p className="mb-lead-name">{l.name}</p>
+              <span className="mb-lead-when">{l.createdAt.slice(0, 10)}</span>
             </div>
-            <p className="mt-1 font-data text-sm tabular">
-              <a href={`tel:${l.phone}`} className="underline underline-offset-4">
-                {l.phone}
-              </a>
+
+            {/* Tappable, both of them. A contractor reading this is holding a
+                phone and the next action is a call — making him copy a number
+                out is the difference between a lead worked today and one
+                worked eventually. */}
+            <p className="mb-lead-contact">
+              <a href={`tel:${l.phone}`}>{l.phone}</a>
+              <a href={`mailto:${l.email}`}>{l.email}</a>
             </p>
-            <p className="font-data text-2xs text-rule">{l.email}</p>
 
             {l.wasDegraded && (
-              <p className="mt-2 font-data text-2xs uppercase tracking-[0.08em] text-hazard">
-                Captured without a price — the widget was degraded
+              <p className="mb-flag">
+                No instant price was shown to this one — the quoting engine was
+                degraded. Call to quote it.
               </p>
             )}
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              <label className="block">
-                <span className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
-                  Status
-                </span>
+            <div className="mb-lead-controls">
+              <label className="mb-field">
+                <span className="mb-label">Status</span>
                 <select
+                  className="mb-select"
                   value={l.status}
                   disabled={pending}
                   onChange={(e) => changeStatus(l.id, e.target.value)}
-                  className="mt-1 block min-h-[3rem] rounded-milled border border-rule bg-sheet px-3 text-base"
                 >
                   {STATUSES.map((s) => (
                     <option key={s} value={s}>
@@ -108,17 +125,15 @@ export function LeadRows({
               </label>
 
               {canAssign && (
-                <label className="block">
-                  <span className="font-data text-2xs uppercase tracking-[0.08em] text-rule">
-                    Assigned to
-                  </span>
+                <label className="mb-field">
+                  <span className="mb-label">Assigned to</span>
                   <select
+                    className="mb-select"
                     value={l.assignedTo ?? ''}
                     disabled={pending}
                     onChange={(e) => changeAssignee(l.id, e.target.value)}
-                    className="mt-1 block min-h-[3rem] rounded-milled border border-rule bg-sheet px-3 text-base"
                   >
-                    <option value="">Nobody</option>
+                    <option value="">Nobody yet</option>
                     {assignees.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.email}
