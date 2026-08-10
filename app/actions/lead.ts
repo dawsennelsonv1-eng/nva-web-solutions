@@ -7,7 +7,7 @@ import { calculateQuote, type QuoteComputation } from '@/lib/quote/pricing';
 import { generateQuotePublicId } from '@/lib/slug';
 import { checkScopedRateLimit, clientIpFromHeaders } from '@/lib/quote/guards';
 import { trackServer } from '@/lib/analytics.server';
-import { notifyAdminOfDemoLead, sendDemoContractorConfirmation } from '@/lib/notify/email';
+import { notifyAdminOfDemoLead, sendCustomerQuote, sendBothSidesPreview } from '@/lib/notify/email';
 import { generateMockLead, type MockLead } from '@/lib/demo/mockLead';
 import { getSignedPhotoUrl } from '@/lib/storage/photos';
 import { RENDER_DISCLOSURE } from '@/lib/ai/visualise';
@@ -270,21 +270,28 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
    * an unsigned URL costs a line in an email; it must never cost the lead,
    * which is already written by this point. Nothing below throws.
    */
+  const SEVEN_DAYS = 604_800;
+
   let priceRange: string | null = null;
+  let photoUrl: string | null = null;
   if (quoteUuid) {
     const { data: q } = await db
       .from('quotes')
-      .select('low_cents, high_cents')
+      .select('low_cents, high_cents, photo_path')
       .eq('id', quoteUuid)
       .maybeSingle();
     if (q) {
       priceRange =
         '$' + Math.round(q.low_cents / 100).toLocaleString('en-US') +
         ' - $' + Math.round(q.high_cents / 100).toLocaleString('en-US');
+      // The slab as it is TODAY. A contractor reading this wants to see the
+      // concrete before he prices the prep, and the render deliberately does
+      // not show him that — it shows the finish. Both, or he is guessing at
+      // half the job.
+      if (q.photo_path) photoUrl = await getSignedPhotoUrl(q.photo_path, SEVEN_DAYS);
     }
   }
 
-  const SEVEN_DAYS = 604_800;
   const renderUrl = input.renderPath
     ? await getSignedPhotoUrl(input.renderPath, SEVEN_DAYS)
     : null;
@@ -297,12 +304,26 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
     surface: input.surface,
     createdAt: submittedAt,
     priceRange,
+    photoUrl,
     renderUrl,
     // The disclosure is attached HERE, beside the URL, rather than left to the
     // template. A render that reaches a screen without it is the one failure
     // this whole feature was built to avoid.
     renderDisclosure: renderUrl ? RENDER_DISCLOSURE : null,
   };
+  //
+  // THREE READERS, THREE DOCUMENTS. See lib/notify/email.ts for why they are
+  // not one template with a switch: the operator wants a lead he can act on
+  // from a lock screen, the submitter wants his price, and the business
+  // evaluating the tool wants to see both halves of what it just produced.
+  //
+  // ALL THREE ARE FIRED, NONE ARE AWAITED. The lead is already written by this
+  // point and nothing below can un-write it. A provider outage costs an email,
+  // never a lead — the rule this whole file is built around.
+  //
+  // The two sends to fields.email are deliberate and not a duplicate: one is
+  // his quote and one is the demonstration, and collapsing them would mean a
+  // homeowner reading sales copy about his own submission.
   void notifyAdminOfDemoLead(emailFields)
     .then((r) => {
       if (r.status === 'failed' && process.env.NODE_ENV === 'development') {
@@ -310,7 +331,8 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
       }
     })
     .catch(() => {});
-  void sendDemoContractorConfirmation(emailFields).catch(() => {});
+  void sendCustomerQuote(emailFields).catch(() => {});
+  void sendBothSidesPreview(emailFields).catch(() => {});
   // SMS: intentionally stubbed. No SMS_PROVIDER_KEY-backed send exists yet
   // (ENV.md marks it Phase 5.5+); recorded here so delivery_status reflects
   // reality rather than implying a channel that doesn't fire.
@@ -420,35 +442,56 @@ export async function attachRenderToLead(raw: unknown): Promise<{ ok: boolean }>
     const renderUrl = await getSignedPhotoUrl(parsed.data.renderPath, SEVEN_DAYS);
 
     let priceRange: string | null = null;
+    let photoUrl: string | null = null;
     if (lead.quote_id) {
       const { data: q } = await db
         .from('quotes')
-        .select('low_cents, high_cents')
+        .select('low_cents, high_cents, photo_path')
         .eq('id', lead.quote_id)
         .maybeSingle();
       if (q) {
         priceRange =
           '$' + Math.round(q.low_cents / 100).toLocaleString('en-US') +
           ' - $' + Math.round(q.high_cents / 100).toLocaleString('en-US');
+        if (q.photo_path) photoUrl = await getSignedPhotoUrl(q.photo_path, SEVEN_DAYS);
       }
     }
+
+    /**
+     * `leads.source` is wider than this email's `surface`, which is
+     * 'public_hub' | 'demo' — the column also carries prototype-sourced leads
+     * that never go through these templates. Narrowed by CHECKING rather than
+     * by casting: a cast would compile and then hand a template a value it has
+     * no copy for, and the reader would get an email describing a surface that
+     * does not exist.
+     *
+     * VERIFY: this ran as `lead.source as Surface` when attachRenderToLead
+     * shipped, which does not typecheck against the real DemoLeadEmailFields.
+     * It was hidden by a loose test stub and would have failed the build.
+     */
+    const surface: 'public_hub' | 'demo' = lead.source === 'demo' ? 'demo' : 'public_hub';
 
     const fields = {
       name: lead.name as string,
       phone: lead.phone as string,
       email: lead.email as string,
       timeline: lead.timeline as string,
-      surface: lead.source as Surface,
+      surface,
       createdAt: lead.created_at as string,
       priceRange,
+      photoUrl,
       renderUrl,
       renderDisclosure: renderUrl ? RENDER_DISCLOSURE : null,
     };
 
     // Both sends, same posture as the first notification: fired, never awaited
     // before responding, failure logged and never propagated.
+    // The follow-up carries the picture, which is the whole reason for it.
+    // sendBothSidesPreview is NOT re-sent: its argument is about what happened
+    // at the moment of submission, and a second copy arriving later would read
+    // as a duplicate rather than as new information.
     void notifyAdminOfDemoLead(fields).catch(() => {});
-    void sendDemoContractorConfirmation(fields).catch(() => {});
+    void sendCustomerQuote(fields).catch(() => {});
 
     return { ok: true };
   } catch {

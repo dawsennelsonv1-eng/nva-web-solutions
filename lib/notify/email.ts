@@ -133,112 +133,356 @@ export interface DemoLeadEmailFields {
   renderDisclosure?: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// PHASE 4 — THE HOUSE STYLE
+//
+// These emails are marketing artefacts. A contractor is shown one on a phone
+// and decides whether this software looks like something he would put his name
+// on, so a bare stack of <p> tags is not good enough — but neither is anything
+// that only renders in one client.
+//
+// THE RULES EMAIL HTML ACTUALLY IMPOSES, and why each one is obeyed:
+//
+//   TABLES FOR LAYOUT. Outlook on Windows renders through Word, which has no
+//   float, no flexbox and no grid. A table is the only container that lands the
+//   same way everywhere. This is not 2005 nostalgia; it is the current state of
+//   the one client contractors' offices actually run.
+//
+//   INLINE STYLES ONLY. Gmail strips <style> blocks in several contexts,
+//   including the mobile app. A class here is a style that works on your phone
+//   and vanishes on his.
+//
+//   NO WEB FONTS. Instrument Serif is the site's display face and is not
+//   available to a mail client. Georgia is the closest widely-installed serif
+//   and it is what the header uses — the family differs, the IMPRESSION holds.
+//   A @font-face that silently falls back to Times would look worse than
+//   choosing Georgia deliberately.
+//
+//   NO BACKGROUND IMAGES, no gradients, no shadows. All three are stripped or
+//   mangled somewhere that matters. Flat colour blocks survive everything.
+//
+//   NO REMOTE IMAGES INLINE. Most clients block them by default, so a design
+//   that depends on one arrives broken. Pictures are LINKED with a label that
+//   says what is on the other side.
+// ---------------------------------------------------------------------------
+
+/** The site's own palette, restated here because a mail client cannot read a CSS token. */
+const INK = '#1A1A18';
+const SHEET = '#FBFAF7';
+const RULE = '#8A8880';
+const HAZARD = '#A8511B';
+const CONCRETE = '#EFECE6';
+
 /**
- * The block that shows what the homeowner actually saw.
+ * The outer frame every email in this module shares.
+ *
+ * 600px is the width that has been safe since Outlook 2007 and still is. The
+ * outer table is full-width with the page colour so the message does not sit
+ * on a raw white rectangle in a dark-mode client.
+ */
+function shell(args: { eyebrow: string; title: string; body: string; footer?: string }): string {
+  return (
+    '<!DOCTYPE html><html><body style="margin:0;padding:0;background:' + CONCRETE + ';">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ' +
+    'style="background:' + CONCRETE + ';padding:24px 12px;">' +
+    '<tr><td align="center">' +
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" ' +
+    'style="width:100%;max-width:600px;background:' + SHEET + ';border:1px solid ' + RULE + ';">' +
+
+    // masthead
+    '<tr><td style="background:' + INK + ';padding:20px 24px;">' +
+    '<div style="font-family:Georgia,\'Times New Roman\',serif;font-size:22px;color:' + SHEET + ';">Girder</div>' +
+    '<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1.5px;' +
+    'text-transform:uppercase;color:' + RULE + ';padding-top:4px;">' + escapeHtml(args.eyebrow) + '</div>' +
+    '</td></tr>' +
+
+    // title
+    '<tr><td style="padding:24px 24px 0;">' +
+    '<div style="font-family:Georgia,\'Times New Roman\',serif;font-size:26px;line-height:1.2;color:' + INK + ';">' +
+    escapeHtml(args.title) + '</div>' +
+    '</td></tr>' +
+
+    // body
+    '<tr><td style="padding:16px 24px 24px;font-family:Arial,Helvetica,sans-serif;' +
+    'font-size:15px;line-height:1.55;color:' + INK + ';">' + args.body + '</td></tr>' +
+
+    (args.footer
+      ? '<tr><td style="padding:14px 24px;border-top:1px solid ' + RULE + ';' +
+        'font-family:Arial,Helvetica,sans-serif;font-size:12px;color:' + RULE + ';">' +
+        args.footer + '</td></tr>'
+      : '') +
+
+    '</table></td></tr></table></body></html>'
+  );
+}
+
+/** A labelled section divider — this is what makes the two-sided email readable. */
+function sectionHead(label: string, note: string): string {
+  return (
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ' +
+    'style="margin:26px 0 12px;"><tr><td style="border-left:3px solid ' + HAZARD + ';padding-left:12px;">' +
+    '<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1.5px;' +
+    'text-transform:uppercase;color:' + HAZARD + ';">' + escapeHtml(label) + '</div>' +
+    '<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:' + RULE + ';padding-top:3px;">' +
+    escapeHtml(note) + '</div>' +
+    '</td></tr></table>'
+  );
+}
+
+/** The price band, set large. The single most important thing in the message. */
+function priceBlock(range: string | null): string {
+  if (!range) {
+    return (
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ' +
+      'style="background:' + CONCRETE + ';border:1px solid ' + RULE + ';margin:4px 0;">' +
+      '<tr><td style="padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:' + RULE + ';">' +
+      'No price was calculated for this one \u2014 the quoting engine was degraded, so the ' +
+      'details were captured without a range.</td></tr></table>'
+    );
+  }
+  return (
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ' +
+    'style="background:' + CONCRETE + ';border:1px solid ' + INK + ';margin:4px 0;">' +
+    '<tr><td style="padding:16px;">' +
+    '<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1.5px;' +
+    'text-transform:uppercase;color:' + RULE + ';">Estimated range</div>' +
+    '<div style="font-family:Georgia,\'Times New Roman\',serif;font-size:30px;color:' + INK + ';padding-top:6px;">' +
+    escapeHtml(range) + '</div>' +
+    '</td></tr></table>'
+  );
+}
+
+/** A bordered link that reads as a button but is a plain anchor, so it survives everything. */
+function linkRow(href: string, label: string): string {
+  return (
+    '<p style="margin:10px 0;"><a href="' + escapeHtml(href) +
+    '" style="display:inline-block;padding:11px 16px;border:1px solid ' + INK +
+    ';color:' + INK + ';font-family:Arial,Helvetica,sans-serif;font-size:14px;text-decoration:none;">' +
+    escapeHtml(label) + '</a></p>'
+  );
+}
+
+/** Name, phone, email, timeline as a table. What a contractor acts on. */
+function contactBlock(fields: DemoLeadEmailFields): string {
+  const row = (k: string, v: string) =>
+    '<tr><td style="padding:6px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;' +
+    'letter-spacing:1px;text-transform:uppercase;color:' + RULE + ';width:96px;vertical-align:top;">' +
+    escapeHtml(k) + '</td>' +
+    '<td style="padding:6px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:' + INK + ';">' +
+    v + '</td></tr>';
+
+  return (
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' +
+    row('Name', escapeHtml(fields.name)) +
+    row('Phone', '<a href="tel:' + escapeHtml(fields.phone) + '" style="color:' + INK + ';">' +
+      escapeHtml(fields.phone) + '</a>') +
+    row('Email', '<a href="mailto:' + escapeHtml(fields.email) + '" style="color:' + INK + ';">' +
+      escapeHtml(fields.email) + '</a>') +
+    row('Timeline', escapeHtml(fields.timeline)) +
+    '</table>'
+  );
+}
+
+/**
+ * What the homeowner actually saw: the range, the photo, the render, and the
+ * disclosure that must travel with it.
  *
  * WHY THIS IS A SHARED FUNCTION rather than inline in each template: the
  * render carries a disclosure that is not optional, and the fastest way to
- * lose it is to have two templates each build their own markup. One builder
+ * lose it is to have three templates each build their own markup. One builder
  * means the caption cannot be forgotten in one place and remembered in the
  * other.
  *
  * IMAGES ARE LINKED, NOT EMBEDDED. Most mail clients block remote images by
  * default and inlining two photographs would make the message large enough to
- * be clipped by Gmail — which truncates the end of a long email behind a
- * "view entire message" link, and the end is where the contractor's own
- * details live. A labelled link always works.
+ * be clipped by Gmail — which truncates the end behind a "view entire message"
+ * link, and the end is where the contractor's own details live. A labelled
+ * link always works.
  */
 function evidenceBlock(fields: DemoLeadEmailFields): string {
-  let html = '';
-
-  if (fields.priceRange) {
-    html += '<p><strong>Quoted range:</strong> ' + escapeHtml(fields.priceRange) + '</p>';
-  } else {
-    html +=
-      '<p><em>No price was calculated for this one \u2014 the quoting engine was ' +
-      'degraded, so the details were captured without a range.</em></p>';
-  }
+  let html = priceBlock(fields.priceRange ?? null);
 
   if (fields.photoUrl) {
-    html +=
-      '<p><a href="' + escapeHtml(fields.photoUrl) + '">The photo they sent of the floor</a></p>';
+    html += linkRow(fields.photoUrl, 'The photo they sent of the floor');
   }
 
   if (fields.renderUrl) {
-    html +=
-      '<p><a href="' + escapeHtml(fields.renderUrl) +
-      '">The finish preview they were shown</a></p>';
+    html += linkRow(fields.renderUrl, 'The finish preview they were shown');
     if (fields.renderDisclosure) {
-      // The disclosure travels with the render EVERYWHERE, including here.
-      // A contractor who reads it is a contractor who will not be blindsided
+      // The disclosure travels with the render EVERYWHERE, including here. A
+      // contractor who reads it is a contractor who will not be blindsided
       // when the homeowner holds up his phone on site.
       html +=
-        '<p style="font-size:13px;color:#8A8880">' +
-        escapeHtml(fields.renderDisclosure) +
-        '</p>';
+        '<p style="margin:6px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:' +
+        RULE + ';">' + escapeHtml(fields.renderDisclosure) + '</p>';
     }
   }
 
   // Links are short-lived by design. Saying so is the difference between a
-  // contractor saving the image now and discovering a dead link in a week.
+  // contractor saving the image now and finding a dead link in a week.
   if (fields.photoUrl || fields.renderUrl) {
     html +=
-      '<p style="font-size:13px;color:#8A8880">Those links expire in seven days. ' +
-      'Save anything you want to keep.</p>';
+      '<p style="margin:10px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:' +
+      RULE + ';">Those links expire in seven days. Save anything you want to keep.</p>';
   }
 
   return html;
 }
 
 /**
- * Notifies the admin (Dawsen) that a prospective contractor tried the demo
- * and left contact details — this is a real inbound lead for NVA Digital
- * Solutions itself, not a test event.
+ * ============================================================================
+ * THE THREE RECIPIENTS, AND WHY EACH GETS A DIFFERENT DOCUMENT
+ * ============================================================================
+ *
+ * One submission produces three emails, because three people need three
+ * different things from it and a single template serving all of them would
+ * serve none of them well:
+ *
+ *   THE PERSON WHO SUBMITTED gets their quote. Warm, addressed to them, no
+ *   internal language. They asked for a price and a picture; this is it.
+ *
+ *   THE OPERATOR gets the lead. Terse, scannable on a lock screen, reply-to
+ *   set to the submitter so the correct action is to hit reply.
+ *
+ *   THE BUSINESS TRYING THE TOOL OUT gets BOTH SIDES in one message — what
+ *   their customer received, and what would have landed in their own inbox.
+ *   That is the demonstration: not a description of how the product works, the
+ *   actual artefacts it produced, side by side, from their own submission.
+ *
+ * ============================================================================
+ * WHO THE THIRD EMAIL GOES TO, AND WHY IT IS NOT A PARAMETER FROM THE BROWSER
+ * ============================================================================
+ *
+ * The obvious design is an argument — pass the contractor's address in with
+ * the submission. DO NOT DO THIS. An action that accepts an arbitrary address
+ * from an anonymous caller and sends mail to it is an open relay: anyone could
+ * point it at any inbox, from a domain the operator owns, and the deliverability
+ * of that domain would not survive the week.
+ *
+ * So the recipient is only ever an address the software already trusts:
+ *
+ *   - the address just typed into the form, which is where the confirmation
+ *     was always going, or
+ *   - one resolved SERVER-SIDE from a prototype id.
+ *
+ * `sendBothSidesPreview` therefore takes no recipient of its own; it sends to
+ * fields.email. On the public card the person trying the tool IS the person
+ * submitting, which is the case this exists for.
+ */
+
+/**
+ * Notifies the operator that somebody left contact details. A real inbound
+ * lead for NVA Digital Solutions itself, not a test event.
  */
 export async function notifyAdminOfDemoLead(fields: DemoLeadEmailFields): Promise<EmailResult> {
   const to = process.env.ADMIN_NOTIFY_EMAIL;
   if (!to) return { status: 'skipped', error: 'not_configured' };
-  const html =
-    '<p><strong>New demo lead</strong> from ' + escapeHtml(fields.surface) + '</p>' +
-    '<p>' + escapeHtml(fields.name) + '<br>' +
-    escapeHtml(fields.phone) + '<br>' +
-    escapeHtml(fields.email) + '</p>' +
-    '<p>Timeline: ' + escapeHtml(fields.timeline) + '</p>' +
-    evidenceBlock(fields) +
-    '<p>' + escapeHtml(new Date(fields.createdAt).toLocaleString('en-US')) + '</p>';
+
+  const body =
+    contactBlock(fields) +
+    '<div style="height:18px"></div>' +
+    evidenceBlock(fields);
+
   return sendViaResend({
     to,
-    subject: 'New demo lead: ' + fields.name,
-    html,
+    subject: 'New lead: ' + fields.name + (fields.priceRange ? ' \u00b7 ' + fields.priceRange : ''),
+    html: shell({
+      eyebrow: 'From ' + fields.surface.replace('_', ' '),
+      title: fields.name,
+      body,
+      footer:
+        escapeHtml(new Date(fields.createdAt).toLocaleString('en-US')) +
+        ' \u00b7 reply straight to this email',
+    }),
     replyTo: fields.email,
   });
 }
 
 /**
- * Sent to the DEMO VISITOR's own address — the point is not just to confirm
- * receipt, it is to hand them the exact artefact a real contractor would get
- * the instant a real homeowner submits: this email IS the second half of the
- * "aha moment," arriving after they've already left the payload screen.
+ * THE CUSTOMER'S OWN COPY. Their price, their picture, their words.
+ *
+ * Deliberately contains no meta-commentary about the software. A homeowner
+ * does not care that this demonstrates anything; he asked what his garage
+ * costs. Every sentence about "how this works on your own site" belongs in the
+ * other email, to the other reader.
  */
-export async function sendDemoContractorConfirmation(fields: DemoLeadEmailFields): Promise<EmailResult> {
-  const html =
-    '<p>This is the notification a homeowner\u2019s submission sends the moment they hit "Send."</p>' +
-    '<p><strong>' + escapeHtml(fields.name) + '</strong><br>' +
-    escapeHtml(fields.phone) + '<br>' +
-    escapeHtml(fields.email) + '</p>' +
-    '<p>Timeline: ' + escapeHtml(fields.timeline) + '</p>' +
+export async function sendCustomerQuote(fields: DemoLeadEmailFields): Promise<EmailResult> {
+  const body =
+    '<p style="margin:0 0 4px;">Here is the range for your floor, ' +
+    escapeHtml(fields.name.split(' ')[0] ?? fields.name) +
+    '.</p>' +
     evidenceBlock(fields) +
-    /* The old copy here promised that on a real site this "arrives with the
-       calculated price range and photo attached" — a promise the code did not
-       keep, in the one email whose entire job is to demonstrate the product
-       honestly. It now sends them, so the sentence describes what just
-       happened rather than what would hypothetically happen elsewhere. */
-    '<p>Everything above arrived the moment they pressed Send. On your own site it works exactly this way, under your name.</p>';
+    '<p style="margin:18px 0 0;">An installer will call you about it. You said ' +
+    escapeHtml(fields.timeline.toLowerCase()) + ', so expect to hear from them accordingly.</p>' +
+    '<p style="margin:12px 0 0;color:' + RULE + ';font-size:14px;">' +
+    'This is an estimate, not a contract. The final figure is confirmed once ' +
+    'somebody has seen the concrete in person \u2014 that is true of every ' +
+    'quote in this trade, and anyone who tells you otherwise before looking is ' +
+    'guessing.</p>';
+
   return sendViaResend({
     to: fields.email,
-    subject: 'Here\u2019s what you\u2019d have just received',
-    html,
+    subject: 'Your floor: ' + (fields.priceRange ?? 'the details you sent'),
+    html: shell({
+      eyebrow: 'Your estimate',
+      title: fields.priceRange ?? 'Your details are in',
+      body,
+    }),
   });
+}
+
+/**
+ * BOTH SIDES OF THE SAME SUBMISSION, in one message, for the business owner
+ * evaluating the tool.
+ *
+ * The order is not arbitrary. The customer's view comes FIRST because that is
+ * the half he has never seen and cannot picture — he knows what a lead looks
+ * like, he does not know what his customer's experience feels like. Opening
+ * with his own inbox would put the familiar half on top and bury the argument.
+ *
+ * Nothing here is illustrative. Both blocks are rendered from the same fields
+ * that were actually sent, so what he reads is what the two people involved
+ * genuinely received. A mocked-up example in this email would be the exact
+ * failure the rest of this codebase is built to avoid.
+ */
+export async function sendBothSidesPreview(fields: DemoLeadEmailFields): Promise<EmailResult> {
+  const body =
+    '<p style="margin:0;">You just ran the tool. Two emails went out from that one ' +
+    'submission. Here they both are.</p>' +
+
+    sectionHead('As the customer', 'What the person pricing the job receives') +
+    evidenceBlock(fields) +
+    '<p style="margin:12px 0 0;color:' + RULE + ';font-size:14px;">' +
+    'They get the range and the picture immediately, under your name, without ' +
+    'anyone picking up a phone.</p>' +
+
+    sectionHead('As the business owner', 'What lands in your inbox at the same moment') +
+    contactBlock(fields) +
+    '<p style="margin:14px 0 0;color:' + RULE + ';font-size:14px;">' +
+    'A name, a live number, the size of the job and what they were quoted \u2014 ' +
+    'before the first call. You already know whether it is worth the drive.</p>';
+
+  return sendViaResend({
+    to: fields.email,
+    subject: 'Both sides of the lead you just created',
+    html: shell({
+      eyebrow: 'What just happened',
+      title: 'Your customer got a price. You got the job.',
+      body,
+      footer: 'Every figure above came from your own submission. Nothing here is illustrative.',
+    }),
+  });
+}
+
+/**
+ * KEPT AS AN ALIAS so nothing that imported the old name breaks. New callers
+ * should choose deliberately between sendCustomerQuote and
+ * sendBothSidesPreview — those are different readers.
+ */
+export async function sendDemoContractorConfirmation(
+  fields: DemoLeadEmailFields
+): Promise<EmailResult> {
+  return sendBothSidesPreview(fields);
 }
 
 // ---------------------------------------------------------------------------
@@ -324,3 +568,4 @@ export async function notifyAdminOfImplementationRequest(
 
   return sendViaResend({ to, subject, html, replyTo: fields.email });
 }
+
