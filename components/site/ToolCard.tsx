@@ -380,7 +380,7 @@ export function ToolCard({
         prototypeId: null,
         sessionId,
         vertical: pricer.verticalId,
-        images: photos.map((p) => ({ base64: p.base64, mediaType: p.mediaType })),
+        images: photos.map((p) => ({ base64: p.base64, mediaType: p.mediaType as "image/jpeg" | "image/webp" | "image/png" })),
         surfaceTypeId: pricer.surfaceTypeId,
       });
 
