@@ -120,6 +120,50 @@ export function FinishVisualiser({
     }
   }, [finishLabel]);
 
+  /**
+   * ==========================================================================
+   * EVERY HOOK IS DECLARED HERE, ABOVE THE `enabled` EARLY RETURN.
+   * ==========================================================================
+   *
+   * These three sat BELOW it and failed the build on react-hooks/rules-of-hooks.
+   * The rule is not a style preference: React identifies hook state by CALL
+   * ORDER, so a component that returns early before its fourth hook has a
+   * different hook count on that render than on the next. State then belongs to
+   * the wrong hook — a ref reads as a piece of state, an effect fires with
+   * another effect's dependencies.
+   *
+   * Here that would be live on a real toggle, not a theoretical one: `enabled`
+   * is driven by whether the visualiser is configured for the deployment, so a
+   * site could flip between the two branches and silently corrupt which render
+   * belonged to which finish.
+   *
+   * `runRef` exists so the auto-start effect can call the latest `run` without
+   * listing it as a dependency — `run` is redefined on every render and would
+   * retrigger the effect, which is a paid image generation per render.
+   */
+  const runRef = useRef<(() => void) | null>(null);
+
+  /**
+   * Fires ONCE per mount, and only from idle.
+   *
+   * A ref rather than state because a render costs real money and a re-render
+   * must never start a second one. React 18 mounts effects twice in
+   * development StrictMode; without this guard that is two paid image
+   * generations per developer page load, and the bill arrives before anyone
+   * notices the cause.
+   *
+   * It deliberately does NOT restart when the finish changes — the effect above
+   * resets to idle in that case, and auto-rendering every finish somebody taps
+   * through would spend the balance on curiosity. ToolCard remounts this with a
+   * new key when the visitor explicitly asks for a fresh one.
+   */
+  const started = useRef(false);
+  useEffect(() => {
+    if (!autoStart || !enabled || started.current) return;
+    started.current = true;
+    runRef.current?.();
+  }, [autoStart, enabled]);
+
   if (!enabled) {
     return (
       <p className="tc-up-note">
@@ -128,8 +172,6 @@ export function FinishVisualiser({
       </p>
     );
   }
-
-  const runRef = useRef<(() => void) | null>(null);
 
   const run = () => {
     setPhase({ k: 'rendering' });
@@ -166,26 +208,9 @@ export function FinishVisualiser({
     })();
   };
 
-  /**
-   * Fires ONCE per mount, and only from idle.
-   *
-   * `started` is a ref rather than a state flag because a render costs real
-   * money and a re-render must never be able to start a second one. React 18
-   * mounts effects twice in development StrictMode; without this guard that is
-   * two paid image generations for every developer page load, and the bill
-   * would arrive before anyone noticed the cause.
-   *
-   * It deliberately does NOT restart when the finish changes. The effect above
-   * already resets to idle in that case, and auto-rendering every finish a
-   * visitor taps through would spend the balance on curiosity.
-   */
-  const started = useRef(false);
-  useEffect(() => {
-    if (!autoStart || !enabled || started.current) return;
-    started.current = true;
-    runRef.current?.();
-  }, [autoStart, enabled]);
-
+  // Kept current so the auto-start effect above always calls the latest
+  // closure. Assigning during render is safe for a ref that nothing reads
+  // during render — only the effect reads it, after commit.
   runRef.current = run;
 
   return (
