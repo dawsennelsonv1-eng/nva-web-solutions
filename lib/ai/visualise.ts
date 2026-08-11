@@ -79,6 +79,22 @@ export interface VisualiseArgs {
   finishLabel: string;
   /** e.g. 'Copper Burl'. Optional — some finishes are a single colour. */
   colourLabel?: string;
+  /**
+   * The full assembled description of every choice, from the picker's
+   * renderDescription(). When present it SUPERSEDES finishLabel in the prompt.
+   *
+   * finishLabel is one phrase — "Metallic pour". This is the whole floor: the
+   * coating, the pour colour, the coverage, the chip size, the topcoat and any
+   * extras, each in the words its own catalogue entry supplies. The difference
+   * between the two is the difference between a model guessing and a model
+   * being told.
+   */
+  finishDescription?: string;
+  /**
+   * Public URLs of material sample photographs for what was chosen. Resolved
+   * server-side; never taken from a browser.
+   */
+  materialUrls?: string[];
   /** Hex of the chosen colour, so the model is told the target directly. */
   colourHex?: string;
   /** e.g. 'garage'. Used to name the surface, not to price anything. */
@@ -100,16 +116,48 @@ function buildPrompt(args: VisualiseArgs): string {
     ? `${args.colourLabel}${args.colourHex ? ` (approximately ${args.colourHex})` : ''}`
     : 'the existing colour';
 
-  return [
-    `Edit this photograph of a ${args.surfaceLabel}.`,
-    `Replace ONLY the floor surface with a realistic ${args.finishLabel} coating in ${colour}.`,
+  /**
+   * The full picker description when there is one, the single label otherwise.
+   * Every pre-picker caller passes only a label and gets the original
+   * behaviour byte for byte.
+   */
+  const finish =
+    args.finishDescription && args.finishDescription.trim().length > 0
+      ? args.finishDescription.trim()
+      : `${args.finishLabel} coating in ${colour}`;
+
+  const materials = (args.materialUrls ?? []).length;
+
+  const lines = [
+    // POSITIONAL, AND IT MATTERS. The reference array puts the garage first and
+    // the samples after; naming that order in words is what stops the model
+    // editing a swatch and returning a picture of a material sample.
+    `The FIRST image is a photograph of a ${args.surfaceLabel}. Edit that photograph.`,
+  ];
+
+  if (materials > 0) {
+    lines.push(
+      materials === 1
+        ? 'The SECOND image is a sample of the exact floor finish to apply.'
+        : `The following ${materials} images are samples of the exact floor finish to apply.`,
+      'Match those samples closely: the colour, the pattern, the size and density of any flakes or aggregate, and the level of gloss.',
+      'Reproduce the material shown, not your own interpretation of its name.'
+    );
+  }
+
+  lines.push(
+    `Replace ONLY the floor surface in the first image with: ${finish}.`,
+    'Apply it across the whole visible floor, including under and around anything standing on it, following the floor plane in correct perspective.',
     'Keep the camera angle, perspective, lighting and shadows exactly as they are.',
     'Keep the walls, ceiling, doors, windows, shelving, vehicles and every other object',
     'unchanged and in the same position. Do not tidy, restage, redecorate or relight the room.',
     'Do not add furniture, people, text or reflections that were not there.',
     'The coating should look evenly applied and ordinary, as a real installed floor looks',
-    'in this exact lighting — not glossy, not idealised, not a showroom.',
-  ].join(' ');
+    'in this exact lighting — not idealised, not a showroom, not a catalogue photograph.',
+    'Return only the edited photograph.'
+  );
+
+  return lines.join(' ');
 }
 
 export async function visualiseFinish(args: VisualiseArgs): Promise<VisualiseResult> {
@@ -126,6 +174,9 @@ export async function visualiseFinish(args: VisualiseArgs): Promise<VisualiseRes
   const result = await renderFinishImage({
     prompt: buildPrompt(args),
     referenceDataUrl: dataUrl,
+    ...(args.materialUrls && args.materialUrls.length > 0
+      ? { materialUrls: args.materialUrls }
+      : {}),
   });
 
   // ---- the ledger ----------------------------------------------------------
@@ -151,9 +202,16 @@ export async function visualiseFinish(args: VisualiseArgs): Promise<VisualiseRes
     fellBackFrom: undefined,
     request: {
       modelsSkipped: result.fellBackFrom ?? [],
-      finish: args.finishLabel,
+      // WHAT EACH MODEL ACTUALLY SAID. Without this a chain-exhausted render
+      // left one reason code from the last candidate, which is the wrong
+      // evidence when the real cause was the first candidate's slug being
+      // retired. This is the row you read when somebody reports "the preview
+      // does not work".
+      attempts: result.attempts ?? [],
+      finish: args.finishDescription ?? args.finishLabel,
       colour: args.colourLabel ?? null,
       surface: args.surfaceLabel,
+      materialRefs: (args.materialUrls ?? []).length,
     },
   });
 
@@ -183,3 +241,4 @@ export async function visualiseFinish(args: VisualiseArgs): Promise<VisualiseRes
     disclosure: RENDER_DISCLOSURE,
   };
 }
+

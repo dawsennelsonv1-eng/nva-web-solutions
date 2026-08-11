@@ -74,6 +74,12 @@ export interface FinishVisualiserProps {
    * pre-picker mount does.
    */
   finishDescription?: string;
+  /**
+   * The picker's raw choices, forwarded to the action so it can resolve the
+   * material sample photographs ITSELF. The swatch URLs are deliberately not
+   * sent from here — see app/actions/visualise.ts.
+   */
+  selections?: Record<string, string | string[] | undefined>;
 }
 
 type Phase =
@@ -92,6 +98,7 @@ export function FinishVisualiser({
   onRendered,
   onSettled,
   finishDescription,
+  selections,
 }: FinishVisualiserProps) {
   const [phase, setPhase] = useState<Phase>({ k: 'idle' });
 
@@ -142,6 +149,7 @@ export function FinishVisualiser({
           surfaceLabel,
           sessionId,
           prototypeId: null,
+          ...(selections ? { selections } : {}),
         });
         if (!result.ok) {
           setPhase({ k: 'failed', message: result.message });

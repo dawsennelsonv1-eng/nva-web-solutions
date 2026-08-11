@@ -2,6 +2,9 @@
 
 import { headers } from 'next/headers';
 import { visualiseFinish, RENDER_DISCLOSURE } from '@/lib/ai/visualise';
+import { MAX_MATERIAL_REFS } from '@/lib/ai/images';
+import { finishMediaFor, indexByKey } from '@/lib/finishes/media';
+import { renderDescription, swatchKeyFor } from '@/lib/verticals/epoxy/options';
 import {
   validateImagePayload,
   checkIpRateLimit,
@@ -54,6 +57,13 @@ export interface VisualiseActionArgs {
   photoBase64: string;
   photoMediaType: string;
   finishLabel: string;
+  /**
+   * What the visitor built in the picker, as group -> option key(s).
+   *
+   * THE ACTION TAKES THE CHOICES, NOT THE PICTURES. That distinction is the
+   * security boundary of this whole feature — see resolveMaterials below.
+   */
+  selections?: Record<string, string | string[] | undefined>;
   colourLabel?: string;
   colourHex?: string;
   surfaceLabel: string;
@@ -90,8 +100,83 @@ function messageFor(reason: string): string {
       return 'The preview took too long, so we stopped waiting. Your quote is unaffected.';
     case 'rate_limited':
       return 'That is a lot of previews in a short time. Give it a minute.';
+    case 'invalid_request':
+    case 'empty_result':
+    case 'provider_error':
+      // Named separately from the catch-all because these three are OURS to
+      // fix, not the visitor's — a retired model slug, a malformed request, a
+      // provider fault. Telling him to try a different photo would send him
+      // off to solve a problem he did not cause and cannot solve. The detail
+      // that identifies which one is in the ai_jobs ledger.
+      return 'The preview could not be made — that is a fault on our side, not with your photos. Your quote is unaffected.';
     default:
       return 'The preview could not be made from that photo. Your quote is unaffected.';
+  }
+}
+
+/**
+ * ============================================================================
+ * THE MATERIAL SAMPLES ARE RESOLVED HERE, AND NEVER SENT BY THE BROWSER
+ * ============================================================================
+ *
+ * The obvious shape is for the picker — which already has every swatch URL on
+ * screen — to send them along with the render request. DO NOT DO THIS.
+ *
+ * These URLs are handed to a paid image model as `input_references`, which
+ * means anything accepted here is fetched by a third-party provider on our
+ * account. An action that takes arbitrary URLs from an anonymous caller is a
+ * server-side request forgery with somebody else's compute paying for it, and
+ * a way to make our provider account fetch anything on the internet.
+ *
+ * So the browser sends CHOICES — 'metallic', 'copper_burl' — and this looks up
+ * the corresponding rows in finish_media. The only URLs that can ever reach
+ * the model are ones the operator uploaded through /admin/finishes. A visitor
+ * inventing an option key gets no swatch, which is the correct failure.
+ *
+ * MAX_MATERIAL_REFS is enforced here too, not only in lib/ai/images.ts. Two
+ * checks because they defend different things: this one bounds what a caller
+ * can cause to be fetched, the other bounds what one request costs.
+ */
+async function resolveMaterials(
+  selections: Record<string, string | string[] | undefined> | undefined
+): Promise<string[]> {
+  if (!selections) return [];
+  try {
+    const slots = await finishMediaFor('epoxy');
+    const byKey = indexByKey(slots);
+    const urls: string[] = [];
+
+    /**
+     * ORDER IS DELIBERATE: the system first, then whichever colour group
+     * applies. Those two carry essentially all of the visual information, and
+     * the cap means later entries may never be sent — so the ones that decide
+     * what the floor looks like have to come first.
+     */
+    for (const group of [
+      'system',
+      'solid_colour',
+      'flake_blend',
+      'metallic_colour',
+      'quartz_colour',
+      'flake_coverage',
+      'flake_size',
+    ]) {
+      const raw = selections[group];
+      const keys = typeof raw === 'string' ? [raw] : Array.isArray(raw) ? raw : [];
+      for (const k of keys) {
+        const hit = byKey.get('swatch|' + swatchKeyFor(group, k));
+        // Only absolute https URLs. A /public path means nothing to a provider
+        // fetching from the outside, and would be a reference that silently
+        // resolves to nothing.
+        if (hit && hit.src.startsWith('https://')) urls.push(hit.src);
+        if (urls.length >= MAX_MATERIAL_REFS) return urls;
+      }
+    }
+    return urls;
+  } catch {
+    // A render with no samples is worse than one with them, and far better
+    // than none at all.
+    return [];
   }
 }
 
@@ -117,10 +202,14 @@ export async function visualiseAction(
   if (!valid.ok) return { ok: false, message: valid.message };
 
   // ---- 3. the render, which checks the daily ceiling itself ----------------
+  const materialUrls = await resolveMaterials(args.selections);
+
   const result = await visualiseFinish({
     photoBase64: args.photoBase64,
     photoMediaType: args.photoMediaType,
     finishLabel: args.finishLabel,
+    ...(args.selections ? { finishDescription: renderDescription(args.selections) } : {}),
+    ...(materialUrls.length > 0 ? { materialUrls } : {}),
     colourLabel: args.colourLabel,
     colourHex: args.colourHex,
     surfaceLabel: args.surfaceLabel,
@@ -139,3 +228,4 @@ export async function visualiseAction(
 }
 
 export { RENDER_DISCLOSURE };
+

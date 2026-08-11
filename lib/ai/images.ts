@@ -158,9 +158,37 @@ export interface RenderImageArgs {
    * a room, and an invented room is a lie with a price attached.
    */
   referenceDataUrl: string;
+  /**
+   * MATERIAL SAMPLES. Photographs of the finish the homeowner picked, passed
+   * alongside his garage so the model can SEE the material instead of
+   * inferring it from an adjective.
+   *
+   * This is the single largest quality change available to this feature.
+   * "Copper burl metallic" is a phrase that means something specific to an
+   * installer and almost nothing to an image model — it will produce some
+   * brown swirl. Given an actual photograph of Copper Burl it matches pattern,
+   * scale and depth, and the homeowner sees the floor he chose rather than the
+   * model's idea of what those two words might mean.
+   *
+   * These are absolute https URLs from the public tool-media bucket, resolved
+   * SERVER-SIDE from finish_media. They are never accepted from the browser —
+   * see app/actions/visualise.ts for why that distinction matters.
+   *
+   * Capped at MAX_MATERIAL_REFS. Every extra reference is input cost on a call
+   * the visitor is waiting through, and past three the model has already seen
+   * the material from every angle it is going to.
+   */
+  materialUrls?: string[];
   /** Pins one model and disables the chain. For an admin test surface only. */
   model?: string;
 }
+
+/**
+ * The reference photograph is ALWAYS first in the array and every prompt in
+ * this codebase refers to it as "the first image". Reordering these would
+ * silently make the model edit a swatch instead of a garage.
+ */
+export const MAX_MATERIAL_REFS = 3;
 
 interface OpenRouterImageResponse {
   data?: { b64_json?: string; media_type?: string }[];
@@ -205,7 +233,14 @@ async function attemptRender(args: RenderImageArgs, model: string): Promise<Imag
       body: JSON.stringify({
         model,
         prompt: args.prompt,
-        input_references: [{ type: 'image_url', image_url: { url: args.referenceDataUrl } }],
+        input_references: [
+          // FIRST, ALWAYS. This is the image being edited; the prompt refers
+          // to it positionally.
+          { type: 'image_url', image_url: { url: args.referenceDataUrl } },
+          ...(args.materialUrls ?? [])
+            .slice(0, MAX_MATERIAL_REFS)
+            .map((url) => ({ type: 'image_url' as const, image_url: { url } })),
+        ],
         n: 1,
         // WebP at moderate compression: this is stored and then emailed to a
         // contractor, so bytes matter more than the last few percent of
@@ -234,8 +269,17 @@ async function attemptRender(args: RenderImageArgs, model: string): Promise<Imag
             : res.status === 400
               ? 'invalid_request'
               : 'provider_error';
+      // 400 detail is the one worth reading in full-ish: a stale model slug
+      // and a malformed reference array both land here and look identical
+      // from the outside. 400 characters is enough for OpenRouter's message
+      // without turning a log line into a wall.
       const body = await res.text().catch(() => '');
-      return { ok: false, reason, detail: body.slice(0, 200), durationMs };
+      return {
+        ok: false,
+        reason,
+        detail: 'HTTP ' + res.status + ' from ' + model + ': ' + body.slice(0, 400),
+        durationMs,
+      };
     }
 
     const json = (await res.json()) as OpenRouterImageResponse;
@@ -244,7 +288,7 @@ async function attemptRender(args: RenderImageArgs, model: string): Promise<Imag
       return {
         ok: false,
         reason: 'empty_result',
-        detail: json.error?.message,
+        detail: (json.error?.message ?? 'no b64_json in response') + ' (model ' + model + ')',
         durationMs,
       };
     }
@@ -291,15 +335,31 @@ async function attemptRender(args: RenderImageArgs, model: string): Promise<Imag
  */
 export async function renderFinishImage(
   args: RenderImageArgs
-): Promise<ImageResult & { fellBackFrom?: string[] }> {
+): Promise<ImageResult & { fellBackFrom?: string[]; attempts?: string[] }> {
   const chain = imageModelChain(args.model);
   const skipped: string[] = [];
+  /**
+   * Every model tried and what it said, in order.
+   *
+   * ADDED BECAUSE A FAILED RENDER WAS UNDIAGNOSABLE. The chain would exhaust,
+   * the visitor would see "that did not come back", and the only evidence left
+   * was one reason code from the LAST model — which is useless when the actual
+   * cause was the first model's slug being retired. This is written into the
+   * ai_jobs ledger, so a stale slug is visible in the data instead of being
+   * inferred from a support conversation.
+   */
+  const attempts: string[] = [];
   let last: ImageResult = { ok: false, reason: 'not_configured', durationMs: 0 };
 
   for (const model of chain) {
     const result = await attemptRender(args, model);
-    if (result.ok) return skipped.length > 0 ? { ...result, fellBackFrom: skipped } : result;
+    if (result.ok) {
+      return skipped.length > 0
+        ? { ...result, fellBackFrom: skipped, attempts }
+        : { ...result, attempts };
+    }
 
+    attempts.push(model + ' -> ' + result.reason + (result.detail ? ': ' + result.detail : ''));
     last = result;
     // Not configured means there is no API key at all — every candidate will
     // fail identically, so stop rather than looping over the same absence.
@@ -308,5 +368,8 @@ export async function renderFinishImage(
     skipped.push(model);
   }
 
-  return skipped.length > 0 ? { ...last, fellBackFrom: skipped } : last;
+  return skipped.length > 0
+    ? { ...last, fellBackFrom: skipped, attempts }
+    : { ...last, attempts };
 }
+

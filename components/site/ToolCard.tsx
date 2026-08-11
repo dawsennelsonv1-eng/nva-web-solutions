@@ -958,6 +958,7 @@ export function ToolCard({
                     photo={photo}
                     finishLabel={selectedFinish?.label ?? 'the finish'}
                     finishDescription={renderDescription(selections)}
+                    selections={selections}
                     surfaceLabel={pricer.surfaceLabel}
                     sessionId={sessionId}
                     autoStart
