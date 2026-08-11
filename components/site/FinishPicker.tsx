@@ -11,7 +11,8 @@ import {
   type FinishOptionDef,
   type CostTier,
 } from '@/lib/verticals/epoxy/options';
-import { getFinishMediaAction } from '@/app/actions/finishMedia';
+import { getFinishMediaAction, isOperatorAction } from '@/app/actions/finishMedia';
+import { CombinationUploader } from '@/components/site/CombinationUploader';
 
 /**
  * components/site/FinishPicker.tsx — WHERE A HOMEOWNER BUILDS HIS FLOOR.
@@ -85,6 +86,16 @@ function CostRank({ tier }: { tier: CostTier }) {
 
 export function FinishPicker({ verticalId, selections, onChange, children }: FinishPickerProps) {
   const [pics, setPics] = useState<Pic[] | null>(null);
+  /**
+   * Whether the operator is the one looking at this.
+   *
+   * Starts false and only ever becomes true, so a visitor never sees the
+   * upload control flash in before it is hidden again. The server checks this
+   * for real on every write — see app/actions/finishMedia.ts.
+   */
+  const [isOperator, setIsOperator] = useState(false);
+  /** Bumped to refetch after the operator attaches or removes a photograph. */
+  const [reload, setReload] = useState(0);
 
   /**
    * Fetched once, on mount. The picker only mounts after a floor has been
@@ -108,7 +119,29 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
     return () => {
       live = false;
     };
-  }, [verticalId]);
+  }, [verticalId, reload]);
+
+  /**
+   * Asked once, separately from the pictures.
+   *
+   * Separate because it must not be able to fail the pictures: a visitor whose
+   * session lookup errors should still get a working picker, and the two have
+   * nothing to do with each other beyond both being needed at mount.
+   */
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const yes = await isOperatorAction();
+        if (live && yes) setIsOperator(true);
+      } catch {
+        // Stays false. The control is hidden, which is the safe direction.
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const byKey = useMemo(() => {
     const m = new Map<string, Pic>();
@@ -230,6 +263,20 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
           </div>
         </fieldset>
       ))}
+
+      {/* Last, under everything. The operator assembles a mix the same way a
+          visitor does, then attaches the photograph he took of that exact
+          floor — so the key is computed rather than typed and cannot be
+          wrong. */}
+      {isOperator && (
+        <CombinationUploader
+          vertical={verticalId}
+          comboKey={comboKey}
+          summary={summary}
+          hasPhoto={Boolean(hero)}
+          onSaved={() => setReload((n) => n + 1)}
+        />
+      )}
 
       {children}
     </div>

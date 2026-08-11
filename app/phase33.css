@@ -1,0 +1,78 @@
+/**
+ * app/phase33.css — THE OPERATOR'S UPLOAD CONTROL, INSIDE THE PICKER.
+ *
+ * Adds only. Every selector is prefixed `.cu-` — combination uploader. No
+ * earlier layer uses it.
+ *
+ * ============================================================================
+ * IT IS DELIBERATELY UGLY, IN A SPECIFIC WAY
+ * ============================================================================
+ *
+ * This renders inside the customer-facing picker, on the same page a homeowner
+ * uses. It must be impossible to mistake for part of that experience — if it
+ * ever leaks to a visitor through a bug, it should read instantly as
+ * scaffolding rather than as a broken feature.
+ *
+ * So: dashed border, mono type, a literal machine key printed at the bottom.
+ * The visual language of every other admin surface in this codebase, dropped
+ * unchanged into a marketing page on purpose.
+ *
+ * The file input is hidden the same way the card's is — a styled button that
+ * clicks it — because a native file input cannot be made to look like anything
+ * and the button next to it has to work on a phone.
+ */
+
+.cu {
+  margin-top: 2rem;
+  padding: 0.875rem 1rem;
+  border: 1px dashed var(--n15-card-edge);
+  border-radius: var(--n15-r-chip);
+  background: rgba(127, 127, 127, 0.06);
+}
+
+.cu-h {
+  margin: 0;
+  font-family: var(--n15-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+
+.cu-b {
+  margin: 0.375rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  opacity: 0.75;
+}
+
+.cu-file {
+  display: none;
+}
+
+.cu-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cu-note {
+  margin: 0.625rem 0 0;
+  font-size: 0.8125rem;
+}
+
+/*
+ * The key, printed verbatim. It is what the operator checks when a photograph
+ * does not appear where he expects, and it is the one string in this feature
+ * that has to be exact. Wrapped rather than truncated: a key cut off at the
+ * edge is worse than no key, because it looks complete and is not.
+ */
+.cu-key {
+  margin: 0.625rem 0 0;
+  font-family: var(--n15-mono);
+  font-size: 0.625rem;
+  line-height: 1.5;
+  word-break: break-all;
+  opacity: 0.4;
+}

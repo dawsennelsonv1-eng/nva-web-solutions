@@ -185,3 +185,42 @@ export async function getFinishMediaAction(
     return [];
   }
 }
+
+// ---------------------------------------------------------------------------
+// is the current visitor the operator?
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether this request is from a signed-in admin.
+ *
+ * ============================================================================
+ * WHAT THIS IS FOR, AND WHY IT IS SAFE TO EXPOSE
+ * ============================================================================
+ *
+ * The picker shows an upload control when the operator is the one looking at
+ * it, so he can photograph a combination he has just assembled and attach it
+ * without leaving the page and reconstructing the same mix in an admin screen.
+ *
+ * A boolean "are you an admin" is not a secret: the person asking already
+ * knows the answer about themselves, and it reveals nothing about anyone else.
+ * The visitor cannot lie to it either — requireAdmin() reads a cookie-bound
+ * session, not anything the browser can assert.
+ *
+ * ============================================================================
+ * THIS IS NOT THE PERMISSION CHECK
+ * ============================================================================
+ *
+ * It decides what the UI DRAWS. Every write still checks requireAdmin() for
+ * itself, in saveFinishMediaAction and createFinishUploadAction. A visitor who
+ * forces this to return true gets an upload button that fails on both calls.
+ *
+ * Hidden UI is never a boundary. It is a courtesy to the person who cannot use
+ * it, and the server does the actual refusing.
+ */
+export async function isOperatorAction(): Promise<boolean> {
+  try {
+    return await requireAdmin();
+  } catch {
+    return false;
+  }
+}
