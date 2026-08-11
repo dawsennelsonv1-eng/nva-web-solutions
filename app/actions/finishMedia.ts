@@ -219,7 +219,18 @@ export async function getFinishMediaAction(
  */
 export async function isOperatorAction(): Promise<boolean> {
   try {
-    return await requireAdmin();
+    /**
+     * COERCED, NOT RETURNED DIRECTLY. requireAdmin() resolves to
+     * `AdminIdentity | null`, not a boolean — returning it straight through
+     * failed the build, and would have been wrong even if it had compiled:
+     * this function's whole purpose is to hand the BROWSER an answer, and an
+     * admin's identity has no business crossing that boundary. An email and an
+     * id are not needed to decide whether to draw an upload button.
+     *
+     * Boolean() rather than `!== null` so a future falsy sentinel cannot slip
+     * through as truthy.
+     */
+    return Boolean(await requireAdmin());
   } catch {
     return false;
   }
