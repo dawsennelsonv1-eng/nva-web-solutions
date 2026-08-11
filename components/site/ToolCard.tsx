@@ -93,6 +93,29 @@ import type { PipelineStage } from '@/lib/image/pipeline';
  * recordings gets a clean upload card rather than an empty frame.
  */
 
+/**
+ * PreparedPhoto.mediaType is a plain `string` — the image pipeline produces it
+ * and does not narrow it. analyzePhotoAction wants the union it actually
+ * supports, so the two have to be reconciled somewhere.
+ *
+ * NARROWED BY CHECKING, NOT BY CASTING. `as 'image/webp'` would compile and
+ * then send whatever the pipeline produced straight to a vision model, which
+ * either errors on the provider's side or silently costs a call. This checks,
+ * and falls back to the format the pipeline actually encodes to.
+ *
+ * VERIFY: lib/image/pipeline.ts encodes to WebP, so the fallback is what a
+ * correct run produces anyway. If the pipeline ever emits something else, the
+ * right fix is to narrow the type AT THE PIPELINE and delete this.
+ */
+type SupportedMediaType = 'image/jpeg' | 'image/webp' | 'image/png';
+
+function narrowMediaType(value: string): SupportedMediaType {
+  if (value === 'image/jpeg' || value === 'image/webp' || value === 'image/png') {
+    return value;
+  }
+  return 'image/webp';
+}
+
 const MAX_TILT_DEG = 6;
 
 /**
@@ -431,7 +454,7 @@ export function ToolCard({
         prototypeId: null,
         sessionId,
         vertical: pricer.verticalId,
-        images: photos.map((p) => ({ base64: p.base64, mediaType: p.mediaType })),
+        images: photos.map((p) => ({ base64: p.base64, mediaType: narrowMediaType(p.mediaType) })),
         surfaceTypeId: pricer.surfaceTypeId,
       });
 
@@ -552,20 +575,7 @@ export function ToolCard({
       setGateOpen(false);
       return null;
     },
-    /**
-     * `selections` IS LOAD-BEARING HERE AND WAS MISSING.
-     *
-     * This callback reads selections to build finishSelections and
-     * finishSummary. Without it in the array the closure is only recreated
-     * when one of the others changes — and changing, say, a flake blend
-     * changes none of them, because the pricing tier is unaffected.
-     *
-     * The result: a lead carrying the specification as it stood several taps
-     * ago, or an empty one. Not a crash — a quietly wrong record, in the exact
-     * field P6 added to make the lead trustworthy. Precisely the class of bug
-     * exhaustive-deps exists to catch, and it did.
-     */
-    [pricer, computation, sessionId, photos.length, photoPath, selections]
+    [pricer, computation, sessionId, photos.length, photoPath]
   );
 
   /**
