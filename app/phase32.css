@@ -1,0 +1,49 @@
+/**
+ * app/phase32.css — THE SPECIFICATION ON A DASHBOARD LEAD.
+ *
+ * Adds only. `.mb-lead-price` and `.mb-lead-spec` are new names; phase29.css
+ * keeps `.mb-lead`, `.mb-lead-top`, `.mb-lead-contact` and the rest of the
+ * member surface untouched.
+ *
+ * ============================================================================
+ * WHY THE PRICE IS THE LOUDEST THING ON THE ROW
+ * ============================================================================
+ *
+ * A contractor scanning his pipeline is triaging: who is worth calling first.
+ * The name tells him nothing about that and the specification is detail he
+ * reads once he has decided. The number is the decision, so it is set in the
+ * display serif at a size that survives a glance at arm's length in a truck.
+ *
+ * ============================================================================
+ * THE SPECIFICATION IS MONOSPACED, AND IT MATCHES THE CUSTOMER'S SCREEN
+ * ============================================================================
+ *
+ * Deliberately the same treatment as .tc-spec-list in phase31.css: the
+ * homeowner and the installer are looking at ONE specification, and it should
+ * be visibly the same object in both places rather than two designs that
+ * happen to carry the same words.
+ *
+ * Not a separate rule reusing that class, though — phase31 owns .tc-spec-list
+ * and a shared selector across layers is how the cascade bites. Same look,
+ * separate name.
+ */
+
+.mb-lead-price {
+  margin: 0.625rem 0 0;
+  font-family: var(--n15-serif);
+  font-size: 1.5rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--n15-copper);
+}
+
+.mb-lead-spec {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 0 0;
+  border-top: 1px solid var(--n15-card-edge);
+  font-family: var(--n15-mono);
+  font-size: 0.8125rem;
+  line-height: 1.8;
+  opacity: 0.85;
+}

@@ -112,6 +112,11 @@ function markdownishToHtml(body: string): string {
 }
 
 export interface DemoLeadEmailFields {
+  /**
+   * The frozen human-readable specification, 'Group: Option' per line.
+   * Optional — leads captured before the picker have none.
+   */
+  finishSummary?: string[];
   name: string;
   phone: string;
   email: string;
@@ -299,6 +304,51 @@ function contactBlock(fields: DemoLeadEmailFields): string {
  * link, and the end is where the contractor's own details live. A labelled
  * link always works.
  */
+/**
+ * THE SPECIFICATION. What this floor actually is.
+ *
+ * Set as a table of rows rather than as prose, because all three readers use
+ * it differently and none of them read it as a sentence: the homeowner checks
+ * it against what he remembers choosing, the operator scans it, and the
+ * installer prices the prep from it standing next to a slab. A paragraph
+ * serves none of those.
+ *
+ * Returns empty when there is nothing — a heading over no rows is worse than
+ * no heading, and older leads and degraded leads legitimately have none.
+ */
+function specBlock(lines: string[]): string {
+  if (lines.length === 0) return '';
+
+  const rows = lines
+    .map((line) => {
+      // 'The coating: Metallic pour' -> label / value. Split on the FIRST
+      // colon only: a value may contain one and a label never does.
+      const at = line.indexOf(':');
+      const label = at > 0 ? line.slice(0, at) : '';
+      const value = at > 0 ? line.slice(at + 1).trim() : line;
+      return (
+        '<tr>' +
+        '<td style="padding:7px 0;border-top:1px solid ' + CONCRETE + ';' +
+        'font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:1px;' +
+        'text-transform:uppercase;color:' + RULE + ';width:140px;vertical-align:top;">' +
+        escapeHtml(label) + '</td>' +
+        '<td style="padding:7px 0;border-top:1px solid ' + CONCRETE + ';' +
+        'font-family:Arial,Helvetica,sans-serif;font-size:15px;color:' + INK + ';">' +
+        escapeHtml(value) + '</td>' +
+        '</tr>'
+      );
+    })
+    .join('');
+
+  return (
+    '<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1.5px;' +
+    'text-transform:uppercase;color:' + RULE + ';margin:22px 0 2px;">The floor they specified</div>' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' +
+    rows +
+    '</table>'
+  );
+}
+
 function evidenceBlock(fields: DemoLeadEmailFields): string {
   let html = priceBlock(fields.priceRange ?? null);
 
@@ -380,6 +430,7 @@ export async function notifyAdminOfDemoLead(fields: DemoLeadEmailFields): Promis
 
   const body =
     contactBlock(fields) +
+    specBlock(fields.finishSummary ?? []) +
     '<div style="height:18px"></div>' +
     evidenceBlock(fields);
 
@@ -412,6 +463,7 @@ export async function sendCustomerQuote(fields: DemoLeadEmailFields): Promise<Em
     escapeHtml(fields.name.split(' ')[0] ?? fields.name) +
     '.</p>' +
     evidenceBlock(fields) +
+    specBlock(fields.finishSummary ?? []) +
     '<p style="margin:18px 0 0;">An installer will call you about it. You said ' +
     escapeHtml(fields.timeline.toLowerCase()) + ', so expect to hear from them accordingly.</p>' +
     '<p style="margin:12px 0 0;color:' + RULE + ';font-size:14px;">' +
@@ -458,6 +510,12 @@ export async function sendBothSidesPreview(fields: DemoLeadEmailFields): Promise
 
     sectionHead('As the business owner', 'What lands in your inbox at the same moment') +
     contactBlock(fields) +
+    // The specification sits on the owner's half rather than the customer's.
+    // The customer already knows what he picked — he picked it. The owner is
+    // the one for whom a written floor spec is new information, and it is the
+    // single strongest line in the pitch: he has not spoken to this person and
+    // already knows what to price.
+    specBlock(fields.finishSummary ?? []) +
     '<p style="margin:14px 0 0;color:' + RULE + ';font-size:14px;">' +
     'A name, a live number, the size of the job and what they were quoted \u2014 ' +
     'before the first call. You already know whether it is worth the drive.</p>';

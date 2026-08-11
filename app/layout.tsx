@@ -21,6 +21,7 @@ import './phase28.css';
 import './phase29.css';
 import './phase30.css';
 import './phase31.css';
+import './phase32.css';
 
 /**
  * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
@@ -52,6 +53,7 @@ import './phase31.css';
  *                 Everything is prefixed .mb-.
  *   phase30.css   the customisation picker. Everything is prefixed .fp-.
  *   phase31.css   the results block: render, price and specification.
+ *   phase32.css   the specification on a dashboard lead. Prefixed .mb-lead-.
  *   phase23.css   the spec sheet (16J). The last public route off the legacy
  *                 token system. Light overrides at its foot.
  *   phase17.css   the LIGHT THEME. Every rule scoped to

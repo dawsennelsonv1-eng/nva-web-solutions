@@ -36,6 +36,21 @@ export interface LeadRow {
   createdAt: string;
   assignedTo: string | null;
   wasDegraded: boolean;
+  /**
+   * The floor this person specified, 'Group: Option' per line.
+   *
+   * THE REASON THIS DASHBOARD IS WORTH SHOWING ANYONE. A row with a name and a
+   * number is a contact list. A row that also says metallic pour, copper burl,
+   * polyaspartic clear, coved base is a job the contractor can price before he
+   * picks up the phone — which is the entire product claim, made visible in
+   * the one screen a prospect will be shown.
+   *
+   * Optional: leads captured before the picker have none, and so do degraded
+   * ones.
+   */
+  finishSummary?: string[];
+  /** What they were quoted, already formatted. Null when no quote was made. */
+  priceRange?: string | null;
 }
 
 export interface Assignee {
@@ -99,6 +114,19 @@ export function LeadRows({
               <a href={`tel:${l.phone}`}>{l.phone}</a>
               <a href={`mailto:${l.email}`}>{l.email}</a>
             </p>
+
+            {/* The price sits beside the contact details, not buried under the
+                specification. It is the second thing a contractor looks for
+                after the name, and it decides whether he calls now or later. */}
+            {l.priceRange && <p className="mb-lead-price">{l.priceRange}</p>}
+
+            {l.finishSummary && l.finishSummary.length > 0 && (
+              <ul className="mb-lead-spec">
+                {l.finishSummary.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            )}
 
             {l.wasDegraded && (
               <p className="mb-flag">

@@ -41,7 +41,19 @@ export default async function MemberLeadsPage() {
 
   const { data } = await db
     .from('leads')
-    .select('id, name, phone, email, status, created_at, assigned_to, was_degraded')
+    /**
+     * quotes(low_cents, high_cents) is an EMBEDDED READ across the foreign
+     * key, not a second query. Two hundred leads would otherwise be two
+     * hundred round trips for a price each, which is the classic N+1 and would
+     * make this page visibly slow exactly when a contractor is busiest.
+     *
+     * The embed is subject to the same RLS as a direct select — a member can
+     * only reach quotes belonging to leads he can already see — so this widens
+     * nothing.
+     */
+    .select(
+      'id, name, phone, email, status, created_at, assigned_to, was_degraded, finish_spec, quotes(low_cents, high_cents)'
+    )
     .order('created_at', { ascending: false })
     .limit(200);
 
@@ -54,7 +66,37 @@ export default async function MemberLeadsPage() {
     created_at: string;
     assigned_to: string | null;
     was_degraded: boolean;
+    finish_spec: unknown;
+    // Supabase returns an embedded to-one as an object, but older client
+    // versions and some query shapes return a one-element array. Both are
+    // handled rather than assumed — the difference is invisible until it is a
+    // blank price column in production.
+    quotes: { low_cents: number; high_cents: number } | { low_cents: number; high_cents: number }[] | null;
   }[];
+
+  /**
+   * The frozen specification lines, read defensively.
+   *
+   * finish_spec is jsonb with no schema the database enforces, so a row from
+   * an older build or written by hand could hold anything. A malformed value
+   * costs one lead its specification; it must never cost the contractor his
+   * whole pipeline screen.
+   */
+  const summaryOf = (spec: unknown): string[] => {
+    if (typeof spec !== 'object' || spec === null) return [];
+    const summary = (spec as Record<string, unknown>).summary;
+    if (!Array.isArray(summary)) return [];
+    return summary.filter((l): l is string => typeof l === 'string').slice(0, 20);
+  };
+
+  const priceOf = (q: (typeof raw)[number]['quotes']): string | null => {
+    const row = Array.isArray(q) ? q[0] : q;
+    if (!row) return null;
+    return (
+      '$' + Math.round(row.low_cents / 100).toLocaleString('en-US') +
+      ' – $' + Math.round(row.high_cents / 100).toLocaleString('en-US')
+    );
+  };
 
   const leads: LeadRow[] = raw.map((r) => ({
     id: r.id,
@@ -65,6 +107,8 @@ export default async function MemberLeadsPage() {
     createdAt: r.created_at,
     assignedTo: r.assigned_to,
     wasDegraded: r.was_degraded,
+    finishSummary: summaryOf(r.finish_spec),
+    priceRange: priceOf(r.quotes),
   }));
 
   const canAssign = seesAllLeads(member.role);

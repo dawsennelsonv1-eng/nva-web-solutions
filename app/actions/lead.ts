@@ -59,6 +59,26 @@ const captureSchema = z.object({
    * sink; the bucket's own RLS decides who may actually read a path.
    */
   renderPath: z.string().trim().max(300).nullable().optional(),
+  /**
+   * WHAT HE CHOSE. Keys, and the human-readable lines frozen at capture.
+   *
+   * Bounded on both sides. `selections` is a shallow record of short strings —
+   * this is an anonymous public endpoint, and an unbounded jsonb column is an
+   * invitation to store somebody else's data in our database for free.
+   *
+   * The summary is passed rather than recomputed server-side ON PURPOSE. It is
+   * the record of what this person was actually SHOWN, and recomputing it
+   * later from the catalogue would silently re-label a lead when an option is
+   * renamed — turning the one record that matters in a dispute into something
+   * that quietly agrees with whatever the catalogue says today.
+   *
+   * VERIFY: because the summary is client-supplied it is display text and
+   * nothing more. Never price from it, never branch on it. The KEYS are the
+   * authoritative half, and they are validated against the catalogue by the
+   * render path that consumes them.
+   */
+  finishSelections: z.record(z.union([z.string().max(60), z.array(z.string().max(60)).max(12)])).optional(),
+  finishSummary: z.array(z.string().max(160)).max(20).optional(),
 });
 
 export type SubmitDemoLeadInput = z.infer<typeof captureSchema>;
@@ -222,6 +242,16 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
         was_degraded: input.wasDegraded,
         degraded_reason: input.wasDegraded ? input.degradedReason : null,
         render_path: input.renderPath ?? null,
+        // Written only when there is something to write. An empty object on
+        // every degraded lead would make "has a specification" untestable with
+        // a null check, which is how every consumer will reasonably test it.
+        finish_spec:
+          input.finishSelections || input.finishSummary
+            ? {
+                selections: input.finishSelections ?? {},
+                summary: input.finishSummary ?? [],
+              }
+            : null,
         delivery_status: { bot_signal: { fast_submit: fastSubmit, time_in_widget_ms: input.timeInWidgetMs ?? null } },
       })
       .select('id, created_at')
@@ -306,6 +336,7 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
     priceRange,
     photoUrl,
     renderUrl,
+    finishSummary: input.finishSummary ?? [],
     // The disclosure is attached HERE, beside the URL, rather than left to the
     // template. A render that reaches a screen without it is the one failure
     // this whole feature was built to avoid.
@@ -405,6 +436,21 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
  * It is still rate limited, and it refuses to overwrite a render_path that is
  * already set — so a lead can gain a picture once and never have one swapped.
  */
+/**
+ * Pull the frozen summary lines back off a stored finish_spec.
+ *
+ * Defensive at every step because this reads jsonb — a column with no schema
+ * the database enforces. A row written by an older build, by hand in the SQL
+ * editor, or by a future version of this file could hold anything, and a lead
+ * notification must not fail over the shape of a display field.
+ */
+function readSummary(spec: unknown): string[] {
+  if (typeof spec !== 'object' || spec === null) return [];
+  const summary = (spec as Record<string, unknown>).summary;
+  if (!Array.isArray(summary)) return [];
+  return summary.filter((l): l is string => typeof l === 'string').slice(0, 20);
+}
+
 export async function attachRenderToLead(raw: unknown): Promise<{ ok: boolean }> {
   const schema = z.object({
     leadId: z.string().uuid(),
@@ -422,7 +468,9 @@ export async function attachRenderToLead(raw: unknown): Promise<{ ok: boolean }>
 
     const { data: lead } = await db
       .from('leads')
-      .select('id, name, phone, email, timeline, source, created_at, quote_id, render_path')
+      .select(
+        'id, name, phone, email, timeline, source, created_at, quote_id, render_path, finish_spec'
+      )
       .eq('id', parsed.data.leadId)
       .maybeSingle();
 
@@ -481,6 +529,10 @@ export async function attachRenderToLead(raw: unknown): Promise<{ ok: boolean }>
       priceRange,
       photoUrl,
       renderUrl,
+      // Read back off the row rather than re-derived: this runs in a second
+      // request with no access to what the browser had, and the row is the
+      // record of what was captured.
+      finishSummary: readSummary(lead.finish_spec),
       renderDisclosure: renderUrl ? RENDER_DISCLOSURE : null,
     };
 

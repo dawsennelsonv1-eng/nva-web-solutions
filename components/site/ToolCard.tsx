@@ -529,6 +529,13 @@ export function ToolCard({
       const res = await submitDemoLead({
         surface: 'public_hub',
         sessionId,
+        // The keys reconstruct the choice; the summary is what he was actually
+        // shown, frozen here so a later catalogue rename cannot silently
+        // rewrite the record of what was agreed.
+        finishSelections: Object.fromEntries(
+          Object.entries(selections).filter(([, v]) => v !== undefined)
+        ) as Record<string, string | string[]>,
+        finishSummary: selectionSummary(selections),
         name: fields.name,
         phone: fields.phone,
         email: fields.email,
