@@ -1,0 +1,109 @@
+/**
+ * app/phase31.css — THE RESULTS.
+ *
+ * ============================================================================
+ * THE LAYER RULE
+ * ============================================================================
+ *
+ * Adds only. `.tc-results`, `.tc-stale*` and `.tc-spec*` are names no earlier
+ * layer defines. phase18.css keeps `.tc-price`, `.tc-band`, `.tc-fig` and
+ * `.tc-free`, which are untouched here — the price block is the same component
+ * it always was, moved to a later moment in the flow rather than restyled.
+ *
+ * The prefix discipline exists because phase27 once took `.tc-shot` from
+ * phase18 and centre-cropped the before/after comparison. When an earlier
+ * layer cannot be read, take a name nobody would reach for by accident.
+ *
+ * ============================================================================
+ * THE RESULTS ARE MARKED OFF FROM THE CONTROLS ABOVE THEM
+ * ============================================================================
+ *
+ * A copper rule and a step in spacing, nothing heavier. Everything above this
+ * point is something the visitor is doing; everything below is what he got.
+ * Without the break the price reads as one more row of the form he was just
+ * filling in, which is exactly the wrong register for the moment.
+ */
+
+.tc-results {
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid var(--n15-copper);
+}
+
+/* --------------------------------------------------------------------------
+   stale render
+   -------------------------------------------------------------------------- */
+
+/*
+ * Deliberately quiet. This is not an error and must not read as one — the
+ * visitor did something reasonable, and the software is telling him what it
+ * costs to see the result. Dashed, low contrast, no copper: the copper on this
+ * screen belongs to the price.
+ */
+.tc-stale {
+  margin-top: 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px dashed var(--n15-card-edge);
+  border-radius: var(--n15-r-card);
+  background: rgba(127, 127, 127, 0.05);
+}
+
+.tc-stale-h {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.tc-stale-b {
+  margin: 0.25rem 0 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  opacity: 0.7;
+}
+
+/* --------------------------------------------------------------------------
+   the specification
+   -------------------------------------------------------------------------- */
+
+.tc-spec {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--n15-card-edge);
+  border-radius: var(--n15-r-card);
+  background: var(--n15-card);
+}
+
+.tc-spec-h {
+  margin: 0 0 0.625rem;
+  font-family: var(--n15-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+/*
+ * Monospaced, and it earns it. This is the one block on the page that a
+ * homeowner reads aloud to a spouse and an installer reads off a phone in a
+ * truck, so it is set as a specification rather than as prose. Generous line
+ * height because it is scanned line by line, not read as a paragraph.
+ */
+.tc-spec-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--n15-mono);
+  font-size: 0.875rem;
+  line-height: 1.9;
+}
+
+.tc-spec-list li + li {
+  border-top: 1px solid var(--n15-card-edge);
+}
+
+.tc-spec-note {
+  margin: 0.875rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  opacity: 0.65;
+}

@@ -10,6 +10,7 @@ import { persistDemoQuote, submitDemoLead, attachRenderToLead } from '@/app/acti
 import { ContactGate, type ContactGateFields } from '@/components/site/ContactGate';
 import { FinishPicker } from '@/components/site/FinishPicker';
 import {
+  comboKeyFor,
   missingRequired,
   renderDescription,
   selectionSummary,
@@ -265,6 +266,27 @@ export function ToolCard({
    * picture nor a price is the one outcome worse than no render at all.
    */
   const [renderSettled, setRenderSettled] = useState(false);
+  /**
+   * Which combination the picture on screen was actually made for, and a
+   * counter that forces a fresh one.
+   *
+   * ==========================================================================
+   * THE DEAD END THIS FIXES
+   * ==========================================================================
+   *
+   * FinishVisualiser guards autoStart behind a ref so a re-render can never
+   * start a second paid generation. Correct — but it also meant that once a
+   * visitor had his picture, changing a swatch reset the visualiser to idle and
+   * NOTHING could start it again. He would tap "jumbo flake", watch his own
+   * floor disappear, and have no way to get it back.
+   *
+   * The visualiser is now keyed on this counter. Changing a choice spends
+   * nothing; it marks the picture stale and offers a button. Auto-running on
+   * every tap would be a paid image generation per swatch — slow, and the kind
+   * of spending nobody asked for.
+   */
+  const [renderedCombo, setRenderedCombo] = useState<string | null>(null);
+  const [renderNonce, setRenderNonce] = useState(0);
   const [unlocked, setUnlocked] = useState<{ leadId: string } | null>(null);
   const [sqft, setSqft] = useState(pricer?.defaultSqft ?? 0);
   const [tierKey, setTierKey] = useState(pricer?.defaultTier ?? '');
@@ -574,6 +596,16 @@ export function ToolCard({
 
   const selectedFinish = pricer?.finishes.find((f) => f.tierKey === tierKey);
   const stillToChoose = missingRequired(selections);
+  /**
+   * The picture on screen no longer matches the choices below it.
+   *
+   * Compared on comboKeyFor, which is canonical and order-independent and
+   * EXCLUDES the groups that change nothing visible — so choosing a different
+   * slab preparation does not offer to rebuild a picture that would come back
+   * identical.
+   */
+  const renderStale =
+    renderedCombo !== null && renderedCombo !== comboKeyFor(selections);
   const readyToRender = stillToChoose.length === 0;
   const onDragState = useCallback((dragging: boolean) => setPressed(dragging), []);
 
@@ -947,61 +979,122 @@ export function ToolCard({
                   />
                 )}
 
-                {/* The render only exists on the far side of the gate. It is
-                    the expensive call in this funnel — ten to forty times a
-                    vision analysis — and an anonymous visitor must never be
-                    able to start one. autoStart because he has already asked
-                    for it by handing over his number. */}
-                {photo && unlocked && (
-                  <FinishVisualiser
-                    enabled={renderEnabled}
-                    photo={photo}
-                    finishLabel={selectedFinish?.label ?? 'the finish'}
-                    finishDescription={renderDescription(selections)}
-                    selections={selections}
-                    surfaceLabel={pricer.surfaceLabel}
-                    sessionId={sessionId}
-                    autoStart
-                    onRendered={handleRendered}
-                    onSettled={() => setRenderSettled(true)}
-                  />
-                )}
-
                 {/* ------------------------------------------------------------
-                    THE PRICE. LAST, AND ONLY ONCE.
+                    THE RESULTS.
 
-                    Not at the gate, not beside the swatches, not as a "from".
-                    It appears here, with the picture of his floor, after he
-                    has already decided he wants it — which is the only moment
-                    a number is information rather than an objection.
+                    Everything the visitor exchanged his details for arrives
+                    here, in one place, in the order he cares about: the
+                    picture of his own floor, then what it costs, then a
+                    written record of what he chose.
 
-                    Gated on renderSettled rather than on a successful render:
-                    a failed render still resolves, and somebody who gave his
-                    number and receives neither a picture nor a price has been
-                    treated worse than if we had never offered.
-
-                    When the visualiser is switched off entirely there is no
-                    render to wait for, so `unlocked` alone is the condition.
+                    The picture is first because it is what he asked for. The
+                    price follows it rather than leading, because a number read
+                    beside a floor he already wants is information, and the
+                    same number read cold is an objection.
                    ------------------------------------------------------------ */}
-                {unlocked && (renderSettled || !renderEnabled) && (
-                  <div className="tc-price">
-                    <p className="tc-price-label">Your range</p>
-                    <div className="tc-band" aria-live="polite">
-                      {band ? (
-                        <>
-                          <span className="tc-fig">{money(band.lowCents)}</span>
-                          <span aria-hidden className="tc-dash" />
-                          <span className="tc-fig">{money(band.highCents)}</span>
-                        </>
-                      ) : (
-                        <span className="tc-fig">—</span>
-                      )}
-                    </div>
-                    <p className="tc-free">
-                      For {sqft.toLocaleString('en-US')} sq ft in{' '}
-                      {selectionSummary(selections).join(' · ').toLowerCase()}, at this
-                      installer&apos;s own published rates.
-                    </p>
+                {unlocked && (
+                  <div className="tc-results">
+                    {photo && (
+                      <FinishVisualiser
+                        /* KEYED, so a re-render is possible at all. The
+                           visualiser refuses to auto-start twice within one
+                           mount — correct, since each start is a paid image
+                           generation — which meant that after changing a
+                           swatch nothing could ever start it again. A new key
+                           is a new mount, and the button below is the only
+                           thing that turns it. */
+                        key={renderNonce}
+                        enabled={renderEnabled}
+                        photo={photo}
+                        finishLabel={selectedFinish?.label ?? 'the finish'}
+                        finishDescription={renderDescription(selections)}
+                        selections={selections}
+                        surfaceLabel={pricer.surfaceLabel}
+                        sessionId={sessionId}
+                        autoStart
+                        onRendered={handleRendered}
+                        onSettled={() => {
+                          setRenderSettled(true);
+                          setRenderedCombo(comboKeyFor(selections));
+                        }}
+                      />
+                    )}
+
+                    {/* Stale only when a picture EXISTS and the choices have
+                        moved on from it. Never shown before the first render,
+                        where it would be an offer to redo something that has
+                        not happened. */}
+                    {renderStale && (
+                      <div className="tc-stale">
+                        <p className="tc-stale-h">You have changed the finish.</p>
+                        <p className="tc-stale-b">
+                          The picture above is the one you had before. Building a new one
+                          takes about thirty seconds.
+                        </p>
+                        <button
+                          type="button"
+                          className="n15-btn n15-btn-ghost"
+                          onClick={() => {
+                            setRenderSettled(false);
+                            setRenderNonce((n) => n + 1);
+                          }}
+                        >
+                          See the new one
+                        </button>
+                      </div>
+                    )}
+
+                    {/* THE PRICE. Last, and only once.
+
+                        Gated on renderSettled rather than on a SUCCESSFUL
+                        render: a failed render still resolves, and somebody
+                        who handed over his number and receives neither a
+                        picture nor a price has been treated worse than if we
+                        had never offered. With the visualiser switched off
+                        there is nothing to wait for. */}
+                    {(renderSettled || !renderEnabled) && (
+                      <>
+                        <div className="tc-price">
+                          <p className="tc-price-label">Your range</p>
+                          <div className="tc-band" aria-live="polite">
+                            {band ? (
+                              <>
+                                <span className="tc-fig">{money(band.lowCents)}</span>
+                                <span aria-hidden className="tc-dash" />
+                                <span className="tc-fig">{money(band.highCents)}</span>
+                              </>
+                            ) : (
+                              <span className="tc-fig">—</span>
+                            )}
+                          </div>
+                          <p className="tc-free">
+                            At this installer&apos;s own published rates, for{' '}
+                            {sqft.toLocaleString('en-US')} sq ft. Change anything below and
+                            it moves — that costs nothing.
+                          </p>
+                        </div>
+
+                        {/* WHAT HE CHOSE, WRITTEN OUT.
+
+                            The same summary the installer receives, so the two
+                            of them are looking at one specification rather
+                            than at a memory of some swatches. It is also the
+                            thing a homeowner reads back to a spouse, which is
+                            most of what happens between a quote and a job. */}
+                        <div className="tc-spec">
+                          <p className="tc-spec-h">What you chose</p>
+                          <ul className="tc-spec-list">
+                            {selectionSummary(selections).map((line) => (
+                              <li key={line}>{line}</li>
+                            ))}
+                          </ul>
+                          <p className="tc-spec-note">
+                            This has gone to your installer with your photos. Expect a call
+                            — they will confirm the concrete before anything is booked.
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
