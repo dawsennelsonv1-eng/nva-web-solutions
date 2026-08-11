@@ -89,6 +89,13 @@ export interface AnalyzeResponse {
     estimatedSqft?: number;
     conditionModifierIds: string[];
     handToUser: VisionField[];
+    /**
+     * THE MEASURED BAND. This is what the visitor is now shown — "your floor
+     * is between 440 and 520 sq ft" — rather than a bare midpoint presented as
+     * a fact. A band is both more honest AND more convincing: it reads as
+     * something that was measured rather than something that was guessed.
+     */
+    areaBand?: { lowSqft: number; highSqft: number; reference: string | null } | null;
     /** PHASE 11: the module's own inputs, keyed by its declared writesTo keys. */
     answers?: Record<string, unknown>;
   };
@@ -320,7 +327,7 @@ export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeRe
 
   return {
     status: 'ok',
-    hints: { ...hints, handToUser: result.handToUser },
+    hints: { ...hints, handToUser: result.handToUser, areaBand: result.areaBand },
     remainingSession: Math.max(0, 3 - sessionReserve.used),
     photoPath,
     photoPaths,

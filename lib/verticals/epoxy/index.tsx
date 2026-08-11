@@ -327,7 +327,10 @@ const BASE_PROMPT = `You are classifying a photo of a floor for a concrete coati
   "damage_flags": string[],            // from: "cracking","spalling","pitting","previous_coating","moisture_signs"
   "oil_staining": "none" | "light" | "heavy" | "unknown",
   "cracking_severity": "none" | "hairline" | "moderate" | "severe" | "unknown",
-  "estimated_area_sqft": number | null, // ONLY if scale cues make it inferable; otherwise null
+  "estimated_area_sqft": number | null, // your single best estimate, the midpoint of the range below
+  "area_low_sqft": number | null,       // low end of a plausible range
+  "area_high_sqft": number | null,      // high end of a plausible range
+  "scale_reference": string,            // what you measured against, e.g. "single garage door, ~8ft wide"
   "confidence": {                       // 0-1 per field
     "surface_type_guess": number,
     "condition_grade": number,
@@ -336,7 +339,9 @@ const BASE_PROMPT = `You are classifying a photo of a floor for a concrete coati
     "estimated_area_sqft": number
   }
 }
-Rules: never invent an area without visible scale cues (vehicle, door, standard bay). If the image is not a floor, set every field to "unknown"/null with confidence 0. Uncertainty belongs in low confidence values, not in guesses.`;
+Rules: never invent an area without visible scale cues (vehicle, door, standard bay). If the image is not a floor, set every field to "unknown"/null with confidence 0. Uncertainty belongs in low confidence values, not in guesses.
+
+AREA IS A RANGE, NOT A POINT. Report area_low_sqft and area_high_sqft as the band you would defend, and estimated_area_sqft as its midpoint. A band you are confident in is worth far more than a single number you are not: the homeowner is told the range, so a wide honest one costs nothing and a narrow wrong one costs a quote. Name what you measured against in scale_reference.`;
 
 /**
  * Appended when several photographs of the SAME space arrive together.
@@ -388,6 +393,12 @@ const epoxyVisionResponseSchema = z.object({
   oil_staining: z.enum(['none', 'light', 'heavy', 'unknown']),
   cracking_severity: z.enum(['none', 'hairline', 'moderate', 'severe', 'unknown']),
   estimated_area_sqft: z.number().positive().nullable(),
+  // Optional so a model that ignores the range instruction still validates and
+  // still produces a usable point estimate, rather than dropping to the next
+  // model in the chain over a field it simply did not fill in.
+  area_low_sqft: z.number().positive().nullable().optional(),
+  area_high_sqft: z.number().positive().nullable().optional(),
+  scale_reference: z.string().max(200).optional(),
   confidence: z.object({
     surface_type_guess: z.number().min(0).max(1),
     condition_grade: z.number().min(0).max(1),

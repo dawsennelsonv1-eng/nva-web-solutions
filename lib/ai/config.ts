@@ -394,17 +394,81 @@ export const AI_ROUTES: Record<JobId, RouteConfig> = {
    * `model` to the OpenRouter slug, and add a second chain entry pointing back
    * at anthropic. Nothing else in the codebase changes.
    */
+  /**
+   * ==========================================================================
+   * MEASUREMENT. THE MOST IMPORTANT MODEL CHOICE IN THE PRODUCT.
+   * ==========================================================================
+   *
+   * THIS RAN ON claude-haiku-4-5, DIRECT TO ANTHROPIC, ON A CHAIN OF ONE.
+   *
+   * Three things were wrong with that and they compounded:
+   *
+   *   1. Haiku is the cheapest vision model in the catalogue. Reading a floor's
+   *      footprint out of photographs is the hardest single inference in this
+   *      product and it was given the weakest model available.
+   *
+   *   2. `provider: 'anthropic'` means an ANTHROPIC_API_KEY. An OpenRouter key
+   *      did nothing for measurement no matter how well funded — the operator
+   *      could set it, see the render work, and have no idea the measurement
+   *      was still unconfigured.
+   *
+   *   3. A chain of one has no fallback. One provider incident took the
+   *      headline feature down with it.
+   *
+   * All three are fixed by leading with the strongest vision models through
+   * OpenRouter, which is where the balance already is.
+   *
+   * ORDERING IS BY ACCURACY, NOT BY COST. Every other route in this file leads
+   * with the cheapest adequate model, and that is right for site copy — a
+   * slightly worse paragraph is a slightly worse paragraph. It is wrong here.
+   * A measurement that is forty per cent light becomes a quote a contractor
+   * cannot honour in front of a customer, and there is no cheaper failure than
+   * the one that does not happen.
+   *
+   * maxOutputTokens is raised to 2048 because the payload now carries a RANGE
+   * plus a stated scale reference. Truncated JSON fails validation, the repair
+   * pass costs another call, and a second truncation drops to the next model —
+   * paying three times for the sake of a limit that saves nothing.
+   *
+   * VERIFY: model slugs move. Check them against
+   *   curl https://openrouter.ai/api/v1/models
+   * and override the leader without a redeploy by setting AI_VISION_MODEL.
+   */
   vision_analysis: {
     label: 'Photo analysis',
-    description: 'Classifies one photo. Runs on the public funnel, not from this panel.',
+    description:
+      'Measures a floor from 3-5 photographs. Runs on the public funnel, not from this panel.',
     chain: [
       {
-        provider: 'anthropic',
-        model: 'claude-haiku-4-5-20251001',
+        provider: 'openrouter',
+        model: 'anthropic/claude-opus-4.6',
         modelEnv: 'AI_VISION_MODEL',
-        maxOutputTokens: 1024,
+        maxOutputTokens: 2048,
         maxOutputTokensEnv: 'AI_MAX_OUTPUT_TOKENS',
-        timeoutMs: 25_000,
+        timeoutMs: 60_000,
+      },
+      {
+        provider: 'openrouter',
+        model: 'google/gemini-3-pro',
+        modelEnv: 'AI_VISION_MODEL_2',
+        maxOutputTokens: 2048,
+        timeoutMs: 60_000,
+      },
+      {
+        provider: 'openrouter',
+        model: 'openai/gpt-5.1',
+        modelEnv: 'AI_VISION_MODEL_3',
+        maxOutputTokens: 2048,
+        timeoutMs: 60_000,
+      },
+      // Direct Anthropic stays LAST, as the route that works when OpenRouter
+      // itself is the thing that is down.
+      {
+        provider: 'anthropic',
+        model: 'claude-sonnet-5',
+        modelEnv: 'AI_VISION_MODEL_DIRECT',
+        maxOutputTokens: 2048,
+        timeoutMs: 60_000,
       },
     ],
     honorDailyCeiling: false,
@@ -487,3 +551,4 @@ export const PROVIDER_ENDPOINTS: Record<
 export function getRoute(job: JobId): RouteConfig {
   return AI_ROUTES[job];
 }
+

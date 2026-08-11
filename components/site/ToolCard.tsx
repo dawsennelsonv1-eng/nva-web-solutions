@@ -235,6 +235,16 @@ export function ToolCard({
    */
   /** Storage path of the first uploaded photo, carried onto the quote row. */
   const [photoPath, setPhotoPath] = useState<string | null>(null);
+  /**
+   * The band the model measured. THE HEADLINE RESULT — see the panel below for
+   * why this replaced a bare number, and why the slider is now a correction
+   * rather than the way area is entered.
+   */
+  const [areaBand, setAreaBand] = useState<{
+    lowSqft: number;
+    highSqft: number;
+    reference: string | null;
+  } | null>(null);
   const [gateOpen, setGateOpen] = useState(false);
   const [unlocked, setUnlocked] = useState<{ leadId: string } | null>(null);
   const [sqft, setSqft] = useState(pricer?.defaultSqft ?? 0);
@@ -380,7 +390,7 @@ export function ToolCard({
         prototypeId: null,
         sessionId,
         vertical: pricer.verticalId,
-        images: photos.map((p) => ({ base64: p.base64, mediaType: p.mediaType as "image/jpeg" | "image/webp" | "image/png" })),
+        images: photos.map((p) => ({ base64: p.base64, mediaType: p.mediaType })),
         surfaceTypeId: pricer.surfaceTypeId,
       });
 
@@ -393,6 +403,7 @@ export function ToolCard({
       const confident = res.status === 'ok' && typeof estimated === 'number' && !areaUnsure;
 
       setPhotoPath(res.photoPath ?? null);
+      setAreaBand(res.hints?.areaBand ?? null);
 
       if (confident && typeof estimated === 'number') {
         setSqft(Math.min(pricer.sqftMax, Math.max(pricer.sqftMin, estimated)));
@@ -738,12 +749,43 @@ export function ToolCard({
                           here is not bravado; it is what the model actually
                           concluded, and the "adjust it" link keeps the
                           homeowner the final authority on his own garage. */}
-                      <p className="tc-measure-h">
-                        Your floor is{' '}
-                        <span className="tc-measure-n">{sqft.toLocaleString('en-US')}</span> sq ft.
-                      </p>
+                      {/* ------------------------------------------------
+                          A BAND, NOT A BARE NUMBER.
+
+                          "480 sq ft" presented flat is a guess wearing the
+                          costume of a measurement, and when the slab turns out
+                          to be 610 the contractor eats the difference in front
+                          of the customer.
+
+                          "Between 440 and 520" is what the model actually
+                          concluded, and it reads as MORE authoritative rather
+                          than less — a band is the shape of something that was
+                          measured. It also makes the correction below feel
+                          like a refinement instead of a contradiction.
+                         ------------------------------------------------ */}
+                      {areaBand ? (
+                        <p className="tc-measure-h">
+                          Your floor is between{' '}
+                          <span className="tc-measure-n">
+                            {areaBand.lowSqft.toLocaleString('en-US')}
+                          </span>{' '}
+                          and{' '}
+                          <span className="tc-measure-n">
+                            {areaBand.highSqft.toLocaleString('en-US')}
+                          </span>{' '}
+                          sq ft.
+                        </p>
+                      ) : (
+                        <p className="tc-measure-h">
+                          Your floor is{' '}
+                          <span className="tc-measure-n">{sqft.toLocaleString('en-US')}</span> sq
+                          ft.
+                        </p>
+                      )}
                       <p className="tc-measure-src">
-                        Measured from your {photos.length} photos.
+                        Read from your {photos.length} photos
+                        {areaBand?.reference ? ', measured against the ' + areaBand.reference : ''}
+                        .
                       </p>
                       {!ruleOpen && (
                         <button

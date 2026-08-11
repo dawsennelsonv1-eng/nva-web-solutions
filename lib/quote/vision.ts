@@ -100,6 +100,11 @@ export type VisionResult =
       analysis: VisionAnalysis;
       /** Fields whose confidence was too low to use. Ask the user for these. */
       handToUser: VisionField[];
+      /**
+       * The measured band, when the module's schema carries one. Null for a
+       * vertical that reports a point estimate only.
+       */
+      areaBand: AreaBand | null;
       usage: VisionUsage;
       /** Which module validated it — needed to map it afterwards. */
       vertical: string;
@@ -154,6 +159,51 @@ export interface VisionImage {
   /** Base64 WITHOUT the data: prefix. */
   base64: string;
   mediaType: 'image/jpeg' | 'image/webp' | 'image/png';
+}
+
+/**
+ * The measured band, surfaced separately from the pricing inputs.
+ *
+ * WHY THIS IS READ DUCK-TYPED RATHER THAN THROUGH THE MODULE INTERFACE.
+ * VisionModule lives in lib/verticals/registry.ts and is shared by every
+ * trade. Adding an areaRange() method there would make painting and roofing
+ * implement a hook only epoxy has any use for, and would need every module
+ * updated in the same commit.
+ *
+ * So this reads two optional numeric keys off the validated payload if they
+ * are present, and returns null if they are not. A vertical that wants a band
+ * emits `area_low_sqft` and `area_high_sqft` in its own schema and gets one;
+ * a vertical that does not is unaffected and does not know this exists.
+ *
+ * VERIFY: if a third vertical ever wants this, promote it to a real optional
+ * method on VisionModule rather than adding a second duck-typed key.
+ */
+export interface AreaBand {
+  lowSqft: number;
+  highSqft: number;
+  /** What the model says it measured against, if it said. */
+  reference: string | null;
+}
+
+function readAreaBand(parsed: unknown): AreaBand | null {
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const p = parsed as Record<string, unknown>;
+  const low = p.area_low_sqft;
+  const high = p.area_high_sqft;
+  if (typeof low !== 'number' || typeof high !== 'number') return null;
+  if (!(low > 0) || !(high > 0)) return null;
+
+  // Swapped bounds are a model slip, not a reason to discard a good
+  // measurement. Ordering them is free and losing the band is not.
+  const lo = Math.min(low, high);
+  const hi = Math.max(low, high);
+
+  const ref = p.scale_reference;
+  return {
+    lowSqft: Math.round(lo),
+    highSqft: Math.round(hi),
+    reference: typeof ref === 'string' && ref.trim().length > 0 ? ref.trim() : null,
+  };
 }
 
 export interface AnalyzeArgs {
@@ -320,6 +370,7 @@ export async function analyzeFloorPhoto(args: AnalyzeArgs): Promise<VisionResult
     status: 'ok',
     analysis: result.data,
     handToUser,
+    areaBand: readAreaBand(result.data),
     vertical: args.vertical,
     usage: {
       model: result.model,
