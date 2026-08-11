@@ -229,8 +229,38 @@ export async function submitDemoLead(rawInput: unknown): Promise<SubmitDemoLeadR
       quoteUuid = qRow?.id ?? null;
     }
 
-    const { data: inserted, error } = await db
-      .from('leads')
+    /**
+     * ==========================================================================
+     * WHY THIS ONE INSERT IS CAST
+     * ==========================================================================
+     *
+     * types/database.ts is hand-written and covers migrations 0001-0005 plus
+     * 0017-0019. `leads` is a 0001 table, so it IS typed — but `finish_spec`
+     * arrives in 0023, so the generated insert type has no such key and the
+     * typed client resolves the whole payload to `never`. That is the
+     * "not assignable to type 'never'" error, and it is what a Supabase client
+     * always says when you write a column its types have not been told about.
+     *
+     * The established pattern for a post-0005 column in this codebase is a
+     * NARROW STRUCTURAL CAST naming only the calls relied on — not
+     * `@ts-expect-error`, which would fail the build the day types/database.ts
+     * is regenerated and the cast becomes unnecessary.
+     *
+     * Every value written through it is validated by captureSchema above, so
+     * nothing unchecked reaches the database because of this.
+     */
+    type LeadInsert = {
+      insert(v: Record<string, unknown>): {
+        select(cols: string): {
+          single(): Promise<{
+            data: { id: string; created_at: string } | null;
+            error: unknown;
+          }>;
+        };
+      };
+    };
+
+    const { data: inserted, error } = await (db.from('leads') as unknown as LeadInsert)
       .insert({
         source: input.surface,
         prototype_id: null,
@@ -466,8 +496,20 @@ export async function attachRenderToLead(raw: unknown): Promise<{ ok: boolean }>
   try {
     const db = getSupabaseAdminClient();
 
-    const { data: lead } = await db
-      .from('leads')
+    /**
+     * Cast for the same reason as the insert above: the column list names
+     * finish_spec, which the generated types do not know. Reading is checked
+     * defensively by readSummary() rather than trusted from the cast.
+     */
+    type LeadRead = {
+      select(cols: string): {
+        eq(col: string, val: string): {
+          maybeSingle(): Promise<{ data: Record<string, unknown> | null }>;
+        };
+      };
+    };
+
+    const { data: lead } = await (db.from('leads') as unknown as LeadRead)
       .select(
         'id, name, phone, email, timeline, source, created_at, quote_id, render_path, finish_spec'
       )
@@ -491,11 +533,18 @@ export async function attachRenderToLead(raw: unknown): Promise<{ ok: boolean }>
 
     let priceRange: string | null = null;
     let photoUrl: string | null = null;
-    if (lead.quote_id) {
+    /**
+     * Narrowed by CHECKING rather than asserted. The cast above returns an
+     * untyped record, so quote_id is `unknown` — and a value that is not a
+     * string must not be handed to .eq(), which would send whatever it is
+     * straight into a query.
+     */
+    const quoteId = typeof lead.quote_id === 'string' ? lead.quote_id : null;
+    if (quoteId) {
       const { data: q } = await db
         .from('quotes')
         .select('low_cents, high_cents, photo_path')
-        .eq('id', lead.quote_id)
+        .eq('id', quoteId)
         .maybeSingle();
       if (q) {
         priceRange =

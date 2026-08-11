@@ -39,8 +39,24 @@ export default async function MemberLeadsPage() {
 
   const db = getMemberDb();
 
-  const { data } = await db
-    .from('leads')
+  /**
+   * Cast for the same reason as app/actions/lead.ts: the column list names
+   * finish_spec, which arrives in migration 0023 and is not in the
+   * hand-written types/database.ts. Every field is re-checked below rather
+   * than trusted from the cast.
+   *
+   * RLS is unaffected — this is a compile-time shape, not a client swap. The
+   * cookie-bound member client still enforces 0014's policies.
+   */
+  type LeadsRead = {
+    select(cols: string): {
+      order(col: string, opts: { ascending: boolean }): {
+        limit(n: number): Promise<{ data: unknown[] | null }>;
+      };
+    };
+  };
+
+  const { data } = await (db.from('leads') as unknown as LeadsRead)
     /**
      * quotes(low_cents, high_cents) is an EMBEDDED READ across the foreign
      * key, not a second query. Two hundred leads would otherwise be two
