@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { AreaRule } from '@/components/site/AreaRule';
 import { FinishVisualiser, type PreparedPhoto } from '@/components/site/FinishVisualiser';
@@ -9,8 +8,14 @@ import { MediaGallery } from '@/components/tools/MediaGallery';
 import { analyzePhotoAction } from '@/app/actions/quote';
 import { persistDemoQuote, submitDemoLead, attachRenderToLead } from '@/app/actions/lead';
 import { ContactGate, type ContactGateFields } from '@/components/site/ContactGate';
+import { FinishPicker } from '@/components/site/FinishPicker';
+import {
+  missingRequired,
+  renderDescription,
+  selectionSummary,
+  type Selections,
+} from '@/lib/verticals/epoxy/options';
 import { calculateQuote, type PricingRules } from '@/lib/quote/pricing';
-import { finishPhotoFor } from '@/lib/site/finish-photos';
 // media-types rather than media. This was already legal — a type-only import
 // is erased before webpack sees it — but pointing a client component at a
 // server-only module is a trap: the day somebody adds MIN_SLOTS to this line
@@ -245,7 +250,21 @@ export function ToolCard({
     highSqft: number;
     reference: string | null;
   } | null>(null);
+  /**
+   * What the visitor has built. The picker owns the vocabulary; this owns the
+   * value, so the card can price it, describe it to the renderer and put it in
+   * the lead.
+   */
+  const [selections, setSelections] = useState<Selections>({});
   const [gateOpen, setGateOpen] = useState(false);
+  /**
+   * Whether the render attempt has RESOLVED, either way.
+   *
+   * The price appears at this moment and not before. A render that failed
+   * still resolves — a visitor who handed over his number and got neither a
+   * picture nor a price is the one outcome worse than no render at all.
+   */
+  const [renderSettled, setRenderSettled] = useState(false);
   const [unlocked, setUnlocked] = useState<{ leadId: string } | null>(null);
   const [sqft, setSqft] = useState(pricer?.defaultSqft ?? 0);
   const [tierKey, setTierKey] = useState(pricer?.defaultTier ?? '');
@@ -522,7 +541,40 @@ export function ToolCard({
     [unlocked]
   );
 
+  /**
+   * The chosen coating drives the PRICING tier.
+   *
+   * VERIFY: the picker's catalogue has five systems; a contractor's rate table
+   * may carry fewer tiers, and their keys are the contractor's, not ours. So
+   * this matches by looking for the system's name inside the tier's own label
+   * and CHANGES NOTHING when it cannot find one — an unmatched system keeps
+   * whatever tier was already selected rather than silently pricing a metallic
+   * pour as a solid coat.
+   *
+   * When a real rate table is onboarded, replace this with an explicit map on
+   * the pricer config rather than extending the string matching.
+   */
+  useEffect(() => {
+    if (!pricer) return;
+    const system = selections.system;
+    if (typeof system !== 'string') return;
+    const want: Record<string, string[]> = {
+      solid: ['solid', 'standard', 'epoxy'],
+      flake: ['flake', 'chip', 'decorative'],
+      quartz: ['quartz'],
+      metallic: ['metallic'],
+      polyaspartic: ['polyaspartic', 'poly'],
+    };
+    const needles = want[system] ?? [];
+    const hit = pricer.finishes.find((f) =>
+      needles.some((n) => f.label.toLowerCase().includes(n))
+    );
+    if (hit) setTierKey(hit.tierKey);
+  }, [pricer, selections.system]);
+
   const selectedFinish = pricer?.finishes.find((f) => f.tierKey === tierKey);
+  const stillToChoose = missingRequired(selections);
+  const readyToRender = stillToChoose.length === 0;
   const onDragState = useCallback((dragging: boolean) => setPressed(dragging), []);
 
   const style = {
@@ -821,49 +873,116 @@ export function ToolCard({
                   </div>
                 )}
 
-                <div className="tc-finishes">
-                  {pricer.finishes.map((f) => {
-                    const on = f.tierKey === tierKey;
-                    const p = finishPhotoFor(pricer.verticalId, f.tierKey);
-                    return (
-                      <button
-                        key={f.id}
-                        type="button"
-                        className="tc-fin"
-                        aria-pressed={on}
-                        onClick={() => setTierKey(f.tierKey)}
-                      >
-                        <span
-                          className="tc-fin-img"
-                          style={{ '--fin-hex': f.swatchHex ?? '#2a2f37' } as CSSProperties}
-                        >
-                          {p ? (
-                            <FinishThumb src={p.src} alt={p.alt} />
-                          ) : (
-                            <span aria-hidden className="tc-fin-ph" />
-                          )}
-                        </span>
-                        <span className="tc-fin-name">{f.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* ------------------------------------------------------------
+                    THE PICKER REPLACED THREE CHIPS.
+
+                    Three finish buttons was the whole customisation step, and
+                    it was not a customisation step — it was a tier selector
+                    wearing swatches. A real epoxy contractor sells coatings,
+                    blends, coverage, chip size, topcoats, extras and prep, and
+                    a homeowner who cannot express what he wants cannot be sold
+                    what he wants.
+                   ------------------------------------------------------------ */}
+                <FinishPicker
+                  verticalId={pricer.verticalId}
+                  selections={selections}
+                  onChange={setSelections}
+                />
 
                 {/* ------------------------------------------------------------
-                    THE PRICE, AND WHAT STANDS IN FRONT OF IT.
+                    THE CALL TO ACTION SELLS THE PICTURE, NOT THE PRICE.
 
-                    Locked, the plate does NOT show a blurred number or a
-                    partial one. A blurred price is a dark pattern wearing a
-                    costume: it implies a figure exists and is being withheld
-                    to extract something, and a visitor who squints at it and
-                    guesses wrong has been misled by the software. It says
-                    plainly that the number is calculated and where it goes.
+                    "See my price" asks somebody to hand over a phone number
+                    for a number he half expects to dislike. "See it on my own
+                    floor" offers the thing he has spent two minutes building
+                    and cannot get anywhere else. Same form, same fields,
+                    completely different reason to fill it in.
 
-                    Unlocked, it is the same band it always was, from the same
-                    published rates, with the same free-to-adjust line. Nothing
-                    about the arithmetic changed — only when it is shown.
+                    The price is not mentioned, not teased and not hinted at.
+                    It arrives with the picture at the end.
                    ------------------------------------------------------------ */}
-                {unlocked ? (
+                {!unlocked && !gateOpen && (
+                  <div className="tc-locked">
+                    <p className="tc-locked-h">
+                      {readyToRender
+                        ? 'Ready to see it'
+                        : 'Finish choosing and you can see it'}
+                    </p>
+                    <p className="tc-locked-sub">
+                      {readyToRender
+                        ? renderEnabled
+                          ? 'We will put this exact finish onto the photos of your own garage.'
+                          : 'Everything you have chosen, written up for your installer.'
+                        : 'Still to pick: ' +
+                          stillToChoose.map((g) => g.label.toLowerCase()).join(', ') +
+                          '.'}
+                    </p>
+                    <button
+                      type="button"
+                      className="n15-btn n15-btn-primary tc-locked-go"
+                      disabled={!readyToRender}
+                      onClick={() => setGateOpen(true)}
+                    >
+                      {renderEnabled
+                        ? 'See it on my own floor'
+                        : 'Send this to my installer'}
+                    </button>
+                  </div>
+                )}
+
+                {gateOpen && !unlocked && (
+                  <ContactGate
+                    headline="Where should we send it?"
+                    blurb={
+                      renderEnabled
+                        ? 'We will build the picture of your garage in ' +
+                          (selectedFinish?.label ?? 'this finish').toLowerCase() +
+                          ' and put it on this screen in about thirty seconds.'
+                        : 'Your choices go straight to the installer who will do the work.'
+                    }
+                    submitLabel={
+                      renderEnabled ? 'Show me my floor' : 'Send it'
+                    }
+                    onSubmit={submitGate}
+                  />
+                )}
+
+                {/* The render only exists on the far side of the gate. It is
+                    the expensive call in this funnel — ten to forty times a
+                    vision analysis — and an anonymous visitor must never be
+                    able to start one. autoStart because he has already asked
+                    for it by handing over his number. */}
+                {photo && unlocked && (
+                  <FinishVisualiser
+                    enabled={renderEnabled}
+                    photo={photo}
+                    finishLabel={selectedFinish?.label ?? 'the finish'}
+                    finishDescription={renderDescription(selections)}
+                    surfaceLabel={pricer.surfaceLabel}
+                    sessionId={sessionId}
+                    autoStart
+                    onRendered={handleRendered}
+                    onSettled={() => setRenderSettled(true)}
+                  />
+                )}
+
+                {/* ------------------------------------------------------------
+                    THE PRICE. LAST, AND ONLY ONCE.
+
+                    Not at the gate, not beside the swatches, not as a "from".
+                    It appears here, with the picture of his floor, after he
+                    has already decided he wants it — which is the only moment
+                    a number is information rather than an objection.
+
+                    Gated on renderSettled rather than on a successful render:
+                    a failed render still resolves, and somebody who gave his
+                    number and receives neither a picture nor a price has been
+                    treated worse than if we had never offered.
+
+                    When the visualiser is switched off entirely there is no
+                    render to wait for, so `unlocked` alone is the condition.
+                   ------------------------------------------------------------ */}
+                {unlocked && (renderSettled || !renderEnabled) && (
                   <div className="tc-price">
                     <p className="tc-price-label">Your range</p>
                     <div className="tc-band" aria-live="polite">
@@ -878,61 +997,11 @@ export function ToolCard({
                       )}
                     </div>
                     <p className="tc-free">
-                      From this contractor&apos;s own published rates. Adjusting
-                      anything here costs nothing.
-                    </p>
-                  </div>
-                ) : gateOpen ? (
-                  <ContactGate
-                    headline="Where should we send it?"
-                    blurb={
-                      renderEnabled
-                        ? 'Your price range, and a picture of your own floor in ' +
-                          (selectedFinish?.label ?? 'this finish').toLowerCase() +
-                          '. Both on this screen in about thirty seconds.'
-                        : 'Your price range, on this screen as soon as you send this.'
-                    }
-                    submitLabel="Show me my price"
-                    onSubmit={submitGate}
-                  />
-                ) : (
-                  <div className="tc-locked">
-                    <p className="tc-locked-h">Your range is ready</p>
-                    <p className="tc-locked-sub">
-                      Worked out from {sqft.toLocaleString('en-US')} sq ft in{' '}
-                      {(selectedFinish?.label ?? 'the finish').toLowerCase()}, at this
+                      For {sqft.toLocaleString('en-US')} sq ft in{' '}
+                      {selectionSummary(selections).join(' · ').toLowerCase()}, at this
                       installer&apos;s own published rates.
-                      {renderEnabled
-                        ? ' Say where to send it and you will also see it on your own floor.'
-                        : ''}
                     </p>
-                    <button
-                      type="button"
-                      className="n15-btn n15-btn-primary tc-locked-go"
-                      onClick={() => setGateOpen(true)}
-                    >
-                      {renderEnabled ? 'See my price and my floor' : 'See my price'}
-                    </button>
                   </div>
-                )}
-
-                {/* The render only exists on the far side of the gate. It is
-                    the expensive call in this whole funnel — ten to forty
-                    times a vision analysis — and an anonymous visitor must
-                    never be able to start one. autoStart because he has
-                    already asked for it by handing over his number; another
-                    button here would be a step between him and the thing he
-                    just paid for with his details. */}
-                {photo && unlocked && (
-                  <FinishVisualiser
-                    enabled={renderEnabled}
-                    photo={photo}
-                    finishLabel={selectedFinish?.label ?? 'the finish'}
-                    surfaceLabel={pricer.surfaceLabel}
-                    sessionId={sessionId}
-                    autoStart
-                    onRendered={handleRendered}
-                  />
                 )}
               </div>
             )}
@@ -979,26 +1048,16 @@ export function ToolCard({
   );
 }
 
-/**
- * A finish photograph with its absence as a designed state. Every file under
- * /public/finishes is still missing, so this is the normal path, not the edge
- * case: a failed load swaps to the tinted swatch built from the finish's own
- * colour deck rather than painting a torn-page glyph inside a pricing control.
+/*
+ * FinishThumb and finishPhotoFor were REMOVED IN PHASE 30.
  *
- * Never `priority` — the LCP is the hero headline, and these sit below the fold.
+ * They rendered the three-swatch finish row, which FinishPicker replaced. The
+ * picker loads its own pictures from finish_media through
+ * getFinishMediaAction, so the /public/finishes convention they depended on
+ * has no remaining caller here.
+ *
+ * Deleted rather than left in place: this codebase's lint rejects unused
+ * imports, and an unused component is a thing a future reader has to work out
+ * is dead before they can safely change anything near it.
  */
-function FinishThumb({ src, alt }: { src: string; alt: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) return <span aria-hidden className="tc-fin-ph" />;
-  return (
-    <Image
-      src={src}
-      alt={alt}
-      fill
-      sizes="(min-width: 980px) 150px, 30vw"
-      loading="lazy"
-      onError={() => setFailed(true)}
-    />
-  );
-}
 

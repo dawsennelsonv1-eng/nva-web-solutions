@@ -2,7 +2,7 @@
 
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth/admin';
-import { saveFinishMedia, deleteFinishMedia } from '@/lib/finishes/media';
+import { saveFinishMedia, deleteFinishMedia, finishMediaFor } from '@/lib/finishes/media';
 import { createToolMediaUpload, toolMediaExtFor } from '@/lib/storage/toolMedia';
 
 /**
@@ -130,4 +130,58 @@ export async function createFinishUploadAction(raw: unknown): Promise<FinishUplo
   }
 
   return { ok: true, path: upload.path, token: upload.token, publicUrl: upload.publicUrl };
+}
+
+// ---------------------------------------------------------------------------
+// the one PUBLIC read
+// ---------------------------------------------------------------------------
+
+/**
+ * Every picture for one vertical, for the customisation picker.
+ *
+ * ============================================================================
+ * WHY THIS IS AN ACTION AND NOT A PROP
+ * ============================================================================
+ *
+ * ToolCard is a client component and mounts from several places — the homepage
+ * deck, each tool page, and anywhere else a card is dropped. Passing this down
+ * would mean every one of those server parents fetching it and threading it
+ * through, and a parent that was missed would silently render a picker with no
+ * pictures. One fetch, from the component that actually needs it, cannot be
+ * forgotten at a call site.
+ *
+ * ============================================================================
+ * NO ADMIN CHECK, AND THAT IS CORRECT
+ * ============================================================================
+ *
+ * Every other export in this file is operator-only because it writes. This
+ * reads a list of floor colours that is rendered to anonymous visitors on a
+ * public marketing page. There is nothing here to protect: no personal data,
+ * no keys, no business figures, and no prices — the catalogue carries cost
+ * RANKS, never money.
+ *
+ * It is also called lazily, only once a visitor has photographed a floor and
+ * reached the picker, so it is not a per-pageview query on the homepage.
+ *
+ * Degrades to an empty list rather than throwing, like the module beneath it.
+ * A visitor with no swatches still gets a working picker of flat colours and a
+ * real quote; a visitor with an exception gets neither.
+ */
+export async function getFinishMediaAction(
+  vertical: string
+): Promise<{ kind: string; mediaKey: string; src: string; alt: string; caption: string }[]> {
+  const v = z.string().trim().min(1).max(40).safeParse(vertical);
+  if (!v.success) return [];
+  try {
+    const slots = await finishMediaFor(v.data);
+    return slots.map((s) => ({
+      kind: s.kind,
+      mediaKey: s.mediaKey,
+      src: s.src,
+      alt: s.alt,
+      caption: s.caption,
+    }));
+  } catch {
+    return [];
+  }
 }

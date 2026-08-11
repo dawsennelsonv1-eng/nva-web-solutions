@@ -1,0 +1,250 @@
+/**
+ * app/phase30.css — THE CUSTOMISATION PICKER.
+ *
+ * ============================================================================
+ * THE LAYER RULE
+ * ============================================================================
+ *
+ * Adds only. Every selector is prefixed `.fp-` — finish picker. No earlier
+ * layer uses it.
+ *
+ * That prefix discipline is not pedantry. phase27 originally took `.tc-shot`,
+ * a name phase18 had already given to FinishVisualiser's before/after figures,
+ * and won the cascade — centre-cropping the one image on the page whose job is
+ * to show a garage unaltered. When an earlier layer cannot be read, take a
+ * prefix nobody would reach for by accident.
+ *
+ * Colours are var(--n15-*) throughout, so phase17's light theme retints this
+ * with nothing written here.
+ *
+ * ============================================================================
+ * THE HERO IS BIG BECAUSE IT IS THE ARGUMENT
+ * ============================================================================
+ *
+ * Full card width, 3:2, above everything. A homeowner cannot assemble
+ * "metallic, copper burl, gloss" out of three small rectangles; he understands
+ * one photograph immediately. Same shape as the tool galleries on the
+ * homepage, because that shape already works here.
+ *
+ * ============================================================================
+ * SWATCHES ARE RECTANGLES AND THEY ARE BIG
+ * ============================================================================
+ *
+ * A circle is right for a paint colour, where the entire answer is a hue.
+ * These are materials — flake size, pattern, depth, movement — and a 44px dot
+ * shows none of that. Two per row on a phone, at a size where the material is
+ * actually legible, beats six dots that all read as grey.
+ *
+ * ============================================================================
+ * THE COST RANK IS FIVE BARS AND NO CURRENCY
+ * ============================================================================
+ *
+ * Deliberately austere: no dollar signs, no colour coding to green and red, no
+ * "budget" or "premium" words. It answers one question — is this the expensive
+ * one in this group — and anything more would read as a price, which it is
+ * emphatically not.
+ */
+
+.fp {
+  margin-top: 1.25rem;
+}
+
+/* --------------------------------------------------------------------------
+   hero
+   -------------------------------------------------------------------------- */
+
+.fp-hero {
+  margin-bottom: 1.5rem;
+}
+
+.fp-hero-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+}
+
+.fp-hero-cap {
+  margin: 0.5rem 0 0;
+  font-family: var(--n15-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+/*
+ * The empty state occupies the same footprint as a photograph would, so the
+ * card does not jump when one appears. It is a real answer, not a skeleton:
+ * most combinations will never be photographed and this has to look
+ * intentional forever, not like something still loading.
+ */
+.fp-hero-none {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  aspect-ratio: 3 / 2;
+  padding: 1.25rem;
+  border: 1px dashed var(--n15-card-edge);
+  border-radius: var(--n15-r-card);
+  background: rgba(127, 127, 127, 0.05);
+}
+
+.fp-hero-none-h {
+  margin: 0;
+  font-family: var(--n15-serif);
+  font-size: 1.25rem;
+}
+
+.fp-hero-none-b {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  opacity: 0.7;
+}
+
+.fp-mix {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  font-family: var(--n15-mono);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+/* --------------------------------------------------------------------------
+   groups
+   -------------------------------------------------------------------------- */
+
+.fp-group {
+  margin: 0 0 1.75rem;
+  padding: 0;
+  border: 0;
+}
+
+.fp-group-h {
+  padding: 0;
+  font-family: var(--n15-serif);
+  font-size: 1.375rem;
+  line-height: 1.2;
+}
+
+/* Copper, and only ever on a group that genuinely still needs an answer. */
+.fp-need {
+  font-family: var(--n15-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--n15-copper);
+}
+
+.fp-group-b {
+  margin: 0.25rem 0 0.875rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  opacity: 0.7;
+}
+
+/* --------------------------------------------------------------------------
+   swatches
+   -------------------------------------------------------------------------- */
+
+.fp-swatches {
+  display: grid;
+  gap: 0.625rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 34rem) {
+  .fp-swatches {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.fp-sw {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.5rem;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  background: var(--n15-card);
+  border: 1px solid var(--n15-card-edge);
+  border-radius: var(--n15-r-card);
+}
+
+/*
+ * Selected is TWO signals, not one: a copper border and a weight change. A
+ * border alone is invisible to a colourblind visitor against some finishes,
+ * and this grid is nothing but colour.
+ */
+.fp-sw-on {
+  border-color: var(--n15-copper);
+  border-width: 2px;
+  /* Compensates the extra pixel so the grid does not shift on selection. */
+  padding: calc(0.5rem - 1px);
+}
+
+.fp-sw-img {
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--n15-r-chip);
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.fp-sw-img img,
+.fp-sw-flat {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fp-sw-label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.fp-sw-on .fp-sw-label {
+  color: var(--n15-copper);
+}
+
+.fp-sw-blurb {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  opacity: 0.65;
+}
+
+/* --------------------------------------------------------------------------
+   cost rank
+   -------------------------------------------------------------------------- */
+
+.fp-cost {
+  display: flex;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: 0.375rem;
+}
+
+.fp-cost span {
+  display: block;
+  height: 3px;
+  flex: 1 1 0;
+  border-radius: 2px;
+}
+
+.fp-cost-on {
+  background: currentColor;
+  opacity: 0.75;
+}
+
+.fp-cost-off {
+  background: currentColor;
+  opacity: 0.15;
+}

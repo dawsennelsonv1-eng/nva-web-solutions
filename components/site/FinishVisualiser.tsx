@@ -58,6 +58,22 @@ export interface FinishVisualiserProps {
    * omits it and nothing changes.
    */
   onRendered?: (storagePath: string | null) => void;
+  /**
+   * Fires once the attempt RESOLVES, either way.
+   *
+   * Distinct from onRendered because the caller needs to know the render is
+   * over even when it failed. The price is revealed at that moment, and
+   * hanging it on success alone would mean a visitor whose render errored
+   * hands over his phone number and gets nothing at all — the one outcome
+   * worse than no render.
+   */
+  onSettled?: (ok: boolean) => void;
+  /**
+   * The full description of the chosen finish, assembled from the picker's
+   * selections. Falls back to finishLabel when absent, which is what every
+   * pre-picker mount does.
+   */
+  finishDescription?: string;
 }
 
 type Phase =
@@ -74,13 +90,10 @@ export function FinishVisualiser({
   sessionId,
   autoStart = false,
   onRendered,
+  onSettled,
+  finishDescription,
 }: FinishVisualiserProps) {
   const [phase, setPhase] = useState<Phase>({ k: 'idle' });
-
-  // 1. ALL REFS MOVED TO THE TOP LEVEL
-  const renderedFor = useRef<string | null>(null);
-  const runRef = useRef<(() => void) | null>(null);
-  const started = useRef(false);
 
   /**
    * A render belongs to the finish that was selected when it ran. If the
@@ -93,11 +106,23 @@ export function FinishVisualiser({
    * It does NOT re-render automatically. That would spend money on a finish he
    * may have only glanced at.
    */
+  const renderedFor = useRef<string | null>(null);
   useEffect(() => {
     if (renderedFor.current !== null && renderedFor.current !== finishLabel) {
       setPhase({ k: 'idle' });
     }
   }, [finishLabel]);
+
+  if (!enabled) {
+    return (
+      <p className="tc-up-note">
+        The photo preview is switched off on this deployment. Everything else
+        here is live.
+      </p>
+    );
+  }
+
+  const runRef = useRef<(() => void) | null>(null);
 
   const run = () => {
     setPhase({ k: 'rendering' });
@@ -107,24 +132,31 @@ export function FinishVisualiser({
         const result = await visualiseAction({
           photoBase64: photo.base64,
           photoMediaType: photo.mediaType,
-          finishLabel,
+          // The picker's full description when there is one, so the model is
+          // told "metallic epoxy floor with swirling copper and bronze
+          // pigment, high gloss" rather than just "Metallic pour".
+          finishLabel:
+            finishDescription && finishDescription.trim().length > 0
+              ? finishDescription
+              : finishLabel,
           surfaceLabel,
           sessionId,
           prototypeId: null,
         });
         if (!result.ok) {
           setPhase({ k: 'failed', message: result.message });
+          onSettled?.(false);
           return;
         }
         setPhase({ k: 'done', afterUrl: result.dataUrl, disclosure: result.disclosure });
         onRendered?.(result.storagePath);
+        onSettled?.(true);
       } catch {
         setPhase({ k: 'failed', message: 'That did not come back. Try it again.' });
+        onSettled?.(false);
       }
     })();
   };
-
-  runRef.current = run;
 
   /**
    * Fires ONCE per mount, and only from idle.
@@ -139,21 +171,14 @@ export function FinishVisualiser({
    * already resets to idle in that case, and auto-rendering every finish a
    * visitor taps through would spend the balance on curiosity.
    */
+  const started = useRef(false);
   useEffect(() => {
     if (!autoStart || !enabled || started.current) return;
     started.current = true;
     runRef.current?.();
   }, [autoStart, enabled]);
 
-  // 2. EARLY RETURN MOVED DOWN HERE, AFTER ALL HOOKS
-  if (!enabled) {
-    return (
-      <p className="tc-up-note">
-        The photo preview is switched off on this deployment. Everything else
-        here is live.
-      </p>
-    );
-  }
+  runRef.current = run;
 
   return (
     <div className="tc-render">
@@ -202,3 +227,4 @@ export function FinishVisualiser({
     </div>
   );
 }
+
