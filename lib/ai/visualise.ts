@@ -105,7 +105,34 @@ export interface VisualiseArgs {
 
 export type VisualiseResult =
   | { ok: true; storagePath: string | null; base64: string; mediaType: string; disclosure: string }
-  | { ok: false; reason: ImageFailureReason | 'over_budget' };
+  | {
+      ok: false;
+      reason: ImageFailureReason | 'over_budget';
+      /**
+       * =====================================================================
+       * THE DIAGNOSIS, CARRIED OUT RATHER THAN LEFT ON THE FLOOR.
+       * =====================================================================
+       *
+       * This file already assembles the good evidence. `renderFinishImage`
+       * returns an `attempts` list — every model tried, in order, with the
+       * vendor's own sentence — and the recordAiJob call below writes it into
+       * `ai_jobs.request`.
+       *
+       * And then the return statement threw it away: `{ ok: false, reason }`
+       * and nothing else. So the browser received one enum value out of seven,
+       * mapped it to a sentence written for a homeowner, and the operator was
+       * left inferring a retired model slug from a support conversation — while
+       * the exact answer sat in a database column nobody thought to open.
+       *
+       * That is precisely the shape of the bug that hid the measurement
+       * failure for weeks (see lib/quote/vision.ts), one layer up.
+       *
+       * NEITHER FIELD IS EVER SHOWN TO A HOMEOWNER. app/actions/visualise.ts
+       * keeps them separate from the copy he reads.
+       */
+      detail?: string | null;
+      attempts?: string[];
+    };
 
 /**
  * Build the instruction. Written as a constraint list rather than a
@@ -167,7 +194,16 @@ export async function visualiseFinish(args: VisualiseArgs): Promise<VisualiseRes
     // No ai_jobs row: nothing was attempted and nothing was spent. Recording a
     // job here would put a zero-cost failure in the ledger that looks like a
     // provider problem when it is a deliberate refusal.
-    return { ok: false, reason: 'over_budget' };
+    //
+    // The detail still travels, because "our own ceiling stopped this" and "the
+    // provider is down" produce almost the same sentence for the visitor and
+    // need completely different actions from the operator.
+    return {
+      ok: false,
+      reason: 'over_budget',
+      detail: budget.message,
+      attempts: [],
+    };
   }
 
   const dataUrl = `data:${args.photoMediaType};base64,${args.photoBase64}`;
@@ -215,7 +251,16 @@ export async function visualiseFinish(args: VisualiseArgs): Promise<VisualiseRes
     },
   });
 
-  if (!result.ok) return { ok: false, reason: result.reason };
+  if (!result.ok) {
+    // The same list that just went into ai_jobs.request, handed to the caller
+    // so an operator can read it without opening the database.
+    return {
+      ok: false,
+      reason: result.reason,
+      detail: result.detail ?? null,
+      attempts: result.attempts ?? [],
+    };
+  }
 
   /**
    * Store what was shown. This is the record that protects the contractor if a
@@ -241,4 +286,3 @@ export async function visualiseFinish(args: VisualiseArgs): Promise<VisualiseRes
     disclosure: RENDER_DISCLOSURE,
   };
 }
-

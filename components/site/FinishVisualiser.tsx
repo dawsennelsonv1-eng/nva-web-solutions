@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { visualiseAction } from '@/app/actions/visualise';
 
 /**
@@ -26,6 +26,28 @@ import { visualiseAction } from '@/app/actions/visualise';
  * per-IP limit, its payload validation, its daily ceiling, its disclosure.
  * Nothing about what costs money moved. Only who holds the file.
  */
+
+/**
+ * The operator diagnostic block.
+ *
+ * INLINE STYLES, and the reasoning is the same as the matching block in
+ * ToolCard.tsx: this element only exists behind `?debug=1`, no visitor ever
+ * sees it, and giving it a class would mean a phase layer and an edit to
+ * app/layout.tsx for four lines of debugging text. It is not part of the
+ * design, so it does not go in the design system.
+ */
+const DIAG_STYLE: CSSProperties = {
+  marginTop: '0.75rem',
+  padding: '0.6rem 0.7rem',
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+  fontSize: '0.7rem',
+  lineHeight: 1.5,
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  opacity: 0.75,
+  border: '1px solid currentColor',
+  borderRadius: '0.4rem',
+};
 
 export interface PreparedPhoto {
   base64: string;
@@ -86,7 +108,13 @@ type Phase =
   | { k: 'idle' }
   | { k: 'rendering' }
   | { k: 'done'; afterUrl: string; disclosure: string }
-  | { k: 'failed'; message: string };
+  /**
+   * `diagnostic` is the operator's copy: the failure code and every model the
+   * chain tried, with what each one said. Printed ONLY under `?debug=1`, the
+   * same switch ToolCard uses for the measurement. A homeowner sees `message`
+   * and nothing else, ever.
+   */
+  | { k: 'failed'; message: string; diagnostic?: string[] };
 
 export function FinishVisualiser({
   enabled,
@@ -144,6 +172,23 @@ export function FinishVisualiser({
   const runRef = useRef<(() => void) | null>(null);
 
   /**
+   * `?debug=1`. Declared HERE, with the other hooks and above the `enabled`
+   * early return, for the reason spelled out in the block comment above:
+   * React identifies hook state by call order, and a hook placed below that
+   * return would belong to the wrong slot on the renders where `enabled` is
+   * false. Read in an effect because `window` does not exist on the server and
+   * reading it in the initial useState value is a hydration mismatch.
+   */
+  const [debug, setDebug] = useState(false);
+  useEffect(() => {
+    try {
+      setDebug(new URLSearchParams(window.location.search).get('debug') === '1');
+    } catch {
+      /* a browser that will not parse its own URL is not worth a crash */
+    }
+  }, []);
+
+  /**
    * Fires ONCE per mount, and only from idle.
    *
    * A ref rather than state because a render costs real money and a re-render
@@ -194,15 +239,62 @@ export function FinishVisualiser({
           ...(selections ? { selections } : {}),
         });
         if (!result.ok) {
-          setPhase({ k: 'failed', message: result.message });
+          setPhase({
+            k: 'failed',
+            message: result.message,
+            ...(result.failure
+              ? {
+                  diagnostic: [
+                    result.failure.code +
+                      (result.failure.detail ? ': ' + result.failure.detail : ''),
+                    ...result.failure.attempts,
+                  ],
+                }
+              : {}),
+          });
           onSettled?.(false);
           return;
         }
         setPhase({ k: 'done', afterUrl: result.dataUrl, disclosure: result.disclosure });
         onRendered?.(result.storagePath);
         onSettled?.(true);
-      } catch {
-        setPhase({ k: 'failed', message: 'That did not come back. Try it again.' });
+      } catch (e) {
+        /**
+         * ==================================================================
+         * "THAT DID NOT COME BACK. TRY IT AGAIN." WAS HERE, AND IT WAS THE
+         * ONLY THING ON SCREEN WHEN THE RENDER BROKE.
+         * ==================================================================
+         *
+         * It named nothing, blamed nothing, and suggested the one action that
+         * could not help — because a throw at THIS call site is never a
+         * transient hiccup worth retrying.
+         *
+         * `visualiseAction` is written never to throw: every internal failure,
+         * including a chain-exhausted render, returns `{ ok: false }` with a
+         * message. So an exception here means the request never reached the
+         * function body at all. In practice that is one of two things:
+         *
+         *   - The network dropped mid-request.
+         *   - Next rejected the Server Action before dispatch, almost always
+         *     on the body size limit. This action posts one photograph as
+         *     base64, up to roughly 683 KB against what used to be a 1 MB
+         *     default with no configuration behind it (see next.config.mjs,
+         *     raised to 8mb in phase 1). Tight enough that a high-texture
+         *     concrete photo could tip it while a clean one sailed through —
+         *     which is exactly the intermittent, unattributable failure that
+         *     was being reported.
+         *
+         * Neither is fixed by tapping a button again, so the copy no longer
+         * pretends otherwise, and the real error is captured for `?debug=1`
+         * instead of being swallowed.
+         */
+        const detail = e instanceof Error ? e.name + ': ' + e.message : String(e);
+        setPhase({
+          k: 'failed',
+          message:
+            'The preview could not be sent. Check your connection — your quote and your details are unaffected.',
+          diagnostic: ['client_exception: ' + detail],
+        });
         onSettled?.(false);
       }
     })();
@@ -231,9 +323,29 @@ export function FinishVisualiser({
       )}
 
       {phase.k === 'failed' && (
-        <p className="tc-up-err" role="alert">
-          {phase.message}
-        </p>
+        <>
+          <p className="tc-up-err" role="alert">
+            {phase.message}
+          </p>
+          {/* THE RETRY IS OFFERED, BUT NOT PROMISED.
+
+              A failed render leaves the visitor with a price and a
+              specification and no picture. Some of these failures are worth
+              one more attempt — a rate limit, a timeout, an overloaded
+              provider. None of them were reachable before: the failed branch
+              rendered a sentence and nothing else, so a render that fell over
+              was permanently over for that session, and the only route back
+              was reloading the page and losing the whole flow. */}
+          <button type="button" className="n15-btn n15-btn-ghost tc-render-go" onClick={run}>
+            Try the preview again
+          </button>
+          {/* OPERATOR ONLY — `?debug=1`. This is the list lib/ai/visualise.ts
+              assembles and writes to ai_jobs.request, surfaced so it can be
+              read on a phone on the live site without opening the database. */}
+          {debug && phase.diagnostic && phase.diagnostic.length > 0 && (
+            <pre style={DIAG_STYLE}>{phase.diagnostic.join('\n')}</pre>
+          )}
+        </>
       )}
 
       {phase.k === 'done' && (
@@ -260,4 +372,3 @@ export function FinishVisualiser({
     </div>
   );
 }
-

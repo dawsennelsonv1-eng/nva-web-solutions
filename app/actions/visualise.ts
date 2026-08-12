@@ -81,7 +81,36 @@ export type VisualiseActionResult =
       /** The sentence that MUST be rendered beside the image. */
       disclosure: string;
     }
-  | { ok: false; message: string };
+  | {
+      ok: false;
+      /** Written for a homeowner. The ONLY field he is ever shown. */
+      message: string;
+      /**
+       * ======================================================================
+       * THE OPERATOR'S COPY. NEVER RENDERED TO A VISITOR.
+       * ======================================================================
+       *
+       * `message` is deliberately vague — "that is a fault on our side, not
+       * with your photos" — because a homeowner can do nothing with a model
+       * slug and should not be handed one mid-quote.
+       *
+       * But vague was ALL there was. The component's failure branch printed
+       * that sentence and the component's `catch` printed "That did not come
+       * back. Try it again.", which names nothing at all and was the only
+       * thing on screen when the render broke. Two different failures, one
+       * indistinguishable dead end.
+       *
+       * `code` separates a rate limit from an empty wallet from a retired
+       * slug. `attempts` is every model tried with what each one said.
+       * FinishVisualiser prints them only behind `?debug=1`, the same switch
+       * ToolCard uses for the measurement.
+       */
+      failure?: {
+        code: string;
+        detail: string | null;
+        attempts: string[];
+      };
+    };
 
 /**
  * Reasons are mapped to sentences here rather than in the component, so every
@@ -191,7 +220,13 @@ export async function visualiseAction(
     // carries a message written for a homeowner. That message is used
     // verbatim rather than replaced — the guard knows whether this was a rate
     // limit or an unavailable limiter, and this action does not.
-    if (!verdict.ok) return { ok: false, message: verdict.message };
+    if (!verdict.ok) {
+      return {
+        ok: false,
+        message: verdict.message,
+        failure: { code: 'ip_rate_limit', detail: verdict.message, attempts: [] },
+      };
+    }
   }
 
   // ---- 2. payload validation, before anything is spent ---------------------
@@ -199,7 +234,13 @@ export async function visualiseAction(
   // an acceptable image in this codebase. A second, looser one here would be
   // the hole — the expensive endpoint accepting what the cheap one rejects.
   const valid = validateImagePayload(args.photoBase64, args.photoMediaType);
-  if (!valid.ok) return { ok: false, message: valid.message };
+  if (!valid.ok) {
+    return {
+      ok: false,
+      message: valid.message,
+      failure: { code: 'invalid_payload', detail: valid.message, attempts: [] },
+    };
+  }
 
   // ---- 3. the render, which checks the daily ceiling itself ----------------
   const materialUrls = await resolveMaterials(args.selections);
@@ -217,7 +258,17 @@ export async function visualiseAction(
     prototypeId: args.prototypeId,
   });
 
-  if (!result.ok) return { ok: false, message: messageFor(result.reason) };
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: messageFor(result.reason),
+      failure: {
+        code: result.reason,
+        detail: result.detail ?? null,
+        attempts: result.attempts ?? [],
+      },
+    };
+  }
 
   return {
     ok: true,
@@ -228,4 +279,3 @@ export async function visualiseAction(
 }
 
 export { RENDER_DISCLOSURE };
-
