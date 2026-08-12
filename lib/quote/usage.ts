@@ -51,6 +51,90 @@ export interface ConsumeResult {
  * visitor has spent their allowance, in which case the caller must not call
  * the provider at all.
  */
+/**
+ * ============================================================================
+ * THE PER-SESSION ANALYSIS LIMIT. DEFAULT: OFF.
+ * ============================================================================
+ *
+ * 0 means unlimited, and 0 is the default because the limit as built did not
+ * limit anything — it BLOCKED EVERYTHING on the surface that matters most.
+ *
+ * THE BUG, which is worth understanding before anybody turns this back on:
+ *
+ * `increment_session_analyses` (0001_init.sql) UPDATEs public.demo_sessions.
+ * An UPDATE that matches no row returns null, the function's fallback SELECT
+ * also finds nothing, and it returns 0. The caller then evaluated
+ *
+ *     allowed: used <= limit && used > 0
+ *
+ * and 0 fails `used > 0`. So "this session has no row yet" was read as "this
+ * session is out of analyses" — a hard refusal on the FIRST attempt, before a
+ * single model was called.
+ *
+ * A row only exists once `touch_demo_session` has created one. The demo
+ * surface does that. The homepage tool card does not: its session id is
+ * 'home-<toolId>-<random>', minted fresh in a useMemo on every mount, and
+ * nothing ever inserts it. So every visitor to the homepage tool was told he
+ * had used up analyses he had never been allowed to start, on every page load,
+ * forever.
+ *
+ * That is what the "You've used your photo analyses for this visit" screen
+ * actually was. Not a quota. Not the vision chain. A missing row.
+ *
+ * WHY OFF RATHER THAN FIXED-AND-ON. Fixing the predicate is one line and it is
+ * done below. But a courtesy cap of three is a product decision, and right now
+ * the product needs to be provably working far more than it needs to ration
+ * anything. The guards that protect the bank account are untouched and are the
+ * ones that were always doing the work: the per-IP rate limit (12 per window,
+ * 0005_rate_limits.sql), the daily spend ceiling, and the contractor's own
+ * entitlement.
+ *
+ * TO TURN IT ON: set SESSION_ANALYSIS_LIMIT in Vercel. No redeploy, no code
+ * change. The counting below runs either way, so the numbers are already there
+ * to choose a sensible value from.
+ */
+export function sessionAnalysisLimit(): number {
+  const raw = process.env.SESSION_ANALYSIS_LIMIT?.trim();
+  if (!raw) return 0;
+  const n = Number.parseInt(raw, 10);
+  // A malformed value must not accidentally impose a limit of NaN, which
+  // compares false against everything and would silently block nobody — or,
+  // worse in a future refactor, block everybody.
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * READ the counter. Never touches it.
+ *
+ * Separating the read from the write is what stops a FAILED analysis costing a
+ * visitor one of his allowance: the check that decides whether to proceed is
+ * no longer the same call as the record of having proceeded.
+ *
+ * Reads public.demo_sessions.analyses_used_this_session directly — the same
+ * column `increment_session_analyses` writes (0001_init.sql). A session with
+ * no row has used nothing, which is 0, not "blocked".
+ *
+ * RETURNS 0 ON ANY ERROR, letting the visitor through. A transient database
+ * problem must not take the headline feature down, and this counter is a
+ * courtesy limit, not a spend guard.
+ */
+export async function countSessionAnalyses(sessionId: string): Promise<number> {
+  try {
+    const db = getSupabaseAdminClient();
+    const { data, error } = await db
+      .from('demo_sessions')
+      .select('analyses_used_this_session')
+      .eq('session_id', sessionId)
+      .maybeSingle();
+    if (error) return 0;
+    const used = (data as { analyses_used_this_session?: unknown } | null)
+      ?.analyses_used_this_session;
+    return typeof used === 'number' ? used : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function reserveSessionAnalysis(
   sessionId: string,
   limit: number
@@ -63,7 +147,17 @@ export async function reserveSessionAnalysis(
     });
     if (error) throw error;
     const used = typeof data === 'number' ? data : 0;
-    return { allowed: used <= limit && used > 0, used };
+    /**
+     * WAS `used <= limit && used > 0`.
+     *
+     * The `used > 0` clause was meant to catch a failed increment. It also
+     * caught the far more common case of a session with no demo_sessions row —
+     * see the long note above sessionAnalysisLimit() — and turned "brand new
+     * visitor" into "out of analyses".
+     *
+     * `limit <= 0` means unlimited, matching sessionAnalysisLimit()'s default.
+     */
+    return { allowed: limit <= 0 || used <= limit, used };
   } catch {
     // Cannot reserve: allow, and let the per-IP limiter and the daily
     // ceiling carry the load. Refusing here would break the product for

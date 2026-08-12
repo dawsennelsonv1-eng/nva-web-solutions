@@ -7,7 +7,12 @@ import { PricingError, type PricingInput } from '@/lib/quote/pricing';
 import { priceQuote } from '@/lib/quote/price-quote';
 import type { QuoteComputationOf } from '@/lib/quote/kit';
 import { analyzeFloorPhoto, analysisToPricingHints, type VisionField } from '@/lib/quote/vision';
-import { consumeAnalysis, reserveSessionAnalysis } from '@/lib/quote/usage';
+import {
+  consumeAnalysis,
+  countSessionAnalyses,
+  reserveSessionAnalysis,
+  sessionAnalysisLimit,
+} from '@/lib/quote/usage';
 import {
   checkDailySpendCeiling,
   checkIpRateLimit,
@@ -229,15 +234,63 @@ export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeRe
     }
   }
 
-  // 2 — session reserve, before any spend
-  const sessionReserve = await reserveSessionAnalysis(req.sessionId, 3);
-  if (!sessionReserve.allowed) {
-    trackServer('session_limit_reached', {}, evtCtx);
-    return {
-      status: 'manual_entry',
-      remainingSession: 0,
-      message: "You've used your photo analyses for this visit. Enter the details yourself and we'll price it instantly.",
-    };
+  /**
+   * ==========================================================================
+   * 2 — SESSION RESERVE. IT USED TO HAPPEN HERE. IT NOW HAPPENS ON SUCCESS.
+   * ==========================================================================
+   *
+   * `reserveSessionAnalysis` INCREMENTS a counter. Called at this point it
+   * charged the visitor one of his three analyses for merely ATTEMPTING one —
+   * before the payload was validated, before the rate limiter, and crucially
+   * before the vision chain ran.
+   *
+   * So during the weeks the chain was broken by a retired model slug, every
+   * homeowner who tried got charged three times for three failures and was
+   * then locked out of the headline feature for the rest of his visit, with
+   * "You've used your photo analyses for this visit" as the explanation. He
+   * had used nothing. He had received nothing. The product took his quota and
+   * blamed him for it.
+   *
+   * That is the single most user-hostile behaviour found in this codebase, and
+   * it was invisible because it only bites when something else is already
+   * broken — which is exactly when a person is least able to tell the
+   * difference between "you ran out" and "we are broken".
+   *
+   * WHY MOVING IT IS SAFE. Reserve-before-spend is the right instinct, and it
+   * is not the thing protecting the bank account here. Three guards stand
+   * between this line and any money:
+   *
+   *   - the per-IP rate limit (12 analyses per window by default, DB-backed,
+   *     0005_rate_limits.sql) — this is the real spend guard, and guards.ts
+   *     says so in its own header
+   *   - the daily spend ceiling, checked at step 5
+   *   - the contractor's own entitlement, checked at step 1
+   *
+   * The session counter was never the wall. It is a courtesy limit on how many
+   * times ONE visitor may use a feature, and counting attempts rather than
+   * deliveries made it a punishment instead.
+   *
+   * The worst case this opens is a single session consuming up to the per-IP
+   * limit in failed calls. A failed call bills nothing — OpenRouter charges
+   * all-or-nothing per image and a failed completion returns no usage — so the
+   * exposure is rate-limiter-bounded requests that cost zero.
+   *
+   * A CHECK STILL RUNS FIRST, immediately below. It reads the counter without
+   * incrementing it, so somebody who genuinely has had three analyses is still
+   * told so before a model is called.
+   */
+  const sessionLimit = sessionAnalysisLimit();
+  if (sessionLimit > 0) {
+    const alreadyUsed = await countSessionAnalyses(req.sessionId);
+    if (alreadyUsed >= sessionLimit) {
+      trackServer('session_limit_reached', {}, evtCtx);
+      return {
+        status: 'manual_entry',
+        remainingSession: 0,
+        message:
+          "You've used your photo analyses for this visit. Reload the page for a fresh set, or enter the size yourself and we'll price it instantly.",
+      };
+    }
   }
 
   // 3 — payload. Normalised to a list first so there is exactly one code path
@@ -384,10 +437,28 @@ export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeRe
   const rules = await loadRules(req.prototypeId, req.vertical);
   const hints = analysisToPricingHints(result, rules);
 
+  /**
+   * THE ANALYSIS IS CHARGED HERE, WHERE IT WAS ACTUALLY DELIVERED.
+   *
+   * Every failure path above returned before reaching this line, so a visitor
+   * is only ever charged for a measurement he received. See the long note at
+   * step 2 for why this moved.
+   *
+   * `allowed` is deliberately ignored. The counter has already done its job at
+   * step 2b, which read it BEFORE any money was spent; refusing to hand over a
+   * result that has already been paid for would be the worst of both — the
+   * spend without the answer. This call is bookkeeping.
+   */
+  const charged = await reserveSessionAnalysis(req.sessionId, sessionLimit);
+
   return {
     status: 'ok',
     hints: { ...hints, handToUser: result.handToUser, areaBand: result.areaBand },
-    remainingSession: Math.max(0, 3 - sessionReserve.used),
+    // Unlimited reports a large remaining rather than 0 — every consumer of
+    // this field treats 0 as "blocked", and reporting a visitor blocked when
+    // no limit is configured is how the old bug would come back wearing a
+    // different hat.
+    remainingSession: sessionLimit > 0 ? Math.max(0, sessionLimit - charged.used) : 99,
     photoPath,
     photoPaths,
     photoCount: images.length,
