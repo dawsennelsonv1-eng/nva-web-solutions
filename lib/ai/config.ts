@@ -448,8 +448,27 @@ export const AI_ROUTES: Record<JobId, RouteConfig> = {
         timeoutMs: 60_000,
       },
       {
+        /**
+         * WAS `google/gemini-3-pro`. THAT SLUG DOES NOT EXIST.
+         *
+         * Checked against `curl https://openrouter.ai/api/v1/models` on
+         * 2026-08-11: the catalogue carries `google/gemini-3-pro-image` and
+         * `google/gemini-3.1-pro-preview`, and no plain `google/gemini-3-pro`.
+         * OpenRouter answers an unknown slug with a 404, classifyStatus maps
+         * 404 to 'invalid_request', and until the router fix shipped alongside
+         * this line, 'invalid_request' BROKE OUT OF THE CHAIN — so candidates
+         * three and four were unreachable and the whole measurement died here.
+         *
+         * `-image` is the image-GENERATION variant and is the wrong endpoint
+         * for reading a photograph, so the text-and-vision preview is the
+         * correct substitute.
+         *
+         * VERIFY: `-preview` slugs get promoted and then retired. When
+         * `google/gemini-3.1-pro` exists without the suffix, move to it. The
+         * override needs no redeploy: set AI_VISION_MODEL_2 in Vercel.
+         */
         provider: 'openrouter',
-        model: 'google/gemini-3-pro',
+        model: 'google/gemini-3.1-pro-preview',
         modelEnv: 'AI_VISION_MODEL_2',
         maxOutputTokens: 2048,
         timeoutMs: 60_000,
@@ -472,8 +491,37 @@ export const AI_ROUTES: Record<JobId, RouteConfig> = {
       },
     ],
     honorDailyCeiling: false,
-    record: false,
-    fallbackOnValidationFailure: false,
+    /**
+     * WAS false. Now true, and BOTH ledger writers are live at once on
+     * purpose — recordAiJob here and recordVisionJob in lib/quote/vision.ts.
+     *
+     * They record different things. recordVisionJob writes one row summarising
+     * the analysis; recordAiJob writes the router's own view including
+     * `fellBackFrom`, which is the only place a chain that limped to its third
+     * candidate is visible as data rather than as a support conversation.
+     *
+     * The duplicate row is the price of that visibility and it is worth
+     * paying. If double-counting in the spend dashboard ever matters more than
+     * diagnosis, drop recordVisionJob, not this — the router's row is the
+     * richer one.
+     */
+    record: true,
+    /**
+     * WAS false, and that was the second way this route could die quietly.
+     *
+     * With `repair: true` a model that returns malformed JSON already gets one
+     * corrective retry. If it fails a SECOND time, that model cannot produce
+     * this shape — which is a fact about that model, not about the request.
+     * Refusing to try the next candidate turned one model's bad day into no
+     * measurement at all, and the epoxy schema is strict enough to be worth
+     * defending against: it requires all five `confidence` keys, and a model
+     * that omits one is out of the running for a reason that has nothing to do
+     * with how well it read the floor.
+     *
+     * The cost is bounded: at most one extra candidate's worth of tokens on a
+     * request that was going to return nothing anyway.
+     */
+    fallbackOnValidationFailure: true,
     repair: true,
     costRateOverride: {
       inputEnv: 'AI_INPUT_COST_PER_MTOK_CENTS',
@@ -551,4 +599,3 @@ export const PROVIDER_ENDPOINTS: Record<
 export function getRoute(job: JobId): RouteConfig {
   return AI_ROUTES[job];
 }
-

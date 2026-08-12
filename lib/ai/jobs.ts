@@ -139,13 +139,26 @@ export async function recordVisionJob(args: {
   outputTokens: number;
   costCents: number;
   error?: string;
+  /**
+   * WHICH VENDOR ACTUALLY RAN IT.
+   *
+   * This column was hardcoded to 'anthropic' from Phase 3, when the vision
+   * route had exactly one candidate and that candidate was direct Anthropic.
+   * The route now leads with OpenRouter, so every row written since then has
+   * named the wrong provider — which makes the ledger actively misleading
+   * exactly when somebody is using it to work out why measurement stopped.
+   *
+   * Optional, defaulting to the old value, so no existing caller changes
+   * behaviour by being left alone.
+   */
+  provider?: ProviderId;
 }): Promise<void> {
   try {
     const db = getAiDb();
     await db.from('ai_jobs').insert({
       prototype_id: args.prototypeId,
       job_type: 'vision_analysis',
-      provider: 'anthropic',
+      provider: args.provider ?? 'anthropic',
       model: args.model,
       input_tokens: args.inputTokens,
       output_tokens: args.outputTokens,

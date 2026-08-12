@@ -210,7 +210,13 @@ type Flow =
   | { k: 'collecting' }
   | { k: 'analysing' }
   | { k: 'ready'; confident: boolean }
-  | { k: 'failed'; message: string };
+  /**
+   * `diagnostic` is the operator's copy of what went wrong: every model tried,
+   * in order, with the vendor's own sentence. It is rendered ONLY when the
+   * page is loaded with `?debug=1` — see `debug` below. A homeowner sees
+   * `message` and nothing else, ever.
+   */
+  | { k: 'failed'; message: string; diagnostic?: string[] };
 
 const STAGE_COPY: Record<PipelineStage, string> = {
   reading: 'Reading the file',
@@ -218,6 +224,24 @@ const STAGE_COPY: Record<PipelineStage, string> = {
   resizing: 'Preparing it',
   encoding: 'Compressing',
   done: 'Sending it over',
+};
+
+/**
+ * The operator diagnostic block. Monospace, wrapped, and small enough to read
+ * a five-candidate chain on a phone without horizontal scrolling — which is
+ * the device this will actually be read on.
+ */
+const DIAG_STYLE: CSSProperties = {
+  marginTop: '0.75rem',
+  padding: '0.6rem 0.7rem',
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+  fontSize: '0.7rem',
+  lineHeight: 1.5,
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  opacity: 0.75,
+  border: '1px solid currentColor',
+  borderRadius: '0.4rem',
 };
 
 function money(cents: number): string {
@@ -244,6 +268,36 @@ export function ToolCard({
   const [pressed, setPressed] = useState(false);
 
   const [flow, setFlow] = useState<Flow>({ k: 'invite' });
+  /**
+   * ==========================================================================
+   * THE OPERATOR SWITCH: append `?debug=1` TO THE URL.
+   * ==========================================================================
+   *
+   * When the measurement fails, the visitor gets one plain sentence. That is
+   * correct for him and useless for the person who has to fix it — and this
+   * product spent a stretch of its life with a dead model slug in the middle
+   * of its chain precisely because nobody could see past that sentence.
+   *
+   * With `?debug=1` the failed state also prints every candidate the router
+   * tried and what each one said. It is deliberately NOT tied to admin
+   * authentication: the fastest useful version of this is one Dawsen can open
+   * on his phone, on the live site, without signing in. Nothing secret is
+   * printed — model ids, HTTP statuses and vendor error text, all of which are
+   * already in the ai_jobs ledger.
+   *
+   * Read in an effect rather than during render because `window` does not
+   * exist on the server, and reading it in the initial useState value is a
+   * hydration mismatch: the server renders `false`, the client renders `true`,
+   * React discards the tree.
+   */
+  const [debug, setDebug] = useState(false);
+  useEffect(() => {
+    try {
+      setDebug(new URLSearchParams(window.location.search).get('debug') === '1');
+    } catch {
+      /* a browser that refuses to parse its own URL is not worth a crash */
+    }
+  }, []);
   /**
    * Every prepared frame, in the order they were chosen. The FIRST one is what
    * the finish visualiser renders, because that is the shot the visitor took
@@ -458,26 +512,122 @@ export function ToolCard({
         surfaceTypeId: pricer.surfaceTypeId,
       });
 
-      // An unavailable analysis is NOT a failure of the card. The visitor
-      // still has a working pricer and his photos; he is simply asked for the
-      // size instead of being told it. Lead capture and pricing never depend
-      // on the model answering.
+      /**
+       * ====================================================================
+       * THE BUG THIS BLOCK FIXES — THE MOST EXPENSIVE ONE IN THE PRODUCT.
+       * ====================================================================
+       *
+       * This used to read `res.hints` and go straight to
+       * `setFlow({ k: 'ready', confident })` NO MATTER WHAT `res.status` SAID.
+       *
+       * So a total chain failure — every model down, or a retired slug
+       * breaking the chain at candidate two — produced the identical screen to
+       * a successful analysis in which the model was merely unsure: the panel
+       * opened, the slider sat at `pricer.defaultSqft`, and `res.message`,
+       * which said what had happened, was never read by anything.
+       *
+       * The visitor was then shown a price computed from 480 sq ft that had
+       * never been measured, never been confirmed, and in the case that
+       * exposed this was more than double the real floor. A quote a
+       * contractor cannot honour, in front of his customer, is the worst
+       * output this product can produce, and it was the DEFAULT behaviour
+       * whenever measurement broke.
+       *
+       * A FAILED ANALYSIS IS NOW A FAILED ANALYSIS. It shows the server's own
+       * sentence, keeps the visitor's photos, and leaves the explicit
+       * "enter the size yourself" route as the way forward — which was always
+       * the intended fallback and was simply never reachable, because the card
+       * had already declared success on his behalf.
+       */
+      if (res.status !== 'ok') {
+        setPhotoPath(res.photoPath ?? null);
+        // The rule OPENS on failure. Without this the panel below renders
+        // "Roughly how big is the floor?" with no control under it and no way
+        // to answer — a dead end that looked like a working screen.
+        setRuleOpen(true);
+        setFlow({
+          k: 'failed',
+          message:
+            res.message ??
+            'The measurement did not run. Enter the size yourself and everything else works as normal.',
+          ...(res.failure && res.failure.attempts.length > 0
+            ? { diagnostic: [res.failure.code, ...res.failure.attempts] }
+            : res.failure
+              ? { diagnostic: [res.failure.code + (res.failure.detail ? ': ' + res.failure.detail : '')] }
+              : {}),
+        });
+        return;
+      }
+
+      // From here the analysis genuinely succeeded. The visitor still has a
+      // working pricer and his photos; if the model was not sure enough about
+      // the area he is asked for it rather than told it. Lead capture and
+      // pricing never depend on the model answering.
       const estimated = res.hints?.estimatedSqft;
       const areaUnsure = res.hints?.handToUser?.includes('estimated_area_sqft') ?? true;
-      const confident = res.status === 'ok' && typeof estimated === 'number' && !areaUnsure;
+      const measuredBand = res.hints?.areaBand ?? null;
+
+      /**
+       * A BAND COUNTS AS A MEASUREMENT EVEN WHEN THE POINT ESTIMATE DOES NOT.
+       *
+       * `EPOXY_AREA_CONFIDENCE_FLOOR` is 0.8 and it guards the single number
+       * in `estimated_area_sqft`. That bar is right for a bare figure, and a
+       * well-calibrated model will honestly report 0.65 for a floor read off
+       * photographs — so the confident branch almost never ran, and the card
+       * fell back to "Roughly how big is the floor?" even on a good analysis.
+       *
+       * The band is the honest form of the same answer. `readAreaBand` in
+       * lib/quote/vision.ts only returns one when the model emitted two real
+       * positive numbers, so its presence is itself evidence the model
+       * committed to a footprint. Where there is a band, we state it.
+       */
+      const confident =
+        measuredBand !== null || (typeof estimated === 'number' && !areaUnsure);
 
       setPhotoPath(res.photoPath ?? null);
-      setAreaBand(res.hints?.areaBand ?? null);
+      setAreaBand(measuredBand);
 
-      if (confident && typeof estimated === 'number') {
-        setSqft(Math.min(pricer.sqftMax, Math.max(pricer.sqftMin, estimated)));
+      /**
+       * Seed the slider from the MIDPOINT of the band when there is one, and
+       * from the point estimate otherwise. Clamped to the pricer's own bounds,
+       * because a 40 sq ft utility room and a 9,000 sq ft warehouse are both
+       * real and neither is priceable on this rate table.
+       */
+      const seed =
+        measuredBand !== null
+          ? Math.round((measuredBand.lowSqft + measuredBand.highSqft) / 2)
+          : typeof estimated === 'number'
+            ? estimated
+            : null;
+      if (seed !== null) {
+        setSqft(Math.min(pricer.sqftMax, Math.max(pricer.sqftMin, seed)));
       }
       setRuleOpen(!confident);
       setFlow({ k: 'ready', confident });
-    } catch {
+    } catch (e) {
+      /**
+       * A THROW HERE IS ALMOST ALWAYS THE SERVER ACTION ITSELF, NOT THE PHOTOS.
+       *
+       * `analyzePhotoAction` is written never to throw — every failure inside
+       * it is a returned object. So an exception at this call site means the
+       * request never reached the function body: a network drop, or Next
+       * rejecting the request before dispatch. The old copy blamed the
+       * photographs for both, which sent people off to reshoot a garage over a
+       * transport fault.
+       *
+       * VERIFY: five WebP frames base64-encoded is the one payload in this
+       * product large enough to hit Next's server-action body limit, which
+       * defaults to 1 MB. If the diagnostic below ever shows a body-size
+       * rejection, the fix is `serverActions.bodySizeLimit` in next.config,
+       * not this component.
+       */
+      const detail = e instanceof Error ? e.name + ': ' + e.message : String(e);
+      setRuleOpen(true);
       setFlow({
         k: 'failed',
-        message: 'Those photos could not be read. Try others, or enter the size yourself.',
+        message:
+          'The measurement could not be sent. Check your connection and try again, or enter the size yourself.',
+        diagnostic: ['client_exception: ' + detail],
       });
     }
   }, [pricer, photos, sessionId]);
@@ -645,7 +795,19 @@ export function ToolCard({
     '--tc-dur': tint.durationSeconds + 's',
   } as CSSProperties;
 
-  const showPanel = flow.k === 'ready' || flow.k === 'failed';
+  /**
+   * WAS `flow.k === 'ready' || flow.k === 'failed'`.
+   *
+   * On a failure that rendered BOTH the upload block (carrying the error) and
+   * the whole panel below it — the area question, the picker, the call to
+   * action — at the same time. Two competing screens, one of them asking the
+   * visitor to keep going as though nothing had happened, and a large chunk of
+   * content appearing and disappearing under his thumb as the flow changed.
+   *
+   * A failure is now one screen with one way forward. Tapping "Enter the size
+   * yourself instead" moves the flow to `ready` and the panel appears then.
+   */
+  const showPanel = flow.k === 'ready';
 
   return (
     <article
@@ -729,9 +891,46 @@ export function ToolCard({
                   </p>
                 )}
                 {flow.k === 'failed' && (
-                  <p className="tc-up-err" role="alert">
-                    {flow.message}
-                  </p>
+                  <>
+                    <p className="tc-up-err" role="alert">
+                      {flow.message}
+                    </p>
+                    {/* THE WAY OUT, ON THE SCREEN THAT NEEDS IT MOST.
+                        This link used to exist only on the untouched invite
+                        state, so somebody whose measurement had just failed
+                        was left with a retry button and nothing else. The
+                        manual route is the documented fallback for exactly
+                        this situation and it was unreachable from it. */}
+                    <p className="tc-up-note">
+                      <button
+                        type="button"
+                        className="tc-link"
+                        onClick={() => setFlow({ k: 'ready', confident: false })}
+                      >
+                        Enter the size yourself instead.
+                      </button>
+                    </p>
+                    {/* OPERATOR ONLY — `?debug=1`. Never rendered for a
+                        visitor. This is the list the router built and every
+                        layer between it and this component used to discard. */}
+                    {debug && flow.diagnostic && flow.diagnostic.length > 0 && (
+                      /* INLINE STYLES, DELIBERATELY, AND THIS IS THE ONE PLACE
+                         IT IS RIGHT IN THIS CODEBASE.
+
+                         phase15b.css records the rule that inline style objects
+                         are banned because they are invisible to anyone
+                         auditing the type system. That rule protects the
+                         DESIGN. This element is not part of the design: it is
+                         a diagnostic that only appears behind ?debug=1, it is
+                         never seen by a visitor, and it is never filmed.
+
+                         Giving it a class would mean a new CSS layer and an
+                         edit to app/layout.tsx to register it — a change to
+                         the global stylesheet order for four lines of
+                         debugging text. That is the worse trade. */
+                      <pre style={DIAG_STYLE}>{flow.diagnostic.join('\n')}</pre>
+                    )}
+                  </>
                 )}
 
                 {flow.k === 'invite' && (
@@ -1184,4 +1383,3 @@ export function ToolCard({
  * imports, and an unused component is a thing a future reader has to work out
  * is dead before they can safely change anything near it.
  */
-

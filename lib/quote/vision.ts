@@ -113,6 +113,27 @@ export type VisionResult =
       status: 'unavailable';
       reason: VisionUnavailableReason;
       usage?: VisionUsage;
+      /**
+       * =====================================================================
+       * THE DIAGNOSIS. THIS IS WHY THIS PHASE EXISTS.
+       * =====================================================================
+       *
+       * `reason` is a six-value enum written for branching. It is useless for
+       * finding out what is actually wrong, and for a stretch of this
+       * product's life what was actually wrong was a model slug that had been
+       * retired — a fact the router knew, wrote into its attempt log, and then
+       * discarded here because there was nowhere to put it.
+       *
+       * `detail` is the last failing candidate's own sentence.
+       * `attempts` is every candidate in order with what each one said.
+       *
+       * NEITHER IS EVER SHOWN TO A HOMEOWNER. They travel to the operator
+       * surfaces — the ai_jobs ledger and the operator-only line on the card.
+       * A visitor gets plain copy that never mentions a model, a provider or
+       * an HTTP status.
+       */
+      detail?: string | null;
+      attempts?: string[];
     };
 
 // ---------------------------------------------------------------------------
@@ -330,20 +351,58 @@ export async function analyzeFloorPhoto(args: AnalyzeArgs): Promise<VisionResult
 
   if (!result.ok) {
     const reason = reasonFor(result.error.code);
-    // A missing key never produced a ledger row before this phase and still
-    // does not: nothing was called, so there is nothing to bill.
-    if (reason !== 'not_configured') {
-      await recordVisionJob({
-        prototypeId: args.prototypeId,
-        model,
-        status: reason === 'invalid_json' || reason === 'schema' ? 'invalid_output' : 'failed',
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        costCents: result.costCents,
-        error: reason,
-      });
-    }
-    return { status: 'unavailable', reason };
+
+    /**
+     * EVERY CANDIDATE, IN ORDER, WITH WHAT IT SAID.
+     *
+     * "openrouter anthropic/claude-opus-4.6 -> timeout: request timed out"
+     * "openrouter google/gemini-3-pro -> invalid_request: HTTP 404 ..."
+     *
+     * The router has always built this list and this function has always
+     * thrown it away. That is the whole reason a dead slug could sit in the
+     * middle of the chain for weeks: the evidence was assembled and then
+     * dropped one stack frame before anything could read it.
+     */
+    const attempts = result.log.map(
+      (a) =>
+        `${a.provider} ${a.model} -> ${a.outcome}` +
+        (a.code ? ` (${a.code})` : '') +
+        (a.detail ? `: ${a.detail}` : '')
+    );
+    const detail = result.error.detail ?? result.error.message ?? null;
+
+    /**
+     * A LEDGER ROW IS NOW WRITTEN EVEN FOR 'not_configured'.
+     *
+     * The previous rule — nothing was called, so there is nothing to bill —
+     * is correct accounting and was catastrophic diagnostics. Because a
+     * skipped final candidate used to overwrite the real error with
+     * 'not_configured' (see lib/ai/router.ts), the single most common failure
+     * of this route produced NO ROW AT ALL. An operator looking at ai_jobs saw
+     * an empty table and concluded nothing had been attempted.
+     *
+     * Cost is unaffected: inputTokens, outputTokens and costCents are all
+     * zero on this path, so the row is a receipt for nothing, which is exactly
+     * what it should be. The spend dashboard sums cost_cents and is unmoved.
+     */
+    await recordVisionJob({
+      prototypeId: args.prototypeId,
+      model,
+      // The vendor that actually failed, when the error names one. The route
+      // now leads with OpenRouter, so the old hardcoded 'anthropic' was a lie
+      // on every row it wrote.
+      provider: result.error.provider ?? 'openrouter',
+      status: reason === 'invalid_json' || reason === 'schema' ? 'invalid_output' : 'failed',
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens,
+      costCents: result.costCents,
+      // Truncated because ai_jobs.error is a short column and a five-candidate
+      // chain with vendor bodies attached can run to thousands of characters.
+      // The head of the string is where the first real failure is.
+      error: (reason + ' | ' + attempts.join(' | ')).slice(0, 900),
+    });
+
+    return { status: 'unavailable', reason, detail, attempts };
   }
 
   await recordVisionJob({
@@ -504,4 +563,3 @@ function withFilteredModifiers(
     ),
   };
 }
-

@@ -123,9 +123,44 @@ export function jobProviderConfigured(job: JobId): boolean {
   return getRoute(job).chain.some((c) => getProvider(c.provider).isConfigured());
 }
 
-function shouldTryNext(err: AiError, fallbackOnValidationFailure: boolean): boolean {
+/**
+ * =============================================================================
+ * WHY `invalid_request` NOW ADVANCES THE CHAIN. READ BEFORE REVERTING.
+ * =============================================================================
+ *
+ * `invalid_request` is not in RETRYABLE (lib/ai/errors.ts) and the reasoning
+ * there is sound FOR ONE MODEL: a malformed request is our bug, and handing
+ * the same broken payload to a second vendor spends twice as much before
+ * failing the same way.
+ *
+ * It was wrong across a CHAIN, and it cost this product its headline feature.
+ *
+ * classifyStatus maps 400 AND 404 to 'invalid_request'. An OpenRouter slug
+ * that has been retired answers 404. So one stale model id anywhere in a chain
+ * did not degrade to the next candidate — it BROKE OUT of the loop and took
+ * every candidate behind it down with it. `vision_analysis` had
+ * `google/gemini-3-pro` in position two, a slug that does not exist in
+ * OpenRouter's catalogue, so positions three and four were unreachable. The
+ * measurement was dead and nothing said so.
+ *
+ * The distinction that fixes it: a chain's candidates carry DIFFERENT model
+ * ids. "This request is malformed for this model" says nothing about the next
+ * model, so we advance when the next candidate is a different model, and stop
+ * when it is the same one — which preserves the original reasoning exactly
+ * where it applies.
+ *
+ * `context_length` deliberately still breaks. It is a property of the payload
+ * against a class of model, and the honest fix is a shorter prompt, not a
+ * lap of the chain.
+ */
+function shouldTryNext(
+  err: AiError,
+  fallbackOnValidationFailure: boolean,
+  nextIsDifferentModel: boolean
+): boolean {
   if (err.code === 'aborted' || err.code === 'budget_exceeded') return false;
   if (err.code === 'invalid_json' || err.code === 'schema') return fallbackOnValidationFailure;
+  if (err.code === 'invalid_request') return nextIsDifferentModel;
   return err.retryable;
 }
 
@@ -181,11 +216,31 @@ export async function runJob<T>(opts: RunJobOptions<T>): Promise<RunJobResult<T>
   }
 
   // --- walk the chain -------------------------------------------------------
-  let lastError: AiError | null = null;
+  /**
+   * TWO SLOTS, NOT ONE, AND THIS IS THE OTHER HALF OF THE SILENT-FAILURE BUG.
+   *
+   * There was a single `lastError`, overwritten by every candidate including
+   * the ones that were SKIPPED for having no key. `vision_analysis` ends its
+   * chain with a direct-Anthropic entry, and ANTHROPIC_API_KEY is not set on
+   * this deployment. So whatever really went wrong at candidates one to three
+   * — a 404 on a retired slug, a timeout, a schema rejection — was overwritten
+   * on the final lap by 'not_configured'.
+   *
+   * That code then took a second toll downstream: lib/quote/vision.ts skips
+   * writing an ai_jobs row when the reason is 'not_configured', on the correct
+   * reasoning that nothing was called so nothing was billed. The result was a
+   * failed measurement with NO LEDGER ROW AND NO DIAGNOSIS ANYWHERE — the exact
+   * definition of failing silently.
+   *
+   * `lastSubstantive` holds the last error from a candidate that actually ran.
+   * It wins. `lastSkip` is only reported when nothing ran at all, which is the
+   * one case where 'not_configured' is genuinely the whole story.
+   */
+  let lastSubstantive: AiError | null = null;
+  let lastSkip: AiError | null = null;
 
   for (let i = 0; i < route.chain.length; i += 1) {
     const candidate = route.chain[i];
-    if (!candidate) continue;
     if (!candidate) continue;
     const provider = getProvider(candidate.provider);
     const model = resolveModel(candidate);
@@ -198,7 +253,7 @@ export async function runJob<T>(opts: RunJobOptions<T>): Promise<RunJobResult<T>
         code: 'not_configured',
         detail: `${provider.configHint()} is not set`,
       });
-      lastError = new AiError({
+      lastSkip = new AiError({
         code: 'not_configured',
         message: `${provider.label} has no key (${provider.configHint()})`,
         provider: candidate.provider,
@@ -278,18 +333,22 @@ export async function runJob<T>(opts: RunJobOptions<T>): Promise<RunJobResult<T>
         err.usage,
         rateFor(candidate.provider, model, route.costRateOverride)
       );
-      lastError = err;
+      lastSubstantive = err;
       log.push({
         provider: candidate.provider,
         model,
         outcome: 'failed',
         code: err.code,
+        // The vendor's own sentence, not just our code. A 404 body naming the
+        // slug is the difference between "provider error" and "you deleted
+        // that model six weeks ago".
         detail: err.detail ?? err.message,
       });
 
-      if (!shouldTryNext(err, route.fallbackOnValidationFailure)) break;
-
       const next = route.chain[i + 1];
+      const nextIsDifferentModel = next ? resolveModel(next) !== model : false;
+      if (!shouldTryNext(err, route.fallbackOnValidationFailure, nextIsDifferentModel)) break;
+
       if (next) {
         fellBackFrom.push(candidate.provider);
         opts.onFallback?.(candidate.provider, next.provider, err.code);
@@ -297,8 +356,11 @@ export async function runJob<T>(opts: RunJobOptions<T>): Promise<RunJobResult<T>
     }
   }
 
+  // A candidate that RAN and failed always outranks one that was skipped for
+  // want of a key. See the comment above the declarations.
   return fail(
-    lastError ??
+    lastSubstantive ??
+      lastSkip ??
       new AiError({ code: 'no_provider', message: 'no provider was available for this job' })
   );
 }

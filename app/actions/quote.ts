@@ -102,6 +102,41 @@ export interface AnalyzeResponse {
   degradedReason?: DbDegradedReason;
   /** Plain-language copy for the visitor. Never mentions billing (R-146). */
   message?: string;
+  /**
+   * ==========================================================================
+   * WHY THIS FIELD EXISTS, AND WHY IT IS OPTIONAL RATHER THAN A NEW STATUS
+   * ==========================================================================
+   *
+   * `status: 'manual_entry'` covers two situations that are not remotely the
+   * same thing:
+   *
+   *   A. The visitor is out of analyses for this session, or sent a photo
+   *      that is too large. Nothing is broken. Ask him for the size.
+   *   B. Every model in the chain failed. The product's headline feature is
+   *      down and nobody has been told.
+   *
+   * Callers could not tell them apart, so ToolCard treated B as A — it moved
+   * to its 'ready' state with the DEFAULT square footage still in the slider
+   * and no error anywhere on screen. A visitor then priced a 200 sq ft
+   * courtyard as a 480 sq ft garage, and the number he was shown was more
+   * than double what the job costs.
+   *
+   * `failed` is the discriminator. `code`, `detail` and `attempts` are for the
+   * OPERATOR and must never be rendered to a homeowner — they name models,
+   * providers and HTTP statuses.
+   *
+   * ADDED AS AN OPTIONAL FIELD rather than widening the `status` union on
+   * purpose. QuoteWidget, the quote machine, DemoExperience and the
+   * calibration surface all switch on `status`; a new member would have to be
+   * handled in each of them in the same commit or the build breaks. Every one
+   * of those callers compiles and behaves identically against this.
+   */
+  failure?: {
+    failed: boolean;
+    code: string;
+    detail: string | null;
+    attempts: string[];
+  };
   remainingSession?: number;
   /**
    * Phase 6: the Storage path the photo was uploaded to, if the upload
@@ -273,9 +308,26 @@ export async function analyzePhotoAction(req: AnalyzeRequest): Promise<AnalyzeRe
     );
     // Our failure, not his cap: quota untouched, and the visitor is handed a
     // path that still ends in a price.
+    //
+    // THE COPY CHANGED. It used to say "We couldn't read that photo", which
+    // blames the visitor's photographs for a provider outage and sends him off
+    // to reshoot a garage that was photographed perfectly well. When the fault
+    // is ours the sentence says so — the same rule app/actions/visualise.ts
+    // already applies to a failed render.
     return {
       status: 'manual_entry',
-      message: "We couldn't read that photo. Tell us about it and we'll price it instantly.",
+      message:
+        result.reason === 'rate_limited'
+          ? 'The measurement is busy right now. Give it a minute, or enter the size yourself.'
+          : result.reason === 'timeout'
+            ? 'The measurement took too long, so we stopped waiting. Try again, or enter the size yourself.'
+            : 'The measurement did not run — that is a fault on our side, not with your photos. Enter the size yourself and everything else works as normal.',
+      failure: {
+        failed: true,
+        code: result.reason,
+        detail: result.detail ?? null,
+        attempts: result.attempts ?? [],
+      },
     };
   }
 
@@ -517,4 +569,3 @@ export async function getWidgetEntitlementAction(args: {
     remainingSession: decision.remainingSession,
   };
 }
-
