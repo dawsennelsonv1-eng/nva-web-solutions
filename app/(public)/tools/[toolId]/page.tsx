@@ -75,6 +75,48 @@ function intakeHref(toolId: string): string {
   return '/start?tool=' + encodeURIComponent(toolId);
 }
 
+/**
+ * ============================================================================
+ * maxDuration — WHY "THE PREVIEW COULD NOT BE SENT" HAPPENS.
+ * ============================================================================
+ *
+ * A Server Action's endpoint IS THE PAGE IT WAS DEFINED ON. `visualiseAction`
+ * is invoked from ToolCard, which this page renders, so the platform applies
+ * THIS route segment's execution limit to it — not any setting on the action
+ * itself, because there is nowhere on an action to put one.
+ *
+ * Unset, the limit is the platform default: 10 seconds on Hobby, 15 on Pro.
+ *
+ * Image generation does not finish in 15 seconds. lib/ai/images.ts allows each
+ * candidate its own timeout measured in tens of seconds, and a render of a
+ * garage floor with material references attached routinely takes 30 to 90. The
+ * function was being killed mid-flight, long before any model replied.
+ *
+ * WHAT THAT LOOKED LIKE, and why it was so hard to attribute: the kill happens
+ * at the platform, above the application. No exception is raised inside
+ * `visualiseAction`, so its careful `{ ok: false, reason }` machinery never
+ * runs and nothing reaches the ai_jobs ledger. The browser sees only a failed
+ * request, which lands in FinishVisualiser's `catch` — "The preview could not
+ * be sent. Check your connection." The connection was fine. The server was
+ * fine. The provider was fine. The clock ran out.
+ *
+ * The measurement survived this because it is faster and because a chain that
+ * fails fast still returns inside the window, which is precisely why the
+ * render looked broken while the analysis looked healthy.
+ *
+ * 300 IS THE MAXIMUM ON VERCEL'S PRO PLAN and the right number here: it is not
+ * a target, it is a ceiling that must sit ABOVE the application's own timeouts
+ * so that the application is the thing that gives up first. That matters — a
+ * timeout inside lib/ai/images.ts produces a named reason, a ledger row and a
+ * retry button, while a platform kill produces the blank shrug above.
+ *
+ * VERIFY: on the Hobby plan the hard cap is 60, and a value above it is
+ * rejected at build time rather than clamped. If a deploy fails naming this
+ * line, the plan is Hobby — set it to 60, which still clears every render this
+ * product performs.
+ */
+export const maxDuration = 300;
+
 export function generateStaticParams() {
   return toolPageIds().map((toolId) => ({ toolId }));
 }
@@ -227,4 +269,3 @@ export default async function ToolPage({ params }: { params: { toolId: string } 
     </>
   );
 }
-
