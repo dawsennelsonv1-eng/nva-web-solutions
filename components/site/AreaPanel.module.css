@@ -1,0 +1,294 @@
+/*
+ * components/site/AreaPanel.module.css
+ *
+ * ============================================================================
+ * WHY A CSS MODULE, WHEN EVERY OTHER STYLE IN THIS APP IS A PHASE LAYER
+ * ============================================================================
+ *
+ * app/globals.css plus phase15a..phase33 is the design system, and the rule
+ * governing it is that a layer ADDS and never overrides. Adding phase34.css
+ * would mean editing app/layout.tsx to register it, which changes the global
+ * cascade order for every page in the product — a real risk to take for one
+ * panel on one card.
+ *
+ * A CSS Module is compiled to hashed class names and cannot collide with or
+ * override anything in those layers, by construction. Next 14 supports them
+ * with no configuration. So this panel styles itself, in isolation, and the
+ * global cascade is untouched.
+ *
+ * VERIFY: this is the first CSS Module in the repo. If a second one appears,
+ * that is fine; if a FIFTH appears, the design system has quietly forked and
+ * the right move is to promote these rules into a phase layer properly.
+ *
+ * ============================================================================
+ * EVERY COLOUR IS DERIVED, NOT DECLARED
+ * ============================================================================
+ *
+ * currentColor and color-mix against it, never a literal hex. The card is
+ * themed light/dark by the layers above and this panel sits inside it, so
+ * inheriting is the only way it stays correct in both without this file
+ * knowing a single token name. It also means a contractor's extracted brand
+ * palette flows through untouched.
+ */
+
+/* ------------------------------------------------------------------ */
+/* the measured statement                                              */
+/* ------------------------------------------------------------------ */
+
+.stated {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
+.figure {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  /* Slightly larger than its sentence rather than a different colour. The
+     number is the answer; it should read as emphasis, not as a link. */
+  font-size: 1.25em;
+}
+
+.source {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  opacity: 0.62;
+  line-height: 1.5;
+}
+
+/* ------------------------------------------------------------------ */
+/* the locked bar                                                      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A BAR THAT CANNOT BE DRAGGED, AND HAS TO LOOK LIKE IT.
+ *
+ * The old control was a real <input type="range"> with a knob. A knob is an
+ * affordance — it says "move me" — and next to an AI measurement that reads as
+ * "we guessed, now do it properly". Worse, a slider whose value came from a
+ * measurement invites somebody to nudge it and quietly destroy the one number
+ * on screen that was actually derived from evidence.
+ *
+ * So there is no knob, no thumb and no pointer cursor. What is left is a fill
+ * that shows where this floor sits between the smallest and largest job this
+ * installer prices — which is genuinely useful context — and nothing that
+ * suggests it is a control.
+ */
+.bar {
+  margin-top: 0.9rem;
+}
+
+.rail {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  overflow: hidden;
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.55;
+  transform-origin: left center;
+  transform: scaleX(var(--ap-p, 0));
+  /* Layout-free: transform is compositor work, so a re-measure animates the
+     fill without the card reflowing under a thumb mid-scroll. */
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * THE BAND, DRAWN ON THE RAIL.
+ *
+ * When the model reports 150-240 sq ft, the honest picture is a SPAN, not a
+ * point. This is that span, sitting behind the fill so the fill's leading edge
+ * reads as the midpoint within it.
+ */
+.span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.22;
+  left: calc(var(--ap-lo, 0) * 100%);
+  right: calc(100% - var(--ap-hi, 1) * 100%);
+}
+
+.ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.4rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ */
+/* the correction, deliberately quiet                                  */
+/* ------------------------------------------------------------------ */
+
+/*
+ * BARELY THERE, AND THAT IS THE SPECIFICATION.
+ *
+ * Most people will not use this and should not be invited to. A prominent
+ * "that's wrong" control beside a measurement undermines the measurement — it
+ * tells the visitor we do not believe our own number, and hands the manual
+ * work back to the person the tool exists to spare.
+ *
+ * So: no button chrome, no accent colour, small, low contrast, underlined only
+ * on hover. It has to be FINDABLE by somebody looking for it and invisible to
+ * somebody who is not.
+ *
+ * It is still a real <button> with real focus styling, because "subtle" must
+ * never mean "unreachable by keyboard" — that is how a quiet control becomes
+ * an inaccessible one.
+ */
+.correct {
+  display: inline-block;
+  margin-top: 0.85rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.76rem;
+  color: inherit;
+  opacity: 0.45;
+  cursor: pointer;
+  text-underline-offset: 3px;
+  transition: opacity 160ms ease;
+}
+
+.correct:hover,
+.correct:focus-visible {
+  opacity: 0.85;
+  text-decoration: underline;
+}
+
+/* ------------------------------------------------------------------ */
+/* manual entry                                                        */
+/* ------------------------------------------------------------------ */
+
+.entry {
+  margin-top: 0.9rem;
+  padding: 0.95rem 1rem 1.05rem;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 0.75rem;
+}
+
+.entryHead {
+  margin: 0 0 0.15rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.entryNote {
+  margin: 0 0 0.85rem;
+  font-size: 0.78rem;
+  opacity: 0.6;
+  line-height: 1.5;
+}
+
+/* the two ways to answer */
+.modes {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.mode {
+  flex: 1;
+  padding: 0.5rem 0.4rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.55rem;
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  color: inherit;
+  opacity: 0.65;
+  cursor: pointer;
+}
+
+.modeOn {
+  opacity: 1;
+  font-weight: 600;
+  border-color: color-mix(in srgb, currentColor 55%, transparent);
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  /* 5.5rem keeps two number boxes and the × on one line on a 360px phone,
+     which is the narrowest screen this has to work on. */
+  flex: 1 1 5.5rem;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.input,
+.select {
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  font: inherit;
+  font-size: 1rem; /* 16px: anything smaller makes iOS Safari zoom on focus */
+  color: inherit;
+  min-width: 0;
+}
+
+.select {
+  flex: 1 1 7.5rem;
+}
+
+.times {
+  padding-bottom: 0.6rem;
+  font-size: 0.9rem;
+  opacity: 0.45;
+}
+
+/* the running conversion */
+.result {
+  margin: 0.85rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.resultFigure {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.problem {
+  margin: 0.85rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  opacity: 0.8;
+}
+
+.entryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.95rem;
+}

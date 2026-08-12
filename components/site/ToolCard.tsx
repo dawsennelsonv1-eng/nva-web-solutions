@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { AreaRule } from '@/components/site/AreaRule';
+import { AreaPanel, type AreaSource } from '@/components/site/AreaPanel';
 import { FinishVisualiser, type PreparedPhoto } from '@/components/site/FinishVisualiser';
 import { MediaGallery } from '@/components/tools/MediaGallery';
 import { analyzePhotoAction } from '@/app/actions/quote';
@@ -45,21 +45,26 @@ import type { PipelineStage } from '@/lib/image/pipeline';
  * something everyone has.
  *
  * ============================================================================
- * THE BAR IS DELIBERATELY QUIET
+ * THE AREA IS STATED, AND THE CORRECTION IS DELIBERATELY QUIET
  * ============================================================================
  *
- * The estimate is presented as a SENTENCE — "Looks like about 480 sq ft" — with
- * a small "Not right?" underneath. The rule only appears if he asks for it.
+ * PHASE 2 REPLACED THE SLIDER ENTIRELY. What is here now is
+ * components/site/AreaPanel.tsx: a flat statement of the measured band, an
+ * undraggable bar showing where the floor sits in this installer's range, and
+ * one low-contrast line of text that opens typed entry in feet, inches,
+ * metres, centimetres, yards or a total area.
  *
- * A prominent slider next to an AI estimate reads as "we guessed, now do it
- * properly", which puts the manual work back and makes the automatic part feel
- * untrustworthy. Hiding it makes the estimate feel like an answer. The
- * correction is one tap away for the minority who want it.
+ * A prominent slider next to an AI measurement reads as "we guessed, now do it
+ * properly", which hands the manual work back and makes the automatic part
+ * feel untrustworthy. Worse, a draggable control seeded from a measurement
+ * invites somebody to nudge away the one number on screen with evidence behind
+ * it.
  *
- * WHEN THE MODEL IS NOT SURE, THE RULE OPENS BY DEFAULT and the wording changes
- * to ask rather than to tell. `hints.handToUser` already reports exactly this —
- * lib/verticals/epoxy holds area to a HIGHER confidence floor than the other
- * fields precisely so that a shaky area guess is never presented as fact.
+ * WHEN THE MODEL IS NOT SURE, OR FAILS, typed entry opens by default and the
+ * card has NO square footage until he supplies one — `sqft` is null, the
+ * pricing memo returns null, and the gate stays shut. lib/verticals/epoxy
+ * holds area to a HIGHER confidence floor than the other fields precisely so
+ * that a shaky guess is never presented as fact.
  *
  * ============================================================================
  * WHAT COSTS MONEY NOW — READ THIS, IT CHANGED
@@ -265,7 +270,14 @@ export function ToolCard({
   const intake = intakeHref ?? defaultIntakeHref(toolId);
   const cardRef = useRef<HTMLElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [pressed, setPressed] = useState(false);
+  /**
+   * `pressed` and its `tc-press` class were REMOVED with the slider.
+   *
+   * They existed so the card could show a pressed state while a thumb was
+   * dragging the area rule. There is no rule and no drag any more — the bar is
+   * a readout — so the state had no writer left. Keeping a `useState` nothing
+   * sets is how a codebase accumulates things nobody dares delete.
+   */
 
   const [flow, setFlow] = useState<Flow>({ k: 'invite' });
   /**
@@ -365,9 +377,31 @@ export function ToolCard({
   const [renderedCombo, setRenderedCombo] = useState<string | null>(null);
   const [renderNonce, setRenderNonce] = useState(0);
   const [unlocked, setUnlocked] = useState<{ leadId: string } | null>(null);
-  const [sqft, setSqft] = useState(pricer?.defaultSqft ?? 0);
+  /**
+   * ==========================================================================
+   * THE DEFAULT IS GONE. THAT IS THE WHOLE OF PHASE 2 IN ONE DECLARATION.
+   * ==========================================================================
+   *
+   * This was `useState(pricer?.defaultSqft ?? 0)` — 480, from
+   * lib/tools/card-config.ts. A number sat in the card from first paint,
+   * indistinguishable from a measurement, and every downstream consumer
+   * treated it as one. When the vision chain failed it priced a 200 sq ft
+   * courtyard at 480 sq ft and showed a range more than double the real job.
+   *
+   * `null` means NOBODY HAS SAID HOW BIG THIS FLOOR IS. It cannot be
+   * multiplied by a rate, so the type system now enforces what the copy used
+   * to merely imply: there is no price until there is a quantity, and a
+   * quantity has exactly two legitimate sources.
+   *
+   * `pricer.defaultSqft` is deliberately no longer read here. It stays on the
+   * config type because the installed widget still uses it; this card does
+   * not, and must not.
+   */
+  const [sqft, setSqft] = useState<number | null>(null);
+  const [areaSource, setAreaSource] = useState<AreaSource | null>(null);
   const [tierKey, setTierKey] = useState(pricer?.defaultTier ?? '');
-  const [ruleOpen, setRuleOpen] = useState(false);
+  /** Opens typed entry on arrival — set when measuring failed or was unsure. */
+  const [entryOpen, setEntryOpen] = useState(false);
 
   const sessionId = useMemo(
     () => 'home-' + toolId + '-' + Math.random().toString(36).slice(2, 10),
@@ -541,10 +575,10 @@ export function ToolCard({
        */
       if (res.status !== 'ok') {
         setPhotoPath(res.photoPath ?? null);
-        // The rule OPENS on failure. Without this the panel below renders
-        // "Roughly how big is the floor?" with no control under it and no way
-        // to answer — a dead end that looked like a working screen.
-        setRuleOpen(true);
+        // Typed entry OPENS on failure. The visitor has to supply the size
+        // now, and making him find the deliberately-quiet correction link
+        // first would be a dead end wearing the costume of a working screen.
+        setEntryOpen(true);
         setFlow({
           k: 'failed',
           message:
@@ -599,11 +633,36 @@ export function ToolCard({
           : typeof estimated === 'number'
             ? estimated
             : null;
-      if (seed !== null) {
-        setSqft(Math.min(pricer.sqftMax, Math.max(pricer.sqftMin, seed)));
+
+      /**
+       * A MEASUREMENT OUTSIDE THIS INSTALLER'S RANGE IS NOT A MEASUREMENT HE
+       * CAN USE, and it is emphatically not one to clamp.
+       *
+       * The old line was `Math.min(sqftMax, Math.max(sqftMin, seed))`. A model
+       * reading a 9,000 sq ft warehouse produced 6,000, silently, and the
+       * visitor was shown a confident price for a job two thirds the size of
+       * the one in his photographs. Clamping turns "we cannot price this" into
+       * "here is a wrong number", which is the trade this whole phase exists
+       * to stop making.
+       *
+       * Out of range now falls through to typed entry, where verdictFor() in
+       * lib/quote/units.ts says plainly what the bounds are and tells him to
+       * call the installer. That is a worse outcome for the funnel and the
+       * only honest one.
+       */
+      const usable =
+        seed !== null && seed >= pricer.sqftMin && seed <= pricer.sqftMax ? seed : null;
+
+      if (usable !== null && confident) {
+        setSqft(usable);
+        setAreaSource('measured');
+        setEntryOpen(false);
+      } else {
+        setSqft(null);
+        setAreaSource(null);
+        setEntryOpen(true);
       }
-      setRuleOpen(!confident);
-      setFlow({ k: 'ready', confident });
+      setFlow({ k: 'ready', confident: confident && usable !== null });
     } catch (e) {
       /**
        * A THROW HERE IS ALMOST ALWAYS THE SERVER ACTION ITSELF, NOT THE PHOTOS.
@@ -622,7 +681,7 @@ export function ToolCard({
        * not this component.
        */
       const detail = e instanceof Error ? e.name + ': ' + e.message : String(e);
-      setRuleOpen(true);
+      setEntryOpen(true);
       setFlow({
         k: 'failed',
         message:
@@ -641,6 +700,15 @@ export function ToolCard({
    */
   const computation = useMemo(() => {
     if (!pricer) return null;
+    /**
+     * NO AREA, NO COMPUTATION — enforced by the type, not by a convention.
+     *
+     * `sqft` is `number | null` now, so this guard is not defensive
+     * programming; without it the file does not compile. That is the point of
+     * having made it nullable: the one path that turns a quantity into money
+     * cannot be reached before somebody has established the quantity.
+     */
+    if (sqft === null) return null;
     try {
       return calculateQuote(
         {
@@ -786,8 +854,31 @@ export function ToolCard({
    */
   const renderStale =
     renderedCombo !== null && renderedCombo !== comboKeyFor(selections);
-  const readyToRender = stillToChoose.length === 0;
-  const onDragState = useCallback((dragging: boolean) => setPressed(dragging), []);
+  /**
+   * THE FLOOR SIZE IS NOW PART OF "READY", AND IT WAS NOT BEFORE.
+   *
+   * This used to be `stillToChoose.length === 0` alone, which is why the card
+   * could take a visitor's phone number and show him a price built on a 480
+   * sq ft default nobody had measured or confirmed. The picker was complete,
+   * so the gate opened.
+   *
+   * A quote needs a rate table AND a quantity. Missing either one is the same
+   * kind of not-ready, so they are the same condition.
+   */
+  const areaKnown = sqft !== null && areaSource !== null;
+  const readyToRender = stillToChoose.length === 0 && areaKnown;
+
+  /**
+   * What is still outstanding, in plain words, INCLUDING the floor size.
+   *
+   * A disabled button next to a list that does not mention the actual blocker
+   * is how a form dead-ends somebody: he reads "still to pick: the coating",
+   * picks the coating, and the button stays grey with no explanation.
+   */
+  const outstanding = [
+    ...(areaKnown ? [] : ['the size of the floor']),
+    ...stillToChoose.map((g) => g.label.toLowerCase()),
+  ];
 
   const style = {
     '--tc-1': tint.a,
@@ -812,7 +903,7 @@ export function ToolCard({
   return (
     <article
       ref={cardRef}
-      className={'tc' + (pressed ? ' tc-press' : '') + (pricer ? '' : ' tc-quiet')}
+      className={'tc' + (pricer ? '' : ' tc-quiet')}
       style={style}
     >
       <div aria-hidden className="tc-field" />
@@ -905,7 +996,10 @@ export function ToolCard({
                       <button
                         type="button"
                         className="tc-link"
-                        onClick={() => setFlow({ k: 'ready', confident: false })}
+                        onClick={() => {
+                          setEntryOpen(true);
+                          setFlow({ k: 'ready', confident: false });
+                        }}
                       >
                         Enter the size yourself instead.
                       </button>
@@ -940,7 +1034,7 @@ export function ToolCard({
                       type="button"
                       className="tc-link"
                       onClick={() => {
-                        setRuleOpen(true);
+                        setEntryOpen(true);
                         setFlow({ k: 'ready', confident: false });
                       }}
                     >
@@ -1050,89 +1144,31 @@ export function ToolCard({
             {/* ---- the panel, revealed by the analysis ---- */}
             {showPanel && (
               <div className="tc-panel">
-                <div className="tc-measure">
-                  {flow.k === 'ready' && flow.confident ? (
-                    <>
-                      {/* AUTHORITATIVE, BUT ONLY WHEN IT HAS EARNED IT.
-                          This branch is reached solely when the module's own
-                          confidence floor for area was cleared — 0.8, higher
-                          than every other field, because area scales the whole
-                          quote linearly. Below that bar the other branch runs
-                          and asks instead of telling. So the flat statement
-                          here is not bravado; it is what the model actually
-                          concluded, and the "adjust it" link keeps the
-                          homeowner the final authority on his own garage. */}
-                      {/* ------------------------------------------------
-                          A BAND, NOT A BARE NUMBER.
+                {/* ------------------------------------------------------------
+                    THE AREA, STATED RATHER THAN ASKED.
 
-                          "480 sq ft" presented flat is a guess wearing the
-                          costume of a measurement, and when the slab turns out
-                          to be 610 the contractor eats the difference in front
-                          of the customer.
-
-                          "Between 440 and 520" is what the model actually
-                          concluded, and it reads as MORE authoritative rather
-                          than less — a band is the shape of something that was
-                          measured. It also makes the correction below feel
-                          like a refinement instead of a contradiction.
-                         ------------------------------------------------ */}
-                      {areaBand ? (
-                        <p className="tc-measure-h">
-                          Your floor is between{' '}
-                          <span className="tc-measure-n">
-                            {areaBand.lowSqft.toLocaleString('en-US')}
-                          </span>{' '}
-                          and{' '}
-                          <span className="tc-measure-n">
-                            {areaBand.highSqft.toLocaleString('en-US')}
-                          </span>{' '}
-                          sq ft.
-                        </p>
-                      ) : (
-                        <p className="tc-measure-h">
-                          Your floor is{' '}
-                          <span className="tc-measure-n">{sqft.toLocaleString('en-US')}</span> sq
-                          ft.
-                        </p>
-                      )}
-                      <p className="tc-measure-src">
-                        Read from your {photos.length} photos
-                        {areaBand?.reference ? ', measured against the ' + areaBand.reference : ''}
-                        .
-                      </p>
-                      {!ruleOpen && (
-                        <button
-                          type="button"
-                          className="tc-link"
-                          onClick={() => setRuleOpen(true)}
-                        >
-                          Not right? Adjust it.
-                        </button>
-                      )}
-                    </>
-                  ) : (
-                    <p className="tc-measure-h">
-                      Roughly how big is the floor? An estimate is fine.
-                    </p>
-                  )}
-                </div>
-
-                {/* The rule is present but quiet — it opens when the model was
-                    unsure, or when he asks. */}
-                {ruleOpen && (
-                  <div className="tc-rule">
-                    <AreaRule
-                      min={pricer.sqftMin}
-                      max={pricer.sqftMax}
-                      value={sqft}
-                      step={10}
-                      onChange={setSqft}
-                      onDragStateChange={onDragState}
-                      label="Area"
-                      unitSuffix={pricer.unitLabel ?? 'sq ft'}
-                    />
-                  </div>
-                )}
+                    This block used to be a sentence, a "Not right?" link and a
+                    slider carrying a 480 sq ft default. It is now one
+                    component with one invariant: a square footage is either
+                    measured or typed, and until it is one of those the card
+                    has no number at all. See components/site/AreaPanel.tsx for
+                    the full reasoning and for why the correction control is
+                    deliberately almost invisible.
+                   ------------------------------------------------------------ */}
+                <AreaPanel
+                  sqft={sqft}
+                  source={areaSource}
+                  band={areaBand}
+                  photoCount={photos.length}
+                  min={pricer.sqftMin}
+                  max={pricer.sqftMax}
+                  openByDefault={entryOpen}
+                  onConfirm={(value, src) => {
+                    setSqft(value);
+                    setAreaSource(src);
+                    setEntryOpen(false);
+                  }}
+                />
 
                 {/* ------------------------------------------------------------
                     THE PICKER REPLACED THREE CHIPS.
@@ -1175,7 +1211,7 @@ export function ToolCard({
                           ? 'We will put this exact finish onto the photos of your own garage.'
                           : 'Everything you have chosen, written up for your installer.'
                         : 'Still to pick: ' +
-                          stillToChoose.map((g) => g.label.toLowerCase()).join(', ') +
+                          outstanding.join(', ') +
                           '.'}
                     </p>
                     <button
@@ -1298,8 +1334,8 @@ export function ToolCard({
                           </div>
                           <p className="tc-free">
                             At this installer&apos;s own published rates, for{' '}
-                            {sqft.toLocaleString('en-US')} sq ft. Change anything below and
-                            it moves — that costs nothing.
+                            {sqft === null ? '—' : sqft.toLocaleString('en-US')} sq ft.
+                            Change anything below and it moves — that costs nothing.
                           </p>
                         </div>
 
