@@ -388,6 +388,60 @@ function chosenIn(selections: Selections, group: string): string[] {
  * also the honest structure, because a flake blend genuinely does not exist
  * until somebody has chosen flake.
  */
+/**
+ * ============================================================================
+ * THE THREE GROUPS THAT DECIDE A JOB. THE OTHER SEVEN ARE PARKED, NOT DELETED.
+ * ============================================================================
+ *
+ * Ten groups and fifty-three options is a catalogue. A person being shown this
+ * for the first time — on a video, or on a contractor's website with his thumb
+ * already hovering over the back button — is not shopping a catalogue. He wants
+ * to know what it costs.
+ *
+ * WHAT SURVIVES, and why these three:
+ *
+ *   system        The coating. Solid, flake, quartz, metallic, polyaspartic.
+ *                 It decides how the floor looks, how it wears, and most of
+ *                 what it costs. Nothing else can be chosen until it is.
+ *
+ *   the colour    Whichever colour group belongs to the chosen system —
+ *                 flake_blend for flake, solid_colour for solid, and so on.
+ *                 This is the one people actually engage with. It is what they
+ *                 point at on the screen.
+ *
+ *   topcoat       Satin, gloss, matte, polyaspartic. The second-biggest visual
+ *                 difference and a real line on the invoice.
+ *
+ * WHAT IS PARKED: flake_coverage, flake_size, extras, prep, and the colour
+ * groups for systems not chosen.
+ *
+ * Coverage and chip size are decisions an installer makes at the slab, not
+ * ones a homeowner has an opinion about before anyone has visited. Prep is
+ * priced from the CONDITION OF THE SLAB, which the vision analysis already
+ * grades from the photographs — asking the customer to grade his own concrete
+ * is asking him to do the surveyor's job. Extras are a genuine upsell and
+ * belong in the conversation the lead starts, not ahead of the price.
+ *
+ * NOTHING IS REMOVED. Every group, every option, every hex, every renderHint
+ * and every price rule stays exactly where it is and stays exported. The
+ * catalogue is intact; three of its groups are on screen.
+ *
+ * TO BRING THEM ALL BACK: set NEXT_PUBLIC_EPOXY_ALL_GROUPS=1 in Vercel. No
+ * redeploy and no code change — and `NEXT_PUBLIC_` specifically because
+ * FinishPicker is a client component, so a bare server-side variable would be
+ * `undefined` in the browser and the flag would appear not to work.
+ *
+ * WHY A FLAG AND NOT AN ADMIN TOGGLE YET. The admin surface is the right home
+ * for this and it is coming. A flag is what can ship today, and today is what
+ * matters — this is the difference between a demo that scrolls for a minute
+ * and one that gets to a price.
+ */
+const CORE_GROUP_KEYS: ReadonlySet<string> = new Set(['system', 'topcoat']);
+
+function allGroupsEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_EPOXY_ALL_GROUPS === '1';
+}
+
 export function visibleGroups(selections: Selections): FinishGroupDef[] {
   const system = chosenIn(selections, 'system')[0];
   const out: FinishGroupDef[] = [SYSTEM];
@@ -407,7 +461,24 @@ export function visibleGroups(selections: Selections): FinishGroupDef[] {
     const usable = g.options.filter(
       (o) => !o.requires || o.requires.anyOf.includes(chosenIn(selections, o.requires.group)[0] ?? '')
     );
-    if (usable.length > 0) out.push({ ...g, options: usable });
+    if (usable.length === 0) continue;
+
+    /**
+     * The trim happens HERE, at the last gate, and deliberately not earlier.
+     *
+     * Everything above — the system check, the colour-group routing, the
+     * `requires` filtering — runs untouched, so a parked group that is later
+     * switched back on reappears with its progressive-reveal behaviour exactly
+     * as it was. Filtering at the top of the function would have meant the
+     * reveal logic never ran for those groups and would rot unnoticed.
+     *
+     * The colour group is already narrowed to the chosen system by the branch
+     * above, so it does not need naming here — it arrives as the one group
+     * that survived.
+     */
+    if (!allGroupsEnabled() && !CORE_GROUP_KEYS.has(g.key)) continue;
+
+    out.push({ ...g, options: usable });
   }
   return out;
 }
