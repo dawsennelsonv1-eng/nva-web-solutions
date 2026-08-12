@@ -131,6 +131,27 @@ export async function recordAiJob(rec: AiJobRecord): Promise<string | null> {
  * and nothing else. Kept as its own function so the vision ledger rows after
  * this phase are indistinguishable from the ones before it.
  */
+/**
+ * DEPRECATED AS OF PHASE 8. NOTHING CALLS THIS.
+ *
+ * lib/quote/vision.ts was its only caller and now relies on the router's own
+ * ledger row, which is strictly richer — it carries fellBackFrom, the full
+ * attempt log, the duration and the parsed output.
+ *
+ * KEPT, NOT DELETED, because it is exported and a vertical outside the files
+ * read during this work could still import it. Deleting an export on the
+ * strength of an incomplete grep is how a build breaks on deploy rather than
+ * in a typechecker.
+ *
+ * VERIFY, then delete:
+ *   grep -rn "recordVisionJob" --include=*.ts --include=*.tsx .
+ * If this file is the only hit, remove the function.
+ *
+ * DO NOT CALL IT ALONGSIDE A ROUTE WITH `record: true`. Two rows for one call
+ * double-counts cost_cents, and ai_spend_today_cents feeds the daily ceiling —
+ * which means the budget trips at half the real spend and the visualiser
+ * starts refusing work for a reason that is not true.
+ */
 export async function recordVisionJob(args: {
   prototypeId: string | null;
   model: string;

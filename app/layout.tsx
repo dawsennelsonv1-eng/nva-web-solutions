@@ -71,6 +71,21 @@ import './phase34.css';
  *   phase17.css   the LIGHT THEME. Every rule scoped to
  *                 html[data-n15-theme='light'], so it is inert on dark.
  *
+ * READ THE IMPORT LIST ABOVE, NOT THE ORDER OF THIS TABLE.
+ *
+ * This listing puts phase17 at the bottom, which reads as "the light theme is
+ * imported last and therefore wins". IT IS NOT. phase17.css is imported SIXTH,
+ * immediately after phase16 — so it can only reach selectors that existed at
+ * that point, and every layer from phase18 onward carries its OWN light
+ * overrides at its foot for exactly that reason.
+ *
+ * The distinction cost real time during phase 3: a new layer written on the
+ * assumption that phase17 would retint it afterwards would render correctly on
+ * dark and wrongly on light, with nothing in this comment to suggest why.
+ *
+ * A NEW LAYER MUST EITHER declare no colour at all (phase34.css takes this
+ * route) OR carry its own html[data-n15-theme='light'] block at its foot.
+ *
  * THE THEME IS READ ON THE SERVER AND WRITTEN ONTO <html>. There is no flash of
  * the wrong theme, because the correct attribute is in the initial HTML — the
  * browser never paints one theme and then swaps. That is the whole reason this

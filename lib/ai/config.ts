@@ -492,18 +492,20 @@ export const AI_ROUTES: Record<JobId, RouteConfig> = {
     ],
     honorDailyCeiling: false,
     /**
-     * WAS false. Now true, and BOTH ledger writers are live at once on
-     * purpose — recordAiJob here and recordVisionJob in lib/quote/vision.ts.
+     * WAS false. Now true, and this is the ONLY ledger writer for this route.
      *
-     * They record different things. recordVisionJob writes one row summarising
-     * the analysis; recordAiJob writes the router's own view including
-     * `fellBackFrom`, which is the only place a chain that limped to its third
-     * candidate is visible as data rather than as a support conversation.
+     * Phase 1 turned this on so a chain that limped to its third candidate
+     * would be visible as data rather than as a support conversation. It also
+     * left lib/quote/vision.ts writing its own row, and the comment here
+     * argued the duplicate was "the price of visibility".
      *
-     * The duplicate row is the price of that visibility and it is worth
-     * paying. If double-counting in the spend dashboard ever matters more than
-     * diagnosis, drop recordVisionJob, not this — the router's row is the
-     * richer one.
+     * THAT WAS WRONG, and phase 8 removed the second writer. `cost_cents` is
+     * summed by `ai_spend_today_cents` and compared to the daily ceiling by
+     * checkBudget, so two rows per call meant every analysis was billed twice
+     * against the budget and the ceiling tripped at half the real spend.
+     *
+     * If vision jobs ever go missing from ai_jobs, fix this flag. Do not add a
+     * second writer back.
      */
     record: true,
     /**

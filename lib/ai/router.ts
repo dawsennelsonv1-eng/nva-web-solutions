@@ -198,7 +198,20 @@ export async function runJob<T>(opts: RunJobOptions<T>): Promise<RunJobResult<T>
         promptVersion: opts.promptVersion ?? null,
         durationMs,
         createdBy: opts.createdBy ?? null,
-        request: opts.request ?? null,
+        /**
+         * THE ATTEMPT LOG GOES IN THE ROW, alongside whatever the caller
+         * supplied.
+         *
+         * Previously the failure row carried `error.code` — one enum value —
+         * and the per-candidate log died with the function. lib/quote/vision.ts
+         * worked around that by writing its OWN row with the attempts stuffed
+         * into the error column, which is how this job ended up writing two
+         * ledger rows for one call and double-counting its own spend.
+         *
+         * Recording it here, once, at the layer that actually has the
+         * information, removes the reason the second row existed.
+         */
+        request: { ...(opts.request ?? {}), attempts: log },
         fellBackFrom,
       });
     }

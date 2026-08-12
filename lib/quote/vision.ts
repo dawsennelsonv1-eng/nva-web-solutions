@@ -1,6 +1,5 @@
 import 'server-only';
 import { AI_ROUTES } from '@/lib/ai/config';
-import { recordVisionJob } from '@/lib/ai/jobs';
 import { computeCostCents, rateFor } from '@/lib/ai/pricing';
 import { jobProviderConfigured, resolveJobModel, runJob } from '@/lib/ai/router';
 import type { AiErrorCode } from '@/lib/ai/errors';
@@ -391,47 +390,38 @@ export async function analyzeFloorPhoto(args: AnalyzeArgs): Promise<VisionResult
     const detail = result.error.detail ?? result.error.message ?? null;
 
     /**
-     * A LEDGER ROW IS NOW WRITTEN EVEN FOR 'not_configured'.
+     * ======================================================================
+     * NO LEDGER ROW IS WRITTEN HERE ANY MORE, AND THAT IS A BUG FIX.
+     * ======================================================================
      *
-     * The previous rule — nothing was called, so there is nothing to bill —
-     * is correct accounting and was catastrophic diagnostics. Because a
-     * skipped final candidate used to overwrite the real error with
-     * 'not_configured' (see lib/ai/router.ts), the single most common failure
-     * of this route produced NO ROW AT ALL. An operator looking at ai_jobs saw
-     * an empty table and concluded nothing had been attempted.
+     * Phase 1 set `record: true` on the vision_analysis route so the router
+     * would log its own richer view, AND made this function's recordVisionJob
+     * call unconditional so a 'not_configured' failure could no longer vanish.
+     * Both changes were individually right and together they wrote TWO rows
+     * into ai_jobs for every single vision call.
      *
-     * Cost is unaffected: inputTokens, outputTokens and costCents are all
-     * zero on this path, so the row is a receipt for nothing, which is exactly
-     * what it should be. The spend dashboard sums cost_cents and is unmoved.
+     * That is not merely untidy. `ai_spend_today_cents` sums `cost_cents`
+     * across the table and `checkBudget` compares the total to the daily
+     * ceiling — so every successful analysis was counted twice and the
+     * ceiling tripped at HALF the real spend. The visualiser would start
+     * refusing to render, correctly reporting an exhausted budget, while the
+     * account had spent half of what the ledger claimed. A self-inflicted
+     * outage that would have looked exactly like a provider problem.
+     *
+     * The router's row is the one worth keeping: it carries `fellBackFrom`,
+     * the full attempt log, the duration and the parsed output. Everything
+     * this call used to record, it records better.
+     *
+     * ONE CALL, ONE ROW. If a future reader finds vision jobs missing from
+     * ai_jobs, the thing to check is `record` on the vision_analysis route in
+     * lib/ai/config.ts — not to add a second writer back here.
      */
-    await recordVisionJob({
-      prototypeId: args.prototypeId,
-      model,
-      // The vendor that actually failed, when the error names one. The route
-      // now leads with OpenRouter, so the old hardcoded 'anthropic' was a lie
-      // on every row it wrote.
-      provider: result.error.provider ?? 'openrouter',
-      status: reason === 'invalid_json' || reason === 'schema' ? 'invalid_output' : 'failed',
-      inputTokens: result.usage.inputTokens,
-      outputTokens: result.usage.outputTokens,
-      costCents: result.costCents,
-      // Truncated because ai_jobs.error is a short column and a five-candidate
-      // chain with vendor bodies attached can run to thousands of characters.
-      // The head of the string is where the first real failure is.
-      error: (reason + ' | ' + attempts.join(' | ')).slice(0, 900),
-    });
-
     return { status: 'unavailable', reason, detail, attempts };
   }
 
-  await recordVisionJob({
-    prototypeId: args.prototypeId,
-    model: result.model,
-    status: 'succeeded',
-    inputTokens: result.usage.inputTokens,
-    outputTokens: result.usage.outputTokens,
-    costCents: result.costCents,
-  });
+  // Recorded by the router — see the note on the failure path above. A second
+  // row here would double-count the cost of every successful analysis against
+  // the daily ceiling.
 
   // A module's confidence detector runs on data its own schema just validated,
   // so it should not throw — but if it does, that must not turn a successful,
