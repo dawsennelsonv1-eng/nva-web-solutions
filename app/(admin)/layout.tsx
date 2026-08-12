@@ -41,6 +41,26 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               <a href="/admin/prospects" className="whitespace-nowrap hover:underline">Prospects</a>
               <a href="/admin/pricing" className="whitespace-nowrap hover:underline">Pricing</a>
               <a href="/admin/billing" className="whitespace-nowrap hover:underline">Billing</a>
+              {/*
+                THE OPERATOR SCREENS, WHICH THIS NAV HAS NEVER MENTIONED.
+
+                app/admin/{swatches,finishes,media,appearance,payments,ai} are
+                real, deployed, gated pages. Nothing in the product linked to
+                any of them, so the only way in was to know the URL and type
+                it — which is why the picture-upload and swatch-generation
+                screens appeared not to exist.
+
+                Separated by a rule because they are a different KIND of thing
+                from the five links to their left: those are records of the
+                business, these configure the product itself.
+              */}
+              <span aria-hidden className="text-rule">|</span>
+              <a href="/admin/swatches" className="whitespace-nowrap hover:underline">Swatches</a>
+              <a href="/admin/finishes" className="whitespace-nowrap hover:underline">Finishes</a>
+              <a href="/admin/media" className="whitespace-nowrap hover:underline">Media</a>
+              <a href="/admin/appearance" className="whitespace-nowrap hover:underline">Appearance</a>
+              <a href="/admin/payments" className="whitespace-nowrap hover:underline">Payments</a>
+              <a href="/admin/ai" className="whitespace-nowrap hover:underline">AI</a>
             </nav>
           </div>
         </header>
@@ -49,4 +69,3 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     </MotionProvider>
   );
 }
-
