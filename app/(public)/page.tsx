@@ -57,6 +57,8 @@ import { Faq, Integration } from '@/components/site/Sections';
  * the Showcase section already made.
  */
 
+export const maxDuration = 300;
+
 export const metadata: Metadata = {
   title: 'Girder — instant quotes and AI tools for your trade',
   description:
