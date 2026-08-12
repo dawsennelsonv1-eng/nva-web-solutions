@@ -426,6 +426,34 @@ export function ToolCard({
     if (!el) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
+    /**
+     * ======================================================================
+     * MOUSE ONLY. THIS IS THE "EVERYTHING MOVES AROUND WHILE I SCROLL" BUG.
+     * ======================================================================
+     *
+     * `pointermove` is not a mouse event. It fires for TOUCH DRAGS too, and a
+     * touch drag is how a phone scrolls.
+     *
+     * So on a handset, dragging a finger up the page over this card ran
+     * `onMove` for every frame of the scroll, wrote --tc-rx/--tc-ry, and
+     * rotated the card in 3D under the thumb — the entire card leaning and
+     * swinging while the person was simply trying to read what was below it.
+     * From the outside that reads exactly as "the site is unstable, things
+     * move around when I scroll", which is precisely how it was reported.
+     *
+     * It was also permanent per gesture: `onLeave` is bound to pointerleave
+     * and pointercancel, and a touch scroll frequently produces neither over
+     * the element it started on. The card could be left tilted at rest.
+     *
+     * `(hover: hover) and (pointer: fine)` is true for a mouse or trackpad and
+     * false for touch. It is the correct test rather than sniffing the user
+     * agent, and a hybrid laptop with a touchscreen reports `hover: hover`, so
+     * it keeps the effect where a cursor genuinely exists.
+     *
+     * The tilt is decoration. Scrolling is not.
+     */
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
     const commit = () => {
       raf.current = 0;
       el.style.setProperty('--tc-ry', (target.current.x * MAX_TILT_DEG).toFixed(3));
@@ -458,6 +486,70 @@ export function ToolCard({
       if (raf.current) cancelAnimationFrame(raf.current);
     };
   }, []);
+
+  /**
+   * ==========================================================================
+   * KEEPING THE VIEWPORT WHERE THE PERSON LEFT IT.
+   * ==========================================================================
+   *
+   * The other half of the instability, and unlike the tilt it is not a bug in
+   * anything — it is what happens when a card legitimately changes shape.
+   *
+   * Each flow transition swaps a large block: the gallery disappears, the
+   * review grid appears, the whole panel unfolds. Content ABOVE the reading
+   * position changes height, so the browser keeps its scroll offset and the
+   * thing being read slides away. On a phone, where the card is taller than
+   * the viewport, the person is left staring at the middle of something they
+   * were not looking at.
+   *
+   * The browser's own `overflow-anchor` cannot help: it anchors to a node that
+   * stays put, and these transitions replace the node.
+   *
+   * SO THE CARD PUTS ITSELF BACK. On the transitions that restructure it, the
+   * top of the card is scrolled to a known position and the person reads
+   * downward from a place that makes sense.
+   *
+   * ONLY THE TRANSITIONS THAT RESTRUCTURE, and this is why it is a list rather
+   * than "on every change". Scrolling somebody on a change they did not cause
+   * is worse than the drift it fixes. Choosing a swatch, adjusting nothing,
+   * opening typed entry — none of those move the page. Sending photos and
+   * receiving a measurement do, because the card is a different shape
+   * afterwards and the old position is meaningless.
+   *
+   * `smooth` unless the person asked for less motion, in which case the jump
+   * is instant — an involuntary animated scroll is exactly what
+   * prefers-reduced-motion exists to prevent.
+   */
+  const lastFlow = useRef<Flow['k']>('invite');
+  useEffect(() => {
+    const from = lastFlow.current;
+    const to = flow.k;
+    lastFlow.current = to;
+    if (from === to) return;
+
+    const restructuring =
+      (from === 'invite' && to === 'collecting') ||
+      (from === 'preparing' && to === 'collecting') ||
+      (from === 'collecting' && to === 'analysing') ||
+      to === 'ready' ||
+      to === 'failed';
+    if (!restructuring) return;
+
+    const el = cardRef.current;
+    if (!el) return;
+
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    /**
+     * One frame of delay. The DOM for the new state has been committed by the
+     * time this effect runs, but layout has not necessarily settled — reading
+     * a position in the same tick gives the geometry of the state we are
+     * leaving. rAF puts the scroll after the browser's next layout.
+     */
+    const id = requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [flow.k]);
 
   // ---- gathering frames ----------------------------------------------------
 

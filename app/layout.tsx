@@ -23,6 +23,16 @@ import './phase30.css';
 import './phase31.css';
 import './phase32.css';
 import './phase33.css';
+/**
+ * PHASE 34 — layout stability and desktop width. Registered LAST because it is
+ * the only layer that deliberately redefines a selector an earlier one owns:
+ * `.n15-in`'s max-width, inside a `min-width: 1200px` query. That override is
+ * argued for at the rule itself and cannot fire below 1200px, so every
+ * viewport the site has been designed against renders unchanged.
+ *
+ * It declares no colour, so unlike phase18-33 it needs no light-theme block.
+ */
+import './phase34.css';
 
 /**
  * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
@@ -147,4 +157,3 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     </html>
   );
 }
-

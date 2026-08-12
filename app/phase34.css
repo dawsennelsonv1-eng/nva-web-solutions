@@ -1,0 +1,201 @@
+/* ===========================================================================
+   app/phase34.css — PHASE 3: STABILITY AND WIDTH.
+   ===========================================================================
+
+   Registered LAST in app/layout.tsx, after phase33.css.
+
+   THIS LAYER CONTAINS ONE DELIBERATE OVERRIDE AND IT IS DECLARED AS SUCH.
+
+   The standing rule for this stylesheet system is that a phase layer ADDS
+   selectors and never redefines one an earlier layer owns. Every layer from
+   15a to 33 obeys it, which is what makes the import order safe to reason
+   about.
+
+   The `.n15-in` block below breaks that rule on purpose, inside a media query,
+   and the reasoning is set out at the rule itself. Everything else here is new
+   names or new properties on names that carry no existing declaration of that
+   property.
+
+   NO LIGHT-THEME SECTION AT THE FOOT, unlike phase 18-33.
+
+   Those layers each carry light overrides because phase17.css — the light
+   theme — is imported SIXTH, before them, so it cannot reach selectors that do
+   not exist yet. (The comment block in app/layout.tsx describes phase17 as
+   being imported last. It is not; read the import list, not the comment.)
+
+   This layer needs no light section because it declares no colour. Widths,
+   scroll behaviour and pointer rules are identical in both themes. If a colour
+   is ever added here, it needs a matching
+   html[data-n15-theme='light'] block at the foot of this file.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. THE SITE IS TOO NARROW ON A DESKTOP, AND IT IS THE CONTAINER.
+
+   `.n15-in` is defined in phase15b.css as `max-width: 68rem` — 1088px. Every
+   section on the marketing site, the tool pages and the card deck sits inside
+   it.
+
+   68rem is a good measure for READING. It is the wrong measure for a tool. The
+   card deck becomes two columns at 980px, so on a 1440px or 1920px display
+   each working tool card renders at roughly 520px — a phone-shaped column
+   marooned in the middle of a large screen, with the customisation picker
+   forced into the same narrow grid it uses on a handset. The screenshots of
+   this on a desktop are the clearest statement of the problem.
+
+   WHY THIS IS AN OVERRIDE RATHER THAN A NEW CLASS. The correct additive fix is
+   `.n15-in-wide` applied at the mount sites — the homepage section, the tool
+   page, the demo directory. That means editing several page components to add
+   a class, and those files are not in front of me. Changing one number I have
+   read, inside a media query that cannot fire on any device the site is
+   currently designed against, is a smaller and more honest change than editing
+   files I would be guessing at.
+
+   IT ONLY APPLIES ABOVE 1200px. Below that the container is unchanged, byte
+   for byte, so every phone, tablet and laptop that this site has ever been
+   looked at on renders exactly as before. The rule can only widen, never
+   narrow, and it cannot affect a viewport that was not already leaving 200px
+   of empty gutter on each side.
+
+   TO REVERT: delete this block. Nothing else in this file depends on it.
+--------------------------------------------------------------------------- */
+@media (min-width: 1200px) {
+  .n15-in {
+    max-width: 76rem;
+  }
+}
+
+@media (min-width: 1500px) {
+  .n15-in {
+    /* 84rem = 1344px. Past this the line length of body copy inside a section
+       genuinely does become hard to read, so the container stops growing here
+       rather than tracking the viewport. A tool that needs more room than this
+       needs a different layout, not a wider box. */
+    max-width: 84rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   2. THE WORKING CARD GETS THE ROOM, NOT THE TEASERS.
+
+   `.tc-deck` becomes two columns at 980px. That is right for a directory of
+   cards a visitor is browsing. It is wrong for the single card he is actually
+   using — the picker inside it has ten groups and fifty-two options, and
+   halving its width doubles the scrolling.
+
+   A deck holding ONE card is not a two-column grid in any meaningful sense, so
+   `:only-child` is the honest test: a lone card spans the full container and a
+   deck of several keeps its columns. No component has to pass a prop and no
+   page has to be edited.
+--------------------------------------------------------------------------- */
+@media (min-width: 980px) {
+  .tc-deck > .tc:only-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   3. SCROLL STABILITY.
+
+   ToolCard scrolls itself into view on the transitions that restructure it —
+   see the effect in components/site/ToolCard.tsx for why. `scroll-margin-top`
+   is what stops that landing UNDERNEATH the fixed header.
+
+   `.hd` is `position: fixed` at `height: 56px` (phase15b.css). Without a
+   margin, `scrollIntoView({ block: 'start' })` puts the top of the card at
+   viewport y=0, which is behind the header — the trade name and status line
+   are simply invisible after every transition. 56px plus breathing room.
+--------------------------------------------------------------------------- */
+.tc {
+  scroll-margin-top: 72px;
+}
+
+/* ---------------------------------------------------------------------------
+   4. LET THE BROWSER HOLD ITS PLACE.
+
+   `overflow-anchor` is on by default, and this restates it rather than
+   changing it — the value here is the comment.
+
+   Scroll anchoring is what stops the page lurching when something above the
+   reading position finishes loading and changes height. It is silently
+   DISABLED on any element with `overflow: hidden` in some engines, and `.tc`
+   carries `overflow: hidden` for its rounded corners and sheen. Declaring it
+   explicitly on the card's content column keeps the behaviour where the long
+   scrolling actually happens.
+
+   VERIFY: if a future change adds `overflow: clip` or a containment property
+   to `.tc-body`, check this still holds. Anchoring is the kind of thing that
+   stops working without anybody noticing until the page feels wrong again.
+--------------------------------------------------------------------------- */
+.tc-body {
+  overflow-anchor: auto;
+}
+
+/* ---------------------------------------------------------------------------
+   5. NO STICKY HOVER ON TOUCH.
+
+   `.tc:hover` lifts the border colour and the shadow (phase15b.css). On a
+   touchscreen there is no hover — a tap latches the hover state and it stays
+   latched until something else is tapped, so a card the person merely brushed
+   past while scrolling stays visibly "lit" as though it were selected.
+
+   Combined with the tilt firing on touch drags, this is most of why the page
+   felt alive in the wrong way. The tilt is fixed in the component; this is the
+   CSS half.
+
+   `@media (hover: none)` targets exactly the devices with no hover capability.
+   It does not touch a mouse, a trackpad, or a hybrid laptop.
+--------------------------------------------------------------------------- */
+@media (hover: none) {
+  .tc:hover {
+    border-color: var(--n15-card-edge);
+    box-shadow: var(--n15-shadow-rest);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   6. RESERVED SPACE FOR THE PHOTO REVIEW GRID.
+
+   `.tc-picks img` are blob: URLs the browser has already decoded, so they
+   appear fast — but they still arrive with no intrinsic size known to layout
+   until they do, and three to five of them landing one after another reflows
+   the card underneath a thumb.
+
+   A square box reserved up front means the grid is its final height before the
+   first thumbnail paints. `object-fit: cover` keeps a landscape garage photo
+   from being distorted into it.
+
+   ADDITIVE: phase27.css owns `.tc-picks` and `.tc-pick`. `aspect-ratio` on the
+   img is a property neither of them sets, so this adds rather than overrides —
+   but if a later reading of phase27.css shows a height on this element, that
+   file wins the argument and this block should go.
+--------------------------------------------------------------------------- */
+.tc-picks img {
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  width: 100%;
+  height: auto;
+}
+
+/* ---------------------------------------------------------------------------
+   7. HONOUR REDUCED MOTION ON THE CARD'S OWN ANIMATIONS.
+
+   The tilt already checks `prefers-reduced-motion` in JavaScript before it
+   binds a listener. The gradient field, the sheen and the transitions are CSS
+   and did not.
+
+   Somebody who has asked their operating system for less motion has usually
+   asked because motion makes them ill. A slowly breathing gradient behind a
+   form they are trying to fill in is exactly the thing.
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .tc-field,
+  .tc-sheen {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .tc {
+    transition: none;
+  }
+}
