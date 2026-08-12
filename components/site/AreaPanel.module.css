@@ -78,11 +78,27 @@
   margin-top: 0.9rem;
 }
 
+/*
+ * THE BROWN BAR IS BACK, AT THE WEIGHT IT HAD BEFORE.
+ *
+ * Phase 2 replaced the draggable slider with a hairline in `currentColor` —
+ * technically a readout, visually an afterthought. The original rule was 10px
+ * of copper and it was the most confident thing on the card.
+ *
+ * The knob is still gone and is not coming back. What made the old control
+ * wrong was the THUMB — an affordance saying "move me" next to a measurement,
+ * inviting somebody to nudge away the one number on screen with evidence
+ * behind it. The colour and the weight were never the problem, and stripping
+ * them threw away the authority along with the affordance.
+ *
+ * So: full copper, full height, no thumb, no pointer cursor.
+ */
 .rail {
   position: relative;
-  height: 6px;
+  height: 10px;
   border-radius: 999px;
-  background: color-mix(in srgb, currentColor 12%, transparent);
+  background: color-mix(in srgb, var(--n15-copper) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--n15-copper) 22%, transparent);
   overflow: hidden;
 }
 
@@ -91,8 +107,10 @@
   inset: 0 auto 0 0;
   width: 100%;
   border-radius: 999px;
-  background: currentColor;
-  opacity: 0.55;
+  /* The same gradient the primary button uses, so the bar and the call to
+     action read as the same material. */
+  background: linear-gradient(90deg, var(--n15-copper-deep), var(--n15-copper));
+  opacity: 1;
   transform-origin: left center;
   transform: scaleX(var(--ap-p, 0));
   /* Layout-free: transform is compositor work, so a re-measure animates the
@@ -112,8 +130,8 @@
   top: 0;
   bottom: 0;
   border-radius: 999px;
-  background: currentColor;
-  opacity: 0.22;
+  background: var(--n15-copper);
+  opacity: 0.3;
   left: calc(var(--ap-lo, 0) * 100%);
   right: calc(100% - var(--ap-hi, 1) * 100%);
 }
@@ -148,25 +166,42 @@
  * never mean "unreachable by keyboard" — that is how a quiet control becomes
  * an inaccessible one.
  */
+/*
+ * QUIET, BUT NO LONGER HIDING.
+ *
+ * Phase 2 made this 45% opacity in the body colour, on the reasoning that a
+ * prominent "that's wrong" undermines the measurement. That reasoning still
+ * holds for SIZE and WEIGHT — it is small, it carries no button chrome, and it
+ * sits below the bar rather than beside it.
+ *
+ * It was wrong about COLOUR. At 45% grey the control read as disabled text,
+ * and a correction route nobody can find is the same as not having one — the
+ * measurement is right most of the time, and the whole product depends on the
+ * remainder being fixable.
+ *
+ * Copper says "this is a thing you may press" in the same voice as every other
+ * action on the page, at a fraction of the volume.
+ */
 .correct {
   display: inline-block;
-  margin-top: 0.85rem;
+  margin-top: 0.9rem;
   padding: 0;
   border: 0;
   background: none;
   font: inherit;
-  font-size: 0.76rem;
-  color: inherit;
-  opacity: 0.45;
+  font-size: 0.82rem;
+  color: var(--n15-copper);
+  opacity: 0.9;
   cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
   text-underline-offset: 3px;
   transition: opacity 160ms ease;
 }
 
 .correct:hover,
 .correct:focus-visible {
-  opacity: 0.85;
-  text-decoration: underline;
+  opacity: 1;
 }
 
 /* ------------------------------------------------------------------ */

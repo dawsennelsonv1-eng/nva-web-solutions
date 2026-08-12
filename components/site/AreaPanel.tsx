@@ -272,9 +272,11 @@ export function AreaPanel({
 
           {!open && (
             <button type="button" className={styles.correct} onClick={() => setOpen(true)}>
-              {source === 'measured'
-                ? 'Not the size of my floor — enter it myself'
-                : 'Change the size'}
+              {/* HUMAN, NOT A FORM LABEL.
+                  "Not the size of my floor — enter it myself" is a
+                  specification read aloud. Nobody standing in his garage
+                  thinks that sentence. He thinks "that's not right". */}
+              {source === 'measured' ? "That's not right — I'll type it in" : 'Change the size'}
             </button>
           )}
         </>

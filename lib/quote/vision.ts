@@ -217,6 +217,70 @@ export interface AreaBand {
   widthFt: number | null;
 }
 
+/**
+ * ============================================================================
+ * A BAND DERIVED FROM THE DIMENSIONS, NOT FROM THE MODEL'S HEDGE.
+ * ============================================================================
+ *
+ * The model reported "12 ft by 10 ft" and, separately, a band of 90 to 150 sq
+ * ft. Those are not the same claim. The dimensions are a MEASUREMENT — read
+ * off floor tiles gauged against a stool base. The band is a GUESS about its
+ * own reliability, produced free-hand, and it came out ±25% around 120.
+ *
+ * A 90-to-150 range is nearly useless to a homeowner and actively bad on
+ * camera: it says the tool is not sure whether this is a small bathroom or a
+ * single garage, immediately after telling him it measured the floor.
+ *
+ * WHERE THE TIGHTER NUMBER COMES FROM, and why it is not fabricated precision:
+ *
+ * If the measurement is "12 ft by 10 ft", the honest uncertainty is in each
+ * SIDE, not in the area. A reading taken off tile counts and a door width is
+ * good to roughly half a foot per side. Propagating that:
+ *
+ *     low  = (12 - 0.5) x (10 - 0.5) = 109
+ *     high = (12 + 0.5) x (10 + 0.5) = 131
+ *
+ * 109 to 131, against the model's own 90 to 150. Tighter because it is derived
+ * from something that was actually measured, rather than from a model being
+ * asked how confident it feels.
+ *
+ * WE NEVER NARROW A BAND WE DID NOT DERIVE. If the model gave no dimensions,
+ * its own band stands exactly as reported. Shrinking a stated range to make it
+ * look better on screen would be inventing confidence that nothing supports —
+ * which is the same class of dishonesty as the 480 sq ft default this whole
+ * effort started by removing.
+ *
+ * THE DERIVED BAND IS ALSO SANITY-CHECKED against the model's own. If the two
+ * do not overlap at all, the model has contradicted itself and its stated band
+ * wins, because a disagreement that large means the tolerance model does not
+ * apply.
+ */
+const SIDE_TOLERANCE_FT = 0.5;
+
+function bandFromDimensions(
+  lengthFt: number | null,
+  widthFt: number | null,
+  stated: { lowSqft: number; highSqft: number }
+): { lowSqft: number; highSqft: number } | null {
+  if (lengthFt === null || widthFt === null) return null;
+  if (!(lengthFt > 0) || !(widthFt > 0)) return null;
+
+  const lo = Math.max(0.5, lengthFt - SIDE_TOLERANCE_FT) * Math.max(0.5, widthFt - SIDE_TOLERANCE_FT);
+  const hi = (lengthFt + SIDE_TOLERANCE_FT) * (widthFt + SIDE_TOLERANCE_FT);
+  const low = Math.round(lo);
+  const high = Math.round(hi);
+  if (!(high > low)) return null;
+
+  // No overlap with what the model said about itself: do not substitute.
+  if (high < stated.lowSqft || low > stated.highSqft) return null;
+
+  // Only ever an improvement. A derived band WIDER than the stated one means
+  // the dimensions were vague, and there is nothing to gain by swapping.
+  if (high - low >= stated.highSqft - stated.lowSqft) return null;
+
+  return { lowSqft: low, highSqft: high };
+}
+
 function readAreaBand(parsed: unknown): AreaBand | null {
   if (typeof parsed !== 'object' || parsed === null) return null;
   const p = parsed as Record<string, unknown>;
@@ -236,12 +300,18 @@ function readAreaBand(parsed: unknown): AreaBand | null {
   // shape and neither should cost the other.
   const len = p.length_ft;
   const wid = p.width_ft;
+  const lengthFt = typeof len === 'number' && len > 0 ? Math.round(len * 10) / 10 : null;
+  const widthFt = typeof wid === 'number' && wid > 0 ? Math.round(wid * 10) / 10 : null;
+
+  const stated = { lowSqft: Math.round(lo), highSqft: Math.round(hi) };
+  const tightened = bandFromDimensions(lengthFt, widthFt, stated) ?? stated;
+
   return {
-    lowSqft: Math.round(lo),
-    highSqft: Math.round(hi),
+    lowSqft: tightened.lowSqft,
+    highSqft: tightened.highSqft,
     reference: typeof ref === 'string' && ref.trim().length > 0 ? ref.trim() : null,
-    lengthFt: typeof len === 'number' && len > 0 ? Math.round(len * 10) / 10 : null,
-    widthFt: typeof wid === 'number' && wid > 0 ? Math.round(wid * 10) / 10 : null,
+    lengthFt,
+    widthFt,
   };
 }
 

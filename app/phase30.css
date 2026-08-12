@@ -92,10 +92,60 @@
 .fp-hero {
   position: sticky;
   top: calc(56px + 0.25rem);
-  z-index: 3;
+  /*
+   * ABOVE THE SWATCHES, NOT LEVEL WITH THEM. `.fp-sw-on` and the group
+   * headings sit in the same stacking context; at z-index 3 the pinned bar was
+   * winning by document order alone, which is not a guarantee.
+   */
+  z-index: 20;
   margin-bottom: 1.25rem;
-  padding: 0.5rem 0 0.6rem;
-  background: var(--n15-panel);
+  padding: 0.6rem 0.7rem 0.7rem;
+  /* Pull the bar out to the panel edges so nothing scrolls up its sides. */
+  margin-left: -0.7rem;
+  margin-right: -0.7rem;
+
+  /*
+   * ==========================================================================
+   * OPAQUE. THIS WAS THE BUG, AND IT WAS MINE.
+   * ==========================================================================
+   *
+   * Phase 4 set `background: var(--n15-panel)` and stopped there. That token is
+   * `rgba(13, 17, 23, 0.55)` — FIFTY-FIVE PERCENT OPAQUE, on purpose, because
+   * globals.css wants the gradient field to drift through every surface so the
+   * page reads as one continuous material.
+   *
+   * That is exactly right for a panel that scrolls with the page. It is
+   * exactly wrong for one that stays still while content slides underneath:
+   * the swatch grid, the group headings and the mix summary all rendered
+   * straight through the pinned bar, and the result was two screens of text
+   * occupying the same pixels.
+   *
+   * TWO LAYERS, BELT AND BRACES:
+   *
+   *   - `backdrop-filter` blurs whatever passes beneath. This is the treatment
+   *     that belongs with a translucent design system — the bar stays part of
+   *     the same glass material instead of becoming an opaque slab bolted onto
+   *     it, and the blur is what makes text legible over moving content.
+   *
+   *   - The background is declared TWICE, one copy over the other. Stacking
+   *     55% over 55% gives about 80% opacity, and it does so using the themed
+   *     token rather than a hardcoded colour — so this stays correct in light
+   *     and dark without this file knowing which is active. A browser with no
+   *     backdrop-filter still gets a bar that reads as solid.
+   */
+  background-image: linear-gradient(var(--n15-panel), var(--n15-panel));
+  background-color: var(--n15-panel);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+
+  /*
+   * IT HAS TO LOOK PINNED. Without an edge it reads as content that happens
+   * not to have moved yet. The line and the shadow are what say "this is the
+   * fixed part, everything below it scrolls" — the same signal a video player
+   * gives when it docks to the top of a page.
+   */
+  border-bottom: 1px solid var(--n15-card-edge-lit);
+  box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.55);
 }
 
 /*
