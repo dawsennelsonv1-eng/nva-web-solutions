@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { AreaPanel, type AreaSource, type MeasuredBand } from '@/components/site/AreaPanel';
 import { FinishVisualiser, type PreparedPhoto } from '@/components/site/FinishVisualiser';
 import { MediaGallery } from '@/components/tools/MediaGallery';
@@ -302,6 +303,53 @@ export function ToolCard({
    * hydration mismatch: the server renders `false`, the client renders `true`,
    * React discards the tree.
    */
+  /**
+   * ==========================================================================
+   * THE HAND-OFF. THE HOMEPAGE CARD SENDS PEOPLE TO THE TOOL'S OWN PAGE.
+   * ==========================================================================
+   *
+   * The same component renders in three places: the homepage deck, the tool
+   * page itself, and the demo. On the homepage it is a teaser sharing a screen
+   * with seven other sections; on the tool page it is the entire point, with
+   * the whole container width, the how-it-works, the arithmetic and the
+   * reviews underneath.
+   *
+   * Somebody who taps "Take or choose photos" has stopped browsing and started
+   * using it. That is the moment to put him where the thing actually lives —
+   * before he has invested anything, rather than after he has waited through a
+   * measurement in a narrow column.
+   *
+   * WHY THE PATH AND NOT A PROP. A `surface` prop is the tidier answer and it
+   * means editing every mount — ToolDeck, the tool page, the demo — in one
+   * commit, and I have read none of those files. Comparing the pathname needs
+   * nothing from anybody and cannot break a call site that does not know about
+   * it. If a `surface` prop is ever added for other reasons, this should move
+   * onto it.
+   *
+   * IT NAVIGATES BEFORE THE PICKER OPENS, NOT AFTER. A File cannot survive a
+   * navigation — there is no way to carry a chosen photograph from one route
+   * to the next, and attempting it would mean uploading on the homepage and
+   * re-fetching on the tool page, which is slower and can fail. So the tap
+   * routes, and the same button on the tool page opens the picker. One extra
+   * tap, and it buys the full-width experience for everything that follows.
+   *
+   * The file dialog cannot be opened automatically on arrival: browsers
+   * require a user gesture, and a programmatic .click() on a file input is
+   * ignored. That restriction is correct and this does not fight it.
+   */
+  const router = useRouter();
+  const pathname = usePathname();
+  const ownPage = '/tools/' + toolId;
+  const handOff = pathname !== null && pathname !== ownPage;
+
+  const beginCapture = useCallback(() => {
+    if (handOff) {
+      router.push(ownPage);
+      return;
+    }
+    fileRef.current?.click();
+  }, [handOff, router, ownPage]);
+
   const [debug, setDebug] = useState(false);
   useEffect(() => {
     try {
@@ -1061,7 +1109,7 @@ export function ToolCard({
                     type="button"
                     className="n15-btn n15-btn-primary"
                     disabled={flow.k === 'preparing' || flow.k === 'analysing'}
-                    onClick={() => fileRef.current?.click()}
+                    onClick={beginCapture}
                   >
                     {flow.k === 'invite' || flow.k === 'failed'
                       ? 'Take or choose photos'
@@ -1231,7 +1279,7 @@ export function ToolCard({
                     type="button"
                     className="n15-btn n15-btn-ghost"
                     disabled={photos.length >= MAX_PHOTOS}
-                    onClick={() => fileRef.current?.click()}
+                    onClick={beginCapture}
                   >
                     Add another
                   </button>

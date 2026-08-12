@@ -246,8 +246,48 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
             {/* A plain img: these are Supabase public URLs and the card is a
                 client component with no access to next/image's loader config
                 for that host. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={hero.src} alt={hero.alt} className="fp-hero-img" />
+            {/* ----------------------------------------------------------------
+                VIDEO AS WELL AS STILLS.
+
+                A flake blend is a texture and a metallic pour is movement in
+                resin. A still photograph of either is the weakest possible
+                version of the argument, and the pinned bar is now the most
+                valuable real estate in the tool — it stays on screen through
+                the entire scroll, so whatever sits in it is what the visitor
+                looks at while he decides.
+
+                An ANIMATED GIF needs nothing here: the browser plays it inside
+                an <img>. Only a real video file needs its own element, so the
+                branch is on the extension rather than on `kind`, which
+                describes the slot's role rather than the file's format.
+
+                autoPlay + muted + loop + playsInline is the exact set required
+                for a video to play inline and unattended on iOS. Drop `muted`
+                and Safari refuses to autoplay; drop `playsInline` and it takes
+                over the whole screen in fullscreen, which on a phone means the
+                picker vanishes underneath it.
+
+                No controls: this is a swatch, not a video the visitor is meant
+                to operate.
+               ---------------------------------------------------------------- */}
+            {/^[^?]+\.(mp4|webm|mov)(\?|$)/i.test(hero.src) ? (
+              <video
+                className="fp-hero-img"
+                src={hero.src}
+                autoPlay
+                muted
+                loop
+                playsInline
+                /* The poster keeps the reserved box filled while the first
+                   frame decodes, so the pinned bar does not flash empty and
+                   resize under a thumb mid-scroll. */
+                preload="metadata"
+                aria-label={hero.alt}
+              />
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={hero.src} alt={hero.alt} className="fp-hero-img" />
+            )}
             {hero.caption && <p className="fp-hero-cap">{hero.caption}</p>}
           </>
         ) : (
