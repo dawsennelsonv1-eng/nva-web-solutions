@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { AreaPanel, type AreaSource } from '@/components/site/AreaPanel';
+import { AreaPanel, type AreaSource, type MeasuredBand } from '@/components/site/AreaPanel';
 import { FinishVisualiser, type PreparedPhoto } from '@/components/site/FinishVisualiser';
 import { MediaGallery } from '@/components/tools/MediaGallery';
 import { analyzePhotoAction } from '@/app/actions/quote';
@@ -335,11 +335,17 @@ export function ToolCard({
    * why this replaced a bare number, and why the slider is now a correction
    * rather than the way area is entered.
    */
-  const [areaBand, setAreaBand] = useState<{
-    lowSqft: number;
-    highSqft: number;
-    reference: string | null;
-  } | null>(null);
+  /**
+   * TYPED AS `MeasuredBand`, NOT AS A STRUCTURAL COPY OF IT.
+   *
+   * This was an inline object literal duplicating AreaPanel's shape. When the
+   * band gained `lengthFt` and `widthFt` the two definitions drifted, and the
+   * only reason that surfaced as a compile error rather than as a silently
+   * unprefilled form is that the panel's prop is strict. Importing the type
+   * removes the second definition entirely, so the next field to be added
+   * cannot drift at all.
+   */
+  const [areaBand, setAreaBand] = useState<MeasuredBand | null>(null);
   /**
    * What the visitor has built. The picker owns the vocabulary; this owns the
    * value, so the card can price it, describe it to the renderer and put it in

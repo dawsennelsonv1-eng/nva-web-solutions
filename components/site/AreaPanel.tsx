@@ -84,6 +84,9 @@ export interface MeasuredBand {
   lowSqft: number;
   highSqft: number;
   reference: string | null;
+  /** The model's own dimensions, in feet. Prefill the correction form. */
+  lengthFt: number | null;
+  widthFt: number | null;
 }
 
 export interface AreaPanelProps {
@@ -120,8 +123,29 @@ export function AreaPanel({
 }: AreaPanelProps) {
   const [open, setOpen] = useState(openByDefault);
   const [mode, setMode] = useState<Mode>('dimensions');
-  const [length, setLength] = useState('');
-  const [width, setWidth] = useState('');
+  /**
+   * ==========================================================================
+   * PREFILLED WITH THE MODEL'S OWN READING.
+   * ==========================================================================
+   *
+   * A person who opens this form is disagreeing with the measurement — and
+   * almost always about ONE of the two numbers. He can see the garage door is
+   * wider than eleven feet; he has no quarrel with the eighteen.
+   *
+   * Starting him from two empty boxes makes him re-measure the whole floor to
+   * correct half of it. Starting him from "11 x 18" makes it one keystroke.
+   * That difference decides whether the correction happens at all, and a
+   * correction that does not happen is a wrong quote that goes out anyway.
+   *
+   * `useState` initialisers, so they seed once and never fight the person as
+   * he types. If the measurement changes underneath him — a re-analysis — the
+   * form he is actively editing is HIS, and clobbering it mid-keystroke would
+   * be the worse behaviour by far.
+   */
+  const [length, setLength] = useState(() =>
+    band?.lengthFt != null ? String(band.lengthFt) : ''
+  );
+  const [width, setWidth] = useState(() => (band?.widthFt != null ? String(band.widthFt) : ''));
   const [total, setTotal] = useState('');
   const [lengthUnit, setLengthUnit] = useState<LengthUnitId>('ft');
   const [areaUnit, setAreaUnit] = useState<AreaUnitId>('sqft');
@@ -205,6 +229,15 @@ export function AreaPanel({
           <p className={styles.source}>
             {source === 'measured'
               ? `Read from your ${photoCount} photo${photoCount === 1 ? '' : 's'}` +
+                /* THE DIMENSIONS, WHERE THE MODEL GAVE THEM.
+                   "about 11 ft by 18 ft, measured against the garage door" is
+                   a claim a person standing in his garage can check in five
+                   seconds. "187 sq ft" is one he can only accept or reject.
+                   Showing the working is what makes the number authoritative
+                   rather than merely confident. */
+                (band?.lengthFt != null && band?.widthFt != null
+                  ? ` — about ${band.lengthFt} ft by ${band.widthFt} ft`
+                  : '') +
                 (band?.reference ? `, measured against the ${band.reference}` : '') +
                 '. Pricing uses ' +
                 formatSqft(sqft) +

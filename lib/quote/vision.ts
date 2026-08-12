@@ -204,6 +204,18 @@ export interface AreaBand {
   highSqft: number;
   /** What the model says it measured against, if it said. */
   reference: string | null;
+  /**
+   * The two dimensions the area was derived from, in feet, when the model
+   * reported them.
+   *
+   * NOT decoration. AreaPanel prefills its length x width form with these, so
+   * a visitor who disagrees with the reading edits ONE number instead of
+   * measuring his garage from scratch. A correction that costs one keystroke
+   * gets made; one that costs a tape measure does not, and the quote goes out
+   * wrong.
+   */
+  lengthFt: number | null;
+  widthFt: number | null;
 }
 
 function readAreaBand(parsed: unknown): AreaBand | null {
@@ -220,10 +232,17 @@ function readAreaBand(parsed: unknown): AreaBand | null {
   const hi = Math.max(low, high);
 
   const ref = p.scale_reference;
+  // Read defensively and independently of the band: a vertical that reports
+  // dimensions but no band, or a band but no dimensions, is a legitimate
+  // shape and neither should cost the other.
+  const len = p.length_ft;
+  const wid = p.width_ft;
   return {
     lowSqft: Math.round(lo),
     highSqft: Math.round(hi),
     reference: typeof ref === 'string' && ref.trim().length > 0 ? ref.trim() : null,
+    lengthFt: typeof len === 'number' && len > 0 ? Math.round(len * 10) / 10 : null,
+    widthFt: typeof wid === 'number' && wid > 0 ? Math.round(wid * 10) / 10 : null,
   };
 }
 

@@ -384,7 +384,9 @@ These are several photographs of THE SAME floor, taken from different positions.
 
 For estimated_area_sqft, work from a named scale reference you can actually see rather than an overall impression. A single garage door is about 8 ft wide and 7 ft tall; a double door is about 16 ft. A parked sedan is about 15 ft long, a pickup about 19 ft. A standard parking bay is 10-12 ft wide. Use the clearest reference across all the images, extrapolate the floor's full footprint including any area hidden behind vehicles or shelving, and report the total.
 
-Raise your confidence in estimated_area_sqft only when the images CORROBORATE each other — when two or more views independently support the same footprint. If the images disagree about the size or shape of the space, lower it below what a single image would have earned: disagreement is evidence that you cannot see the whole floor.`;
+Raise your confidence in estimated_area_sqft only when the images CORROBORATE each other — when two or more views independently support the same footprint. If the images disagree about the size or shape of the space, lower it below what a single image would have earned: disagreement is evidence that you cannot see the whole floor.
+
+Report length_ft and width_ft as the floor's two principal dimensions, and derive estimated_area_sqft from them. Measure each one against a named object you can see, not against the other. If the floor is not a simple rectangle, report the dimensions of the enclosing rectangle and subtract the parts that are not floor when you compute the area — say so in scale_reference when you do.`;
 
 const epoxyVisionResponseSchema = z.object({
   surface_type_guess: z.enum(['garage', 'patio', 'commercial', 'unknown']),
@@ -393,6 +395,38 @@ const epoxyVisionResponseSchema = z.object({
   oil_staining: z.enum(['none', 'light', 'heavy', 'unknown']),
   cracking_severity: z.enum(['none', 'hairline', 'moderate', 'severe', 'unknown']),
   estimated_area_sqft: z.number().positive().nullable(),
+  /**
+   * ==========================================================================
+   * THE TWO NUMBERS THE MEASUREMENT WAS BUILT FROM.
+   * ==========================================================================
+   *
+   * Optional and nullable, so a single-photo call answering the untouched
+   * BASE_PROMPT — which never mentions them — still validates. Nothing that
+   * worked before this line stops working.
+   *
+   * THREE REASONS THEY EARN THEIR PLACE, in ascending order of importance:
+   *
+   *   1. A DERIVED ANSWER BEATS A RECALLED ONE. Asking for a footprint in
+   *      square feet invites a model to pattern-match "two-car garage, call it
+   *      450". Asking for two dimensions measured against named objects, then
+   *      multiplying, forces the estimate through a step where an error is
+   *      visible. "11 ft by 17 ft" can be checked by a person standing in the
+   *      room; "187 sq ft" cannot.
+   *
+   *   2. THEY MAKE THE CORRECTION CHEAP. AreaPanel's manual entry already
+   *      takes length and width. Prefilled with the model's own reading, a
+   *      visitor who disagrees changes ONE number rather than measuring from
+   *      scratch — and a correction that costs one keystroke actually gets
+   *      made, which means the quote is right.
+   *
+   *   3. THEY LET THE MEASUREMENT AUDIT ITSELF. length x width and
+   *      estimated_area_sqft are two independent statements about the same
+   *      floor. When they disagree materially the model has contradicted
+   *      itself, and that is evidence no single field could ever provide. See
+   *      `dimensionsDisagree` below.
+   */
+  length_ft: z.number().positive().nullable().optional(),
+  width_ft: z.number().positive().nullable().optional(),
   // Optional so a model that ignores the range instruction still validates and
   // still produces a usable point estimate, rather than dropping to the next
   // model in the chain over a field it simply did not fill in.
@@ -434,6 +468,49 @@ export type EpoxyVisionField =
   | 'cracking_severity'
   | 'estimated_area_sqft';
 
+/**
+ * ============================================================================
+ * THE MEASUREMENT CHECKING ITS OWN ARITHMETIC.
+ * ============================================================================
+ *
+ * `length_ft * width_ft` and `estimated_area_sqft` are two INDEPENDENT
+ * statements about the same floor. A model that has genuinely measured
+ * something produces two that agree. A model that measured nothing and
+ * pattern-matched "two-car garage, call it 450" produces two that do not,
+ * because the dimensions and the area came from different places in its head.
+ *
+ * That disagreement is evidence available from NO SINGLE FIELD, and it costs
+ * nothing to check.
+ *
+ * WHY 25% AND NOT SOMETHING TIGHTER. A real floor is rarely a clean rectangle.
+ * A garage with a bump-out for the water heater, a patio with a planter cut
+ * into it, an L-shaped basement — all legitimately produce an area smaller
+ * than the enclosing rectangle, and the prompt explicitly ASKS for the
+ * enclosing rectangle in that case. A 10% tolerance would flag every honest
+ * irregular room as a contradiction and hand the visitor a manual-entry form
+ * he did not need.
+ *
+ * 25% is wide enough to accept the geometry and narrow enough that "12 by 14"
+ * paired with "450 sq ft" — a 168 versus 450 disagreement, the exact shape of
+ * a hallucinated area — cannot pass.
+ *
+ * IT DOWNGRADES CONFIDENCE, IT DOES NOT DISCARD THE READING. The visitor is
+ * asked for the size, with the model's own dimensions prefilled. Throwing the
+ * analysis away would also throw away the condition grading, the oil staining
+ * and the crack severity, none of which are implicated by an arithmetic slip.
+ */
+export const EPOXY_DIMENSION_TOLERANCE = 0.25;
+
+export function dimensionsDisagree(a: EpoxyVisionResult): boolean {
+  const { length_ft: l, width_ft: w, estimated_area_sqft: area } = a;
+  if (typeof l !== 'number' || typeof w !== 'number' || typeof area !== 'number') return false;
+  if (!(l > 0) || !(w > 0) || !(area > 0)) return false;
+  const product = l * w;
+  // Relative to the LARGER of the two, so the test is symmetric: it cannot be
+  // gamed by which number happens to be bigger.
+  return Math.abs(product - area) / Math.max(product, area) > EPOXY_DIMENSION_TOLERANCE;
+}
+
 /** Fields the model was not sure enough about. Ask the person for these. */
 export function epoxyLowConfidenceFields(a: EpoxyVisionResult): EpoxyVisionField[] {
   const out: EpoxyVisionField[] = [];
@@ -446,7 +523,13 @@ export function epoxyLowConfidenceFields(a: EpoxyVisionResult): EpoxyVisionField
     out.push('oil_staining');
   if (a.cracking_severity === 'unknown' || c.cracking_severity < EPOXY_CONFIDENCE_FLOOR)
     out.push('cracking_severity');
-  if (a.estimated_area_sqft === null || c.estimated_area_sqft < EPOXY_AREA_CONFIDENCE_FLOOR)
+  if (
+    a.estimated_area_sqft === null ||
+    c.estimated_area_sqft < EPOXY_AREA_CONFIDENCE_FLOOR ||
+    // A model that contradicts itself about the size of the floor has not
+    // measured the floor, whatever confidence it reported.
+    dimensionsDisagree(a)
+  )
     out.push('estimated_area_sqft');
   return out;
 }
@@ -607,4 +690,3 @@ export const epoxyVertical: VerticalModule<EpoxyInputs, EpoxyPricingRules> = {
   finishCatalogue: legacyFinishCatalogue(finishes, colourCollections),
   photoAnalysisPrompt: BASE_PROMPT,
 };
-

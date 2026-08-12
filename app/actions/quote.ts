@@ -95,7 +95,14 @@ export interface AnalyzeResponse {
      * a fact. A band is both more honest AND more convincing: it reads as
      * something that was measured rather than something that was guessed.
      */
-    areaBand?: { lowSqft: number; highSqft: number; reference: string | null } | null;
+    areaBand?: {
+      lowSqft: number;
+      highSqft: number;
+      reference: string | null;
+      /** Prefills the correction form. See AreaBand in lib/quote/vision.ts. */
+      lengthFt: number | null;
+      widthFt: number | null;
+    } | null;
     /** PHASE 11: the module's own inputs, keyed by its declared writesTo keys. */
     answers?: Record<string, unknown>;
   };
