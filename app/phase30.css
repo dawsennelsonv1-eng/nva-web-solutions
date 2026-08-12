@@ -27,13 +27,35 @@
  * homepage, because that shape already works here.
  *
  * ============================================================================
- * SWATCHES ARE RECTANGLES AND THEY ARE BIG
+ * PHASE 4 REVISION: THE PICKER WAS TOO LONG TO USE
+ * ============================================================================
+ *
+ * Three changes, and they are one change: getting fifty-two options onto a
+ * phone screen without the picker becoming a document.
+ *
+ *   1. THE PREVIEW IS PINNED. It used to scroll away, so choosing a flake
+ *      blend meant scrolling up to see the last one, back down, tapping, and
+ *      up again. The picture is the reason any of the options mean anything.
+ *
+ *   2. THE DESCRIPTIONS COLLAPSED INTO ONE STRIP. Every swatch carried its own
+ *      paragraph. Fifty-two paragraphs stacked vertically is most of the
+ *      scrolling on this screen, and a person choosing a colour is looking at
+ *      colour — the words are what he reads after something catches his eye.
+ *      Now there is one line, pinned with the preview, describing the option
+ *      he most recently tapped.
+ *
+ *   3. THE SWATCHES SHRANK AND MULTIPLIED. Three per row on a phone instead of
+ *      two, up to six on a wide desktop.
+ *
+ * ============================================================================
+ * SWATCHES ARE STILL RECTANGLES
  * ============================================================================
  *
  * A circle is right for a paint colour, where the entire answer is a hue.
  * These are materials — flake size, pattern, depth, movement — and a 44px dot
- * shows none of that. Two per row on a phone, at a size where the material is
- * actually legible, beats six dots that all read as grey.
+ * shows none of that. They are smaller than they were, but they are still
+ * rectangles at a size where a flake blend reads as a flake blend, and the
+ * pinned preview now carries the detail the swatch no longer has room for.
  *
  * ============================================================================
  * THE COST RANK IS FIVE BARS AND NO CURRENCY
@@ -53,14 +75,45 @@
    hero
    -------------------------------------------------------------------------- */
 
+/*
+ * PINNED WHILE THE OPTIONS SCROLL PAST IT.
+ *
+ * `top` clears the fixed 56px header from phase15b.css. The background and
+ * the padding are not decoration: without them the option grid scrolls
+ * visibly through the gap between the picture and the description strip.
+ *
+ * REQUIRES `.tc { overflow: clip }` — set in phase34.css. `overflow: hidden`
+ * on an ancestor makes it a scroll container, and a sticky descendant then
+ * sticks to THAT rather than to the page, which looks exactly like sticky
+ * doing nothing at all. `clip` clips identically and creates no scroll
+ * container. That one-word difference is the whole mechanism; see the note in
+ * phase34.css before changing either.
+ */
 .fp-hero {
-  margin-bottom: 1.5rem;
+  position: sticky;
+  top: calc(56px + 0.25rem);
+  z-index: 3;
+  margin-bottom: 1.25rem;
+  padding: 0.5rem 0 0.6rem;
+  background: var(--n15-panel);
 }
 
+/*
+ * CAPPED AT A THIRD OF THE VIEWPORT.
+ *
+ * A 3:2 picture at full card width is roughly 60% of a phone screen. Pinned,
+ * that would leave a strip for the options and make the whole thing unusable —
+ * a preview that prevents you choosing is worse than one that scrolls away.
+ *
+ * `max-height` wins over `aspect-ratio`, and `object-fit: cover` crops the
+ * result rather than squashing it. On a desktop 32vh is larger than the 3:2
+ * box would be anyway, so nothing changes there.
+ */
 .fp-hero-img {
   display: block;
   width: 100%;
   aspect-ratio: 3 / 2;
+  max-height: 32vh;
   object-fit: cover;
   border-radius: var(--n15-r-card);
   border: 1px solid var(--n15-card-edge);
@@ -86,6 +139,10 @@
   flex-direction: column;
   justify-content: center;
   aspect-ratio: 3 / 2;
+  /* Same cap as the photograph, so the block does not change height the
+     moment a combination acquires one. */
+  max-height: 32vh;
+  overflow: hidden;
   padding: 1.25rem;
   border: 1px dashed var(--n15-card-edge);
   border-radius: var(--n15-r-card);
@@ -115,11 +172,79 @@
 }
 
 /* --------------------------------------------------------------------------
+   the description strip
+   -------------------------------------------------------------------------- */
+
+/*
+ * ONE LINE, PINNED, DESCRIBING THE OPTION JUST TAPPED.
+ *
+ * A FIXED HEIGHT, NOT `min-height`, AND THAT IS THE IMPORTANT PART. This
+ * updates on every single tap. If the box grew for a two-line blurb and shrank
+ * for a one-line one, the entire option grid below would jump by a line each
+ * time somebody touched a swatch — reintroducing exactly the movement phase 3
+ * was spent removing, at the highest-frequency interaction on the screen.
+ *
+ * So it is 2.75rem always, the blurb is clamped to two lines, and nothing
+ * below it ever moves.
+ */
+.fp-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.75rem;
+  margin-top: 0.5rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--n15-card-edge);
+  border-radius: var(--n15-r-chip);
+  background: rgba(127, 127, 127, 0.05);
+  overflow: hidden;
+}
+
+.fp-note-label {
+  flex: 0 0 auto;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--n15-copper);
+  white-space: nowrap;
+}
+
+.fp-note-blurb {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  opacity: 0.72;
+  /* Two lines at most, ellipsised. The full text is on the swatch's `title`
+     for a pointer device, and no blurb in the catalogue is load-bearing —
+     they are all "here is what this looks like", not "here is what this
+     costs you". */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.fp-note-idle {
+  font-size: 0.75rem;
+  opacity: 0.45;
+}
+
+/* The rank sits at the end of the strip and must not be squeezed by a long
+   blurb, so it keeps its own width rather than flexing. */
+.fp-note .fp-cost {
+  flex: 0 0 3.5rem;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* --------------------------------------------------------------------------
    groups
    -------------------------------------------------------------------------- */
 
 .fp-group {
-  margin: 0 0 1.75rem;
+  /* Was 1.75rem. Ten groups at that spacing is 280px of pure gap on a screen
+     the visitor is already scrolling too much of. */
+  margin: 0 0 1.15rem;
   padding: 0;
   border: 0;
 }
@@ -127,7 +252,9 @@
 .fp-group-h {
   padding: 0;
   font-family: var(--n15-serif);
-  font-size: 1.375rem;
+  /* Was 1.375rem. Still clearly a heading, no longer a title page for each of
+     ten sections. */
+  font-size: 1.125rem;
   line-height: 1.2;
 }
 
@@ -140,34 +267,69 @@
   color: var(--n15-copper);
 }
 
+/*
+ * The GROUP blurb stays. It explains what the whole decision changes — "this
+ * decides how the floor looks, how it wears, and most of what it costs" — and
+ * it appears once per group rather than once per option. Ten of these is
+ * orientation; fifty-two option blurbs was a wall.
+ */
 .fp-group-b {
-  margin: 0.25rem 0 0.875rem;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-  opacity: 0.7;
+  margin: 0.2rem 0 0.6rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  opacity: 0.65;
 }
 
 /* --------------------------------------------------------------------------
    swatches
    -------------------------------------------------------------------------- */
 
+/*
+ * THREE PER ROW ON A PHONE, NOT TWO, AND MORE AS THE SCREEN ALLOWS.
+ *
+ * The seven-colour group was four rows. It is now three. Across ten groups
+ * that is most of the length of this screen, and it is bought by moving the
+ * descriptions into the pinned strip rather than by making anything harder to
+ * see: at three across on a 360px phone each swatch picture is still about
+ * 100px wide, which is enough to tell a domino flake from a granite one.
+ *
+ * The desktop steps matter now in a way they did not before phase 3: the card
+ * spans the full container on a wide screen, so there is genuinely room for
+ * six.
+ */
 .fp-swatches {
   display: grid;
-  gap: 0.625rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-@media (min-width: 34rem) {
+@media (min-width: 30rem) {
   .fp-swatches {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 48rem) {
+  .fp-swatches {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .fp-swatches {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 
 .fp-sw {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
-  padding: 0.5rem;
+  gap: 0.25rem;
+  padding: 0.35rem;
+  /* 44px is the minimum comfortable touch target and these are far above it —
+     the picture alone is around 75px tall at three across. Stated so a future
+     tightening knows where the floor is. */
+  min-height: 44px;
   text-align: left;
   cursor: pointer;
   color: inherit;
@@ -186,7 +348,7 @@
   border-color: var(--n15-copper);
   border-width: 2px;
   /* Compensates the extra pixel so the grid does not shift on selection. */
-  padding: calc(0.5rem - 1px);
+  padding: calc(0.35rem - 1px);
 }
 
 .fp-sw-img {
@@ -206,20 +368,28 @@
 }
 
 .fp-sw-label {
-  font-size: 0.9375rem;
+  /* Was 0.9375rem beside a blurb. Now it is the only text on the swatch, so it
+     can be smaller without losing its job — and at three across it has to be,
+     or "Solid polyaspartic" wraps to three lines and every card in the row
+     grows to fit the longest name in the group. */
+  font-size: 0.75rem;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .fp-sw-on .fp-sw-label {
   color: var(--n15-copper);
 }
 
-.fp-sw-blurb {
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  opacity: 0.65;
-}
+/*
+ * `.fp-sw-blurb` WAS REMOVED IN PHASE 4, not merely hidden.
+ *
+ * FinishPicker no longer renders the element. The text moved to `.fp-note`,
+ * pinned at the top, one option at a time. Recorded as a comment rather than
+ * left as a `display: none` rule because a hidden element is still in the DOM,
+ * still read aloud by a screen reader, and still something a future reader has
+ * to work out is dead before they can safely change anything near it.
+ */
 
 /* --------------------------------------------------------------------------
    cost rank
@@ -229,7 +399,7 @@
   display: flex;
   gap: 2px;
   margin-top: auto;
-  padding-top: 0.375rem;
+  padding-top: 0.25rem;
 }
 
 .fp-cost span {

@@ -111,6 +111,39 @@
 }
 
 /* ---------------------------------------------------------------------------
+   3b. `overflow: clip` INSTEAD OF `overflow: hidden` ON THE CARD.
+
+   ONE WORD, AND IT IS WHAT MAKES THE PINNED PREVIEW POSSIBLE AT ALL.
+
+   phase15b.css gives `.tc` `overflow: hidden` so the tilt sheen and the
+   gradient field stay inside the rounded corners. That is correct and the
+   clipping must not change.
+
+   But `overflow: hidden` makes an element a SCROLL CONTAINER — a box with
+   scrollable overflow that simply has its scrollbars suppressed. `position:
+   sticky` resolves against its nearest scroll container, so the pinned preview
+   in phase30.css would stick to `.tc` rather than to the page. `.tc` never
+   scrolls internally, so the preview would sit exactly where it was written
+   and never move: sticky that looks completely inert, with no error anywhere
+   to explain it. This is the single most common reason `position: sticky`
+   "does not work", and it is invisible from the element that fails.
+
+   `overflow: clip` clips identically and creates NO scroll container. The
+   corners stay rounded, the sheen stays inside, and sticky resolves against
+   the page where it belongs.
+
+   VERIFY: Chrome 90+, Firefox 81+, Safari 16+. Below those the declaration is
+   dropped as unrecognised and the earlier `overflow: hidden` from phase15b
+   still applies — so an old browser gets the previous behaviour, a preview
+   that scrolls away, rather than a card that leaks its background. The
+   degradation is cosmetic and safe, which is why this is a bare override
+   rather than an @supports block.
+--------------------------------------------------------------------------- */
+.tc {
+  overflow: clip;
+}
+
+/* ---------------------------------------------------------------------------
    4. LET THE BROWSER HOLD ITS PLACE.
 
    `overflow-anchor` is on by default, and this restates it rather than
