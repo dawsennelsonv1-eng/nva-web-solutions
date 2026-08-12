@@ -97,7 +97,16 @@ function envInt(name: string | undefined): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-function resolveModel(c: RouteCandidate): string {
+/**
+ * The slug this candidate would actually send, after env overrides.
+ *
+ * EXPORTED so app/api/health/models can check the SAME string the router
+ * would use. A health check that re-derives the slug from `c.model` and
+ * ignores `c.modelEnv` would report the committed default as healthy while
+ * production ran an override that had gone stale — a green check on a broken
+ * deployment, which is worse than no check at all.
+ */
+export function resolveModel(c: RouteCandidate): string {
   const override = c.modelEnv ? process.env[c.modelEnv] : undefined;
   return override && override.trim().length > 0 ? override.trim() : c.model;
 }
