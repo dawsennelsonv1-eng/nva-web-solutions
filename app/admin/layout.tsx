@@ -66,6 +66,11 @@ const SCREENS: readonly { href: string; label: string; note: string }[] = [
   },
   { href: '/admin/finishes', label: 'Finishes', note: 'Upload and manage finish pictures' },
   { href: '/admin/media', label: 'Tool media', note: 'Recordings on each tool page' },
+  {
+    href: '/admin/tool-pictures',
+    label: 'Tool pictures',
+    note: 'Generate the photographs for those slots',
+  },
   { href: '/admin/appearance', label: 'Appearance', note: 'Colours and branding' },
   { href: '/admin/payments', label: 'Payments', note: 'Providers and checkout' },
   { href: '/admin/ai', label: 'AI', note: 'Model spend and the job ledger' },
