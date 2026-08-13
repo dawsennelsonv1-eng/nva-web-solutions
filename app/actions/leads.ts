@@ -148,6 +148,72 @@ export async function updateLeadNotesAction(id: string, notes: string): Promise<
 }
 
 /**
+ * ============================================================================
+ * DELETING A LEAD. THE ONLY DESTRUCTIVE ACTION IN THIS FILE.
+ * ============================================================================
+ *
+ * Everything else here changes a status or a note and can be changed back.
+ * This cannot, so it is written differently on purpose.
+ *
+ * IT IS A HARD DELETE, NOT A STATUS. There is already a status column and it
+ * already has a value for a lead that came to nothing — using it is what
+ * "archive" means, and the inbox filters on it. So a soft delete would be a
+ * second, invisible way of expressing something the schema already expresses,
+ * and the row would still be in every export and every count. Somebody asking
+ * to delete a test lead wants it GONE, and a delete that leaves the row behind
+ * is a lie told to make the button feel safer.
+ *
+ * THE QUOTE ROW IS LEFT ALONE. A lead references a quote, not the other way
+ * round: the quote is the record of what was calculated and shown, it is what
+ * a contractor would need if a homeowner disputed a price, and it carries no
+ * contact details. Cascading into it would destroy the more defensible record
+ * to satisfy a request about the less defensible one.
+ *
+ * IT IS LOGGED BEFORE IT HAPPENS. `trackServer` runs with the lead's own
+ * details in hand, because after the delete there is nothing left to describe
+ * what was removed. That row in the analytics table is the only remaining
+ * evidence a lead ever existed, which is exactly what makes it worth writing.
+ */
+export async function deleteLeadAction(id: string): Promise<{ ok: boolean; message?: string }> {
+  if (!(await requireAdmin())) return { ok: false, message: 'Not signed in as an admin.' };
+
+  const db = getSupabaseAdminClient();
+
+  /**
+   * Read first. Two reasons, and the second is the important one:
+   *
+   *   - The analytics row needs the source and status, and they are gone the
+   *     moment the delete succeeds.
+   *   - A missing row must report "already gone" rather than success. Supabase
+   *     reports a delete matching zero rows as a clean result, so without this
+   *     check a double tap would silently claim to have deleted something
+   *     twice — and an operator who sees two confirmations reasonably wonders
+   *     what the second one removed.
+   */
+  const { data: before } = await db
+    .from('leads')
+    .select('id, source, status')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (!before) return { ok: false, message: 'That lead is already gone.' };
+
+  trackServer(
+    'lead_deleted',
+    {
+      lead_source: (before as { source?: unknown }).source ?? null,
+      lead_status: (before as { status?: unknown }).status ?? null,
+    },
+    { surface: 'admin', mode: 'live', prototypeId: null }
+  );
+
+  const { error } = await db.from('leads').delete().eq('id', id);
+  if (error) return { ok: false, message: 'The lead could not be deleted: ' + error.message };
+
+  return { ok: true };
+}
+
+/**
  * CSV export data. The actual file streaming/download headers live in the
  * Route Handler (app/api/admin/leads/export/route.ts) — a Server Action
  * returns data, not a Response with Content-Disposition, so a real file
