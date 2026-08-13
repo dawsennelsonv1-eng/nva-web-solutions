@@ -50,16 +50,18 @@ type RowState = { status: 'idle' | 'running' | 'done' | 'failed'; note?: string;
  * NEXT_PUBLIC_EPOXY_ALL_GROUPS is ever switched on this list grows to match
  * without anybody editing it.
  */
-function enumerateCombos(): Row[] {
+function enumerateCombos(systems: Set<string>, topcoats: Set<string>): Row[] {
   const system = EPOXY_GROUPS.find((g) => g.key === 'system');
   const out: Row[] = [];
   for (const sys of system?.options ?? []) {
+    if (!systems.has(sys.key)) continue;
     const groups = visibleGroups({ system: sys.key });
     const colour = groups.find((g) => g.key !== 'system' && g.key !== 'topcoat');
     const topcoat = groups.find((g) => g.key === 'topcoat');
     if (!colour || !topcoat) continue;
     for (const c of colour.options) {
       for (const t of topcoat.options) {
+        if (!topcoats.has(t.key)) continue;
         const selections = { system: sys.key, [colour.key]: c.key, topcoat: t.key };
         out.push({
           spec: { system: sys.key, colourGroup: colour.key, colourKey: c.key, topcoat: t.key },
@@ -72,8 +74,57 @@ function enumerateCombos(): Row[] {
   return out;
 }
 
+/** The five systems and the four topcoats, for the filter rows. */
+function systemOptions() {
+  return EPOXY_GROUPS.find((g) => g.key === 'system')?.options ?? [];
+}
+function topcoatOptions() {
+  return EPOXY_GROUPS.find((g) => g.key === 'topcoat')?.options ?? [];
+}
+
 export function ComboStudio({ existingKeys }: { existingKeys: string[] }) {
-  const rows = useMemo(enumerateCombos, []);
+  /**
+   * ==========================================================================
+   * YOU CHOOSE THE SUBSET. THE DEFAULT IS ONE TOPCOAT, NOT ALL FOUR.
+   * ==========================================================================
+   *
+   * The full space is 136 renders — two to three hours and a real bill — and
+   * offering that as the only option was the wrong default. Most of it is not
+   * wanted yet.
+   *
+   * WHY TOPCOAT IS THE ONE TRIMMED FIRST, and not the colours: topcoat changes
+   * SHEEN. In a thumbnail on a picker, the difference between satin and high
+   * gloss on the same colour is a slightly different reflection — real, worth
+   * showing eventually, and the least visible of the three decisions at that
+   * size. Colour is what a person points at on the screen, so every colour in
+   * a chosen system is generated.
+   *
+   * Starting with high gloss alone takes 136 down to 34: every system, every
+   * colour, one sheen. That is the set that makes the picker feel finished.
+   *
+   * Nothing is locked. Tick another topcoat or untick a system and the count
+   * updates before anything is spent — which is the point. A run this
+   * expensive should be decided deliberately, not defaulted into.
+   */
+  const [systems, setSystems] = useState<Set<string>>(
+    () => new Set(systemOptions().map((o) => o.key))
+  );
+  const [topcoats, setTopcoats] = useState<Set<string>>(() => {
+    const all = topcoatOptions();
+    // Gloss if the catalogue has it, otherwise whatever comes first — never an
+    // empty set, which would render an empty list and a dead button.
+    const gloss = all.find((o) => o.key === 'gloss') ?? all[0];
+    return new Set(gloss ? [gloss.key] : []);
+  });
+
+  const rows = useMemo(() => enumerateCombos(systems, topcoats), [systems, topcoats]);
+
+  const toggle = (set: Set<string>, key: string) => {
+    const next = new Set(set);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  };
   const [photo, setPhoto] = useState<{ base64: string; mediaType: string; url: string } | null>(
     null
   );
@@ -190,7 +241,7 @@ export function ComboStudio({ existingKeys }: { existingKeys: string[] }) {
           disabled={!photo || running}
           onClick={() => void runAll()}
         >
-          {running ? 'Generating…' : `Generate all ${rows.length}`}
+          {running ? 'Generating…' : `Generate ${rows.length}`}
         </button>
 
         {running && (
@@ -214,6 +265,59 @@ export function ComboStudio({ existingKeys }: { existingKeys: string[] }) {
           Skip combinations that already have a picture
         </label>
       </div>
+
+      {/* ----------------------------------------------------------------
+          WHAT TO GENERATE. Shown above the run button on purpose: the count
+          has to be visible before the money is spent, not after.
+         ---------------------------------------------------------------- */}
+      <fieldset
+        style={{ marginTop: '1.25rem', border: 0, padding: 0 }}
+        disabled={running}
+      >
+        <legend style={{ fontSize: '0.72rem', letterSpacing: '0.08em', opacity: 0.6 }}>
+          COATINGS
+        </legend>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.4rem' }}>
+          {systemOptions().map((o) => (
+            <label key={o.key} style={{ fontSize: '0.82rem' }}>
+              <input
+                type="checkbox"
+                checked={systems.has(o.key)}
+                onChange={() => setSystems((s0) => toggle(s0, o.key))}
+              />{' '}
+              {o.label}
+            </label>
+          ))}
+        </div>
+
+        <legend
+          style={{
+            fontSize: '0.72rem',
+            letterSpacing: '0.08em',
+            opacity: 0.6,
+            marginTop: '0.9rem',
+          }}
+        >
+          FINISHES
+        </legend>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.4rem' }}>
+          {topcoatOptions().map((o) => (
+            <label key={o.key} style={{ fontSize: '0.82rem' }}>
+              <input
+                type="checkbox"
+                checked={topcoats.has(o.key)}
+                onChange={() => setTopcoats((s0) => toggle(s0, o.key))}
+              />{' '}
+              {o.label}
+            </label>
+          ))}
+        </div>
+        <p style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.6, maxWidth: '58ch' }}>
+          Every colour in a ticked coating is generated. Sheen is the least
+          visible of the three at thumbnail size, so one finish is usually
+          enough to make the picker feel complete.
+        </p>
+      </fieldset>
 
       {photo && (
         // eslint-disable-next-line @next/next/no-img-element
