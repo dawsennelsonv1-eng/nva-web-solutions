@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { AreaPanel, type AreaSource, type MeasuredBand } from '@/components/site/AreaPanel';
+import sheet from '@/components/site/ResultSheet.module.css';
 import { FinishVisualiser, type PreparedPhoto } from '@/components/site/FinishVisualiser';
 import { MediaGallery } from '@/components/tools/MediaGallery';
 import { analyzePhotoAction } from '@/app/actions/quote';
@@ -478,6 +479,21 @@ export function ToolCard({
    * make that gate decorative.
    */
   const [step, setStep] = useState<'size' | 'finish'>('size');
+
+  /**
+   * The quote's public reference, once it has been persisted.
+   *
+   * `persistDemoQuote` already returns one and `submitGate` already captures
+   * it — into a LOCAL, which meant the identifier the contractor's email
+   * quotes and the row in the database are keyed on was never shown to the
+   * person holding the estimate. When he rings and says "I've got a quote for
+   * about two thousand", that reference is the difference between finding it
+   * and guessing.
+   *
+   * Null until the gate is submitted, and the sheet simply omits the line
+   * rather than printing an empty separator.
+   */
+  const [quotePublicId, setQuotePublicId] = useState<string | null>(null);
 
   const sessionId = useMemo(
     () => 'home-' + toolId + '-' + Math.random().toString(36).slice(2, 10),
@@ -970,6 +986,9 @@ export function ToolCard({
             usedAiAnalysis: photos.length > 0,
             photoPath,
           });
+          // Lifted into state so the estimate sheet can print it. The local is
+          // still what the lead submission below uses, unchanged.
+          setQuotePublicId(quotePublicId);
         } catch {
           quotePublicId = null;
         }
@@ -1596,45 +1615,105 @@ export function ToolCard({
                         there is nothing to wait for. */}
                     {(renderSettled || !renderEnabled) && (
                       <>
-                        <div className="tc-price">
-                          <p className="tc-price-label">Your range</p>
-                          <div className="tc-band" aria-live="polite">
-                            {band ? (
-                              <>
-                                <span className="tc-fig">{money(band.lowCents)}</span>
-                                <span aria-hidden className="tc-dash" />
-                                <span className="tc-fig">{money(band.highCents)}</span>
-                              </>
-                            ) : (
-                              <span className="tc-fig">—</span>
-                            )}
+                        {/* ----------------------------------------------------
+                            THE ESTIMATE, AS A DOCUMENT.
+
+                            The price and the specification used to sit here as
+                            two unstyled blocks under the same panel that had
+                            just been asking questions — nothing marked the
+                            point where the card stopped taking input and
+                            started delivering, which is most of why the
+                            finished screen felt unfinished.
+
+                            Border, header, date, reference. It should read as
+                            something ISSUED to him: the thing he screenshots
+                            for his partner and still has open when the
+                            installer rings.
+                           ---------------------------------------------------- */}
+                        <section className={sheet.sheet}>
+                          <header className={sheet.head}>
+                            <h3 className={sheet.title}>Your estimate</h3>
+                            {/* A RANGE WITH NO DATE ON IT is a number somebody
+                                is still holding you to in eight months, after
+                                the price of resin has moved twice. Dating an
+                                estimate is the ordinary protection every trade
+                                uses and it costs one line. */}
+                            <p className={sheet.meta}>
+                              {new Date().toLocaleDateString('en-US', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                              {quotePublicId ? ' · ' + quotePublicId : ''}
+                            </p>
+                          </header>
+
+                          <div className={sheet.body}>
+                            <div className={sheet.priceRow}>
+                              <p className={sheet.priceLabel}>Your range</p>
+                              <div className="tc-band" aria-live="polite">
+                                {band ? (
+                                  <>
+                                    <span className="tc-fig">{money(band.lowCents)}</span>
+                                    <span aria-hidden className="tc-dash" />
+                                    <span className="tc-fig">{money(band.highCents)}</span>
+                                  </>
+                                ) : (
+                                  <span className="tc-fig">—</span>
+                                )}
+                              </div>
+                              <p className={sheet.basis}>
+                                At this installer&apos;s own published rates, for{' '}
+                                {sqft === null ? '—' : sqft.toLocaleString('en-US')} sq ft
+                                of {pricer.surfaceLabel.toLowerCase()}.
+                              </p>
+                            </div>
+
+                            {/* WHAT HE CHOSE, WRITTEN OUT.
+
+                                The same summary the installer receives, so the
+                                two of them are looking at one specification
+                                rather than at a memory of some swatches. It is
+                                also what a homeowner reads back to a spouse,
+                                which is most of what happens between a quote
+                                and a job.
+
+                                SPLIT ON THE COLON into a label and a value.
+                                selectionSummary already returns "The coating:
+                                Decorative flake"; as a bullet that reads like
+                                notes, and as a label aligned against a value it
+                                reads like a specification. The fallback keeps
+                                any line without a colon intact rather than
+                                dropping it. */}
+                            <p className={sheet.specHead}>Specification</p>
+                            <dl className={sheet.spec}>
+                              {selectionSummary(selections).map((line) => {
+                                const at = line.indexOf(':');
+                                const label = at > 0 ? line.slice(0, at) : line;
+                                const value = at > 0 ? line.slice(at + 1).trim() : '';
+                                return (
+                                  <div className={sheet.specRow} key={line}>
+                                    <dt>{label}</dt>
+                                    <dd className={sheet.specValue}>{value}</dd>
+                                  </div>
+                                );
+                              })}
+                              <div className={sheet.specRow}>
+                                <dt>Floor area</dt>
+                                <dd className={sheet.specValue}>
+                                  {sqft === null ? '—' : sqft.toLocaleString('en-US')} sq ft
+                                </dd>
+                              </div>
+                            </dl>
+
+                            <p className={sheet.note}>
+                              This has gone to your installer with your photos. Expect a
+                              call — they will confirm the concrete before anything is
+                              booked. The range moves if you change anything above, and
+                              that costs nothing.
+                            </p>
                           </div>
-                          <p className="tc-free">
-                            At this installer&apos;s own published rates, for{' '}
-                            {sqft === null ? '—' : sqft.toLocaleString('en-US')} sq ft.
-                            Change anything below and it moves — that costs nothing.
-                          </p>
-                        </div>
-
-                        {/* WHAT HE CHOSE, WRITTEN OUT.
-
-                            The same summary the installer receives, so the two
-                            of them are looking at one specification rather
-                            than at a memory of some swatches. It is also the
-                            thing a homeowner reads back to a spouse, which is
-                            most of what happens between a quote and a job. */}
-                        <div className="tc-spec">
-                          <p className="tc-spec-h">What you chose</p>
-                          <ul className="tc-spec-list">
-                            {selectionSummary(selections).map((line) => (
-                              <li key={line}>{line}</li>
-                            ))}
-                          </ul>
-                          <p className="tc-spec-note">
-                            This has gone to your installer with your photos. Expect a call
-                            — they will confirm the concrete before anything is booked.
-                          </p>
-                        </div>
+                        </section>
                       </>
                     )}
                   </div>

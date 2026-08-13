@@ -1,0 +1,176 @@
+/*
+ * components/site/ResultSheet.module.css
+ *
+ * ============================================================================
+ * THE RESULT IS A DOCUMENT, NOT THE BOTTOM OF A FORM
+ * ============================================================================
+ *
+ * Everything the visitor exchanged his phone number for arrives here, and
+ * until now it arrived as three unstyled blocks stacked under the same panel
+ * that had just been asking him questions. Nothing marked the moment where the
+ * card stopped taking input and started delivering.
+ *
+ * That is what made it feel unfinished. The content was right — his floor,
+ * his price, his specification — and it was presented as more form.
+ *
+ * So the result gets a border, a header, a date and a reference. It is meant
+ * to read like something that was ISSUED to him: the thing he screenshots and
+ * sends to his partner, and the thing he still has open when the installer
+ * rings.
+ *
+ * A CSS Module for the same reason AreaPanel uses one: it compiles to hashed
+ * names, cannot collide with or override the phase layers, and needs no edit
+ * to app/layout.tsx. Colour is derived from currentColor and the n15 tokens,
+ * never declared, so light and dark both stay correct without this file
+ * knowing which is active.
+ */
+
+.sheet {
+  margin-top: 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--n15-copper) 30%, transparent);
+  border-radius: var(--n15-r-card);
+  /* Slightly lifted off the panel behind it. The result should look placed on
+     the card rather than continuous with it. */
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ */
+/* the header                                                          */
+/* ------------------------------------------------------------------ */
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--n15-copper) 22%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--n15-copper) 10%, transparent),
+    transparent
+  );
+}
+
+.title {
+  margin: 0;
+  font-family: var(--n15-serif);
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+/*
+ * THE DATE AND THE REFERENCE.
+ *
+ * A range with no date on it is a number somebody will still be holding you to
+ * in eight months, after the price of resin has moved twice. A dated estimate
+ * is the ordinary professional protection every trade uses, and it costs one
+ * line.
+ */
+.meta {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  padding: 1rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* the price, as the headline of the document                          */
+/* ------------------------------------------------------------------ */
+
+.priceRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px dashed color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.priceLabel {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  flex: 1 0 100%;
+}
+
+.basis {
+  margin: 0.55rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  opacity: 0.68;
+  flex: 1 0 100%;
+}
+
+/* ------------------------------------------------------------------ */
+/* the specification                                                    */
+/* ------------------------------------------------------------------ */
+
+.specHead {
+  margin: 1.1rem 0 0.5rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+/*
+ * A DEFINITION LIST LAID OUT AS ROWS, not bullets.
+ *
+ * "The coating: Decorative flake" as a bulleted sentence reads like notes. The
+ * same words as a label and a value, aligned down a column, read like a
+ * specification — which is what it is, and what the installer receives.
+ */
+.spec {
+  margin: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.specRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+/* A leader line between the label and the value, the way a quote sheet does
+   it. Purely decorative, so it is hidden from assistive technology by being a
+   background rather than a character. */
+.specRow::after {
+  content: '';
+  order: 1;
+  flex: 1 1 auto;
+  height: 1px;
+  align-self: center;
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, currentColor 22%, transparent) 0 2px,
+    transparent 2px 5px
+  );
+}
+
+.specValue {
+  order: 2;
+  font-weight: 600;
+  text-align: right;
+}
+
+.note {
+  margin: 1.1rem 0 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  opacity: 0.72;
+}
