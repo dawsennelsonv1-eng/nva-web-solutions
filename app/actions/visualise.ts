@@ -342,4 +342,38 @@ async function runVisualise(args: VisualiseActionArgs): Promise<VisualiseActionR
   };
 }
 
-export { RENDER_DISCLOSURE };
+/**
+ * ============================================================================
+ * `export { RENDER_DISCLOSURE };` WAS HERE. IT IS THE BUG. DO NOT PUT IT BACK.
+ * ============================================================================
+ *
+ * Next's error, from the runtime log:
+ *
+ *     A "use server" file can only export async functions, found string.
+ *
+ * A 'use server' module is a network boundary. Every export becomes a callable
+ * endpoint, so Next allows async functions and NOTHING else. RENDER_DISCLOSURE
+ * is a string constant, and re-exporting it from this file poisoned the whole
+ * module: the error is thrown when the module graph is evaluated, BEFORE
+ * visualiseAction runs, which is why the try/catch added in phase 18 never
+ * caught it and why the failure escaped into the RSC render.
+ *
+ * THIS IS WHY EVERY THEORY WAS WRONG. The request body was ruled out because
+ * the analysis sends more data through the same transport. The execution
+ * ceiling was ruled out because maxDuration is deployed on both routes. The
+ * response size was ruled out because swatch generation returns a comparable
+ * image and works. All correct, and all irrelevant: the action never ran at
+ * all. It could not be loaded.
+ *
+ * It also explains the shape of the failure exactly — the page renders,
+ * everything else on the card works, and only this one action fails, every
+ * time, on every combination, regardless of photo or selection.
+ *
+ * NOTHING IS LOST BY REMOVING IT. RENDER_DISCLOSURE lives in
+ * lib/ai/visualise.ts and is exported from there. components/site/
+ * FinishVisualiser.tsx already imports it from that path, which is the correct
+ * one. This line was a convenience re-export with no consumer.
+ *
+ * BEFORE ADDING A CONSTANT TO ANY 'use server' FILE: it belongs in a plain
+ * module that the action imports. The boundary only carries functions.
+ */
