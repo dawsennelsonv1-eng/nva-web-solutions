@@ -3,7 +3,15 @@
 import { useState } from 'react';
 import { generateSwatchAction, type SwatchGenResult } from '@/app/actions/swatchGen';
 import { createFinishUploadAction, saveFinishMediaAction } from '@/app/actions/finishMedia';
-import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
+/**
+ * '@/lib/supabase/client' — NOT '@/lib/supabase/browser'.
+ *
+ * Phase 17 wrote the second path from memory while copying the upload
+ * sequence out of components/site/CombinationUploader.tsx, and the build died
+ * on 'Module not found'. The correct path is on line 124 of that file. When
+ * borrowing a sequence, borrow its imports verbatim.
+ */
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { EPOXY_GROUPS, swatchKeyFor } from '@/lib/verticals/epoxy/options';
 
 /**
