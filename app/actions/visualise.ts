@@ -209,9 +209,73 @@ async function resolveMaterials(
   }
 }
 
+/**
+ * ============================================================================
+ * THE OUTER GUARD. AN ACTION THAT "NEVER THROWS" NOW ACTUALLY CANNOT.
+ * ============================================================================
+ *
+ * Every comment in this file, and the whole design of VisualiseActionResult,
+ * rests on the promise that this function returns a failure OBJECT rather than
+ * raising. FinishVisualiser's `catch` exists only for the impossible case.
+ *
+ * That promise was never enforced, and the impossible case is what people have
+ * been seeing. "The preview could not be sent. Check your connection." is that
+ * catch firing, and it fires for anything at all that throws in here.
+ *
+ * WHAT IS ACTUALLY UNGUARDED, having read the path:
+ *
+ *   - `uploadFloorPhoto` in lib/ai/visualise.ts. A comment there states it
+ *     never throws and returns null on failure. That may well be true; it is
+ *     an ASSERTION IN A COMMENT about a file I have not read, and comments
+ *     drift from the code they describe.
+ *   - `checkBudget`, `recordAiJob` and `headers()`, none of which are wrapped
+ *     at their call sites.
+ *   - Anything Next itself raises while serialising the result.
+ *
+ * WHY A WRAPPER RATHER THAN HUNTING THE ONE BAD CALL. Two theories about this
+ * failure have already been wrong. The request body was ruled out because
+ * analyzePhotoAction sends three to five photographs through the same
+ * transport and works. The execution ceiling was ruled out because
+ * maxDuration is deployed on both routes and swatch generation — which
+ * performs the same image call — succeeds.
+ *
+ * Guessing a third time is worse than making the code report the answer. A
+ * throw from ANY of those now becomes a named failure that travels through the
+ * normal result type, reaches the ledger-free `failure` field, and is visible
+ * to the operator instead of being flattened into a sentence about the
+ * network. Whatever the cause turns out to be, the next screenshot names it.
+ *
+ * THIS DOES NOT HIDE THE BUG. It stops the bug being anonymous. The underlying
+ * throw still needs fixing once it has a name.
+ */
 export async function visualiseAction(
   args: VisualiseActionArgs
 ): Promise<VisualiseActionResult> {
+  try {
+    return await runVisualise(args);
+  } catch (e) {
+    const name = e instanceof Error ? e.name : 'Error';
+    const message = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      /**
+       * THE VISITOR IS TOLD THE TRUTH AND NOT BLAMED. The old copy sent him to
+       * check a connection that was never the problem. This says the fault is
+       * ours and that his quote survives, which is both true and the only
+       * thing he can act on.
+       */
+      message:
+        'The preview could not be produced. That is a fault on our side — your quote and your details are unaffected.',
+      failure: {
+        code: 'server_exception',
+        detail: name + ': ' + message,
+        attempts: [],
+      },
+    };
+  }
+}
+
+async function runVisualise(args: VisualiseActionArgs): Promise<VisualiseActionResult> {
   // ---- 1. per-IP rate limit, before anything is decoded ---------------------
   const ip = clientIpFromHeaders(headers());
   if (ip) {

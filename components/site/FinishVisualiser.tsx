@@ -114,7 +114,16 @@ type Phase =
    * same switch ToolCard uses for the measurement. A homeowner sees `message`
    * and nothing else, ever.
    */
-  | { k: 'failed'; message: string; diagnostic?: string[] };
+  | {
+      k: 'failed';
+      message: string;
+      diagnostic?: string[];
+      /**
+       * A fault in our own code, shown to everyone. See the render block for
+       * why this one is not gated behind ?debug=1.
+       */
+      serverFault?: string;
+    };
 
 export function FinishVisualiser({
   enabled,
@@ -249,6 +258,9 @@ export function FinishVisualiser({
                       (result.failure.detail ? ': ' + result.failure.detail : ''),
                     ...result.failure.attempts,
                   ],
+                  ...(result.failure.code === 'server_exception' && result.failure.detail
+                    ? { serverFault: result.failure.detail }
+                    : {}),
                 }
               : {}),
           });
@@ -294,6 +306,17 @@ export function FinishVisualiser({
           message:
             'The preview could not be sent. Check your connection — your quote and your details are unaffected.',
           diagnostic: ['client_exception: ' + detail],
+          /**
+           * ALSO SHOWN WITHOUT ?debug=1 NOW.
+           *
+           * With visualiseAction wrapped, a throw at THIS call site can no
+           * longer be a fault inside the action — it is the transport itself:
+           * the request never arrived, or the response never came back. That
+           * is a narrow and non-sensitive set of causes, and naming it is what
+           * separates "the server broke" from "the network broke" without
+           * anybody having to edit a URL on a phone.
+           */
+          serverFault: 'client_exception: ' + detail,
         });
         onSettled?.(false);
       }
@@ -339,9 +362,30 @@ export function FinishVisualiser({
           <button type="button" className="n15-btn n15-btn-ghost tc-render-go" onClick={run}>
             Try the preview again
           </button>
-          {/* OPERATOR ONLY — `?debug=1`. This is the list lib/ai/visualise.ts
-              assembles and writes to ai_jobs.request, surfaced so it can be
-              read on a phone on the live site without opening the database. */}
+          {/* ----------------------------------------------------------------
+              THE REASON, SHOWN WITHOUT `?debug=1`.
+
+              The diagnostic was operator-only because it names models,
+              providers and HTTP statuses — none of which a homeowner can use,
+              and some of which are competitive information.
+
+              A SERVER EXCEPTION IS DIFFERENT. It carries no model and no
+              vendor: it is the name and message of something that broke in our
+              own code. Nothing about "TypeError: x is not a function" tells a
+              competitor anything, and hiding it behind a query parameter is
+              what made this failure anonymous for days.
+
+              So the exception line shows to everyone. It is small, it sits
+              below plain-language copy that already explains the fault is
+              ours, and it is the difference between a bug that reports itself
+              and one that has to be guessed at from a phone.
+
+              Everything else — chain failures, rate limits, model names — is
+              still gated behind ?debug=1 exactly as before.
+             ---------------------------------------------------------------- */}
+          {phase.serverFault && (
+            <pre style={DIAG_STYLE}>{phase.serverFault}</pre>
+          )}
           {debug && phase.diagnostic && phase.diagnostic.length > 0 && (
             <pre style={DIAG_STYLE}>{phase.diagnostic.join('\n')}</pre>
           )}
