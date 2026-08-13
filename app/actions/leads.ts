@@ -198,12 +198,28 @@ export async function deleteLeadAction(id: string): Promise<{ ok: boolean; messa
 
   if (!before) return { ok: false, message: 'That lead is already gone.' };
 
+  /**
+   * NARROWED BY CHECKING, NOT BY CASTING. Do not "simplify" this back to
+   * `(before as { source?: unknown }).source ?? null`.
+   *
+   * That was the previous form and it is what broke the build. `unknown ?? null`
+   * is still `unknown`, and lead_deleted's properties are `string | null`, so
+   * the cast that was there to make the read safe was the exact thing making it
+   * untypeable. A `typeof` guard is the only form that both survives a column
+   * this file cannot see the type of AND produces a value the taxonomy accepts.
+   *
+   * The structural cast is kept because leads.source and leads.status arrive
+   * from a hand-written types/database.ts that stops at migration 0005; reading
+   * them through a narrow shape rather than the generated row type is the
+   * pattern already used elsewhere for post-0005 columns.
+   */
+  const beforeRow = before as { source?: unknown; status?: unknown };
+  const leadSource: string | null = typeof beforeRow.source === 'string' ? beforeRow.source : null;
+  const leadStatus: string | null = typeof beforeRow.status === 'string' ? beforeRow.status : null;
+
   trackServer(
     'lead_deleted',
-    {
-      lead_source: (before as { source?: unknown }).source ?? null,
-      lead_status: (before as { status?: unknown }).status ?? null,
-    },
+    { lead_source: leadSource, lead_status: leadStatus },
     { surface: 'admin', mode: 'live', prototypeId: null }
   );
 

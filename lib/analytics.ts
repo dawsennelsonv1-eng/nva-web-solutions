@@ -107,6 +107,29 @@ export interface EventPropsMap {
   brand_extraction_fell_back: { from_tier: number; to_tier: number; reason: string };
   lead_status_changed: { from_status: string; to_status: string };
   /**
+   * A lead ROW WAS DESTROYED. Phase 29.
+   *
+   * deleteLeadAction in app/actions/leads.ts is a HARD delete, so once it has
+   * run this event row is the only remaining evidence that the lead existed
+   * at all. That is what it is for.
+   *
+   * WHY THE PROPERTIES ARE SO THIN — and why nothing may be added to them.
+   * Rule 6 of this module forbids PII, and a deletion event is the single
+   * most tempting place in the taxonomy to break that rule: the argument
+   * "we are about to lose it forever, capture it first" is exactly how a
+   * name, an email and a phone number end up permanently in an analytics
+   * table that the delete was supposed to empty. A homeowner who is removed
+   * from the leads table must be removed, not relocated. Source and status
+   * answer the question this event exists to answer — what kind of lead was
+   * destroyed and how far it had got — and they identify nobody.
+   *
+   * TYPED AS string, NOT DbLeadSource/DbLeadStatus, to match
+   * lead_status_changed directly above. This module imports from '@/types'
+   * and deliberately keeps the taxonomy free of the database enums, so that
+   * a migration renaming a status is not also a change to analytics.
+   */
+  lead_deleted: { lead_source: string | null; lead_status: string | null };
+  /**
    * A contractor's RATES were changed. Phase 15.
    *
    * The highest-consequence write in the admin surface: every quote produced
@@ -245,4 +268,5 @@ export function track<E extends EventName>(
     /* rule 3: a failed emit is silent, always */
   }
 }
+
 
