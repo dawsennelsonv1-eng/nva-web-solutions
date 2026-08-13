@@ -125,8 +125,44 @@ export interface SwatchSubject {
   groupKey: string;
   label: string;
   renderHint: string;
-  hex: string;
+  /** Null for options that describe work or sheen rather than a colour. */
+  hex: string | null;
+  /**
+   * The catalogue's own sentence for the visitor — "Wet-look shine. The
+   * showroom finish."
+   *
+   * IT GOES IN THE PROMPT, and it is the cheapest quality win available here.
+   * `renderHint` was written as a terse noun phrase for an image model;
+   * `blurb` was written by a person explaining what the finish is LIKE. A
+   * model given both produces a better sample than one given either, and the
+   * catalogue already carries it for all 53 options, so it costs nothing to
+   * add and no entry has to be edited.
+   */
+  blurb: string;
 }
+
+/**
+ * ============================================================================
+ * THE BASE TILE FOR OPTIONS WITH NO COLOUR OF THEIR OWN.
+ * ============================================================================
+ *
+ * Phase 13 refused to generate anything without a `hex` and disabled those
+ * buttons. That was wrong, and the topcoat group is the proof: satin, high
+ * gloss, matte and polyaspartic clear are pure APPEARANCE — they are the most
+ * visual decision in the tool after the coating itself — and every one of them
+ * was locked out for the technicality of having no dominant colour.
+ *
+ * The reasoning was that a hexless option has no tile to anchor the model, so
+ * generation would drift. The premise was right and the conclusion was wrong:
+ * an option with no colour of its own still has a SURFACE, and what it needs
+ * is a neutral base to demonstrate that surface on.
+ *
+ * #9A9A97 is a mid-grey with a faint warm cast — cured concrete, and the
+ * substrate every one of these finishes is actually applied over. A sheen
+ * shown on neutral grey reads as sheen. On white it reads as blown-out; on
+ * black, as nothing at all.
+ */
+export const NEUTRAL_BASE_HEX = '#9A9A97';
 
 /**
  * The prompt, written as constraints rather than as a description.
@@ -147,19 +183,53 @@ export interface SwatchSubject {
  *   "even, diffuse light" — a hard highlight reads as a defect in a floor
  *                           finish, which is the opposite of the message.
  */
+/**
+ * WHAT EACH GROUP IS ACTUALLY SHOWING.
+ *
+ * A swatch of a flake blend and a swatch of a topcoat are photographs of
+ * different PROPERTIES — one is a pattern at a known scale, the other is how
+ * light behaves on a surface. A single generic instruction produces a
+ * plausible tile for the first and a meaningless grey square for the second.
+ *
+ * These clauses also matter beyond the swatch itself. The visualiser composes
+ * a finish from several of these decisions at once, and a topcoat with no
+ * description of how it REFLECTS gives the render nothing to apply — which is
+ * very likely part of why combination previews have looked reluctant.
+ */
+function groupGuidance(groupKey: string): string {
+  switch (groupKey) {
+    case 'flake_blend':
+    case 'quartz_colour':
+      return 'Show the individual chips at true scale — roughly one quarter inch across — broadcast densely and randomly, with the resin visible between them.';
+    case 'metallic_colour':
+      return 'Show the pigment movement, the cloudy veining and the sense of depth beneath the surface that makes a metallic pour look like poured stone rather than paint.';
+    case 'topcoat':
+      return [
+        'This sample is about SHEEN, not colour: the base grey is only a substrate to show the surface on.',
+        'Convey the finish by how light behaves across it — the sharpness or softness of the reflection, the depth of the wet look, the way a distant highlight smears or stays crisp.',
+        'The surface must read as a sealed, cured resin floor rather than as bare concrete.',
+      ].join(' ');
+    case 'prep':
+      return 'Show the CONDITION and texture of the prepared slab surface itself — the profile left behind by this preparation, before any coating goes down.';
+    case 'extras':
+      return 'Show this detail applied to a finished resin floor, close enough that the addition itself is the subject.';
+    default:
+      return 'Show the surface texture of a cured resin floor at close range.';
+  }
+}
+
 export function buildSwatchPrompt(s: SwatchSubject): string {
-  const scale =
-    s.groupKey === 'flake_blend' || s.groupKey === 'quartz_colour'
-      ? 'Show the individual chips at true scale — roughly one quarter inch across, so the mix reads clearly.'
-      : s.groupKey === 'metallic_colour'
-        ? 'Show the pigment movement and depth that makes a metallic pour look like poured stone.'
-        : 'Show the surface texture of a cured resin floor at close range.';
+  const colour = s.hex
+    ? `Keep the base colour of the supplied image (${s.hex.toUpperCase()}) — that exact colour is the finish being shown, and the sample must match it.`
+    : `The supplied image is a neutral grey substrate, not the subject. Do not preserve it as a colour choice: it is there to be finished. Keep it neutral and let the surface treatment be what changes.`;
 
   return [
     `A photographic close-up sample of a cured epoxy floor finish: ${s.renderHint}.`,
-    scale,
+    // The human sentence. See SwatchSubject.blurb.
+    s.blurb,
+    groupGuidance(s.groupKey),
     'Shot top-down, flat on, filling the entire frame edge to edge like a material sample in a supplier catalogue.',
-    `Keep the base colour of the supplied image (${s.hex.toUpperCase()}) — that exact colour is the finish being shown, and the sample must match it.`,
+    colour,
     'Even, diffuse studio light. No hard highlights, no reflections of windows or lights, no visible defects.',
     'No text, no labels, no watermarks, no ruler or scale bar, no hands, no tools, no walls, no horizon, no room.',
   ].join(' ');

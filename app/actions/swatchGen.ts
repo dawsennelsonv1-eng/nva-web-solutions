@@ -2,7 +2,7 @@
 
 import { requireAdmin } from '@/lib/auth/admin';
 import { renderFinishImage } from '@/lib/ai/images';
-import { buildSwatchPrompt, solidPngDataUrl } from '@/lib/ai/swatch';
+import { NEUTRAL_BASE_HEX, buildSwatchPrompt, solidPngDataUrl } from '@/lib/ai/swatch';
 import { EPOXY_GROUPS } from '@/lib/verticals/epoxy/options';
 
 /**
@@ -75,28 +75,28 @@ export async function generateSwatchAction(
   }
 
   /**
-   * `hex` IS OPTIONAL ON FinishOptionDef, and the typechecker caught me
-   * assuming otherwise.
+   * ==========================================================================
+   * EVERY OPTION CAN BE GENERATED NOW. PHASE 13 WAS WRONG ABOUT THIS.
+   * ==========================================================================
    *
-   * That is not a technicality. options.ts describes it as a fallback "where
-   * the option has one dominant colour" — and several genuinely do not. A
-   * flake blend is three colours by definition; the catalogue gives it a
-   * representative hex, but a group like `extras` or `prep` has options that
-   * are operations rather than appearances, and those have no colour at all.
+   * `hex` is optional on FinishOptionDef, and phase 13 read that as "this
+   * option has no appearance" and disabled the button. The topcoat group makes
+   * the error obvious: satin, high gloss, matte and polyaspartic clear are
+   * ENTIRELY appearance — sheen is the second most visible decision in the
+   * whole tool — and all four were locked out for having no dominant colour.
    *
-   * An option with no hex has no tile to hand the model, and without a tile
-   * this is a cold generation with nothing anchoring the result — exactly the
-   * thing the whole approach exists to avoid. So it is refused, by name,
-   * rather than generated badly.
+   * A colourless option gets the neutral concrete-grey substrate instead, and
+   * the prompt tells the model plainly that the grey is a surface to finish
+   * rather than a colour to preserve. See NEUTRAL_BASE_HEX in lib/ai/swatch.ts.
+   *
+   * This very likely matters beyond the swatches themselves. A finish the
+   * catalogue could not illustrate is a finish the visualiser has no reference
+   * for either — so a combination render was being asked to apply a topcoat
+   * whose appearance had never been described to it in pictures.
    */
-  if (!option.hex) {
-    return {
-      ok: false,
-      error: `${option.label} has no colour in the catalogue, so there is nothing to generate a sample from. Options like this describe work rather than an appearance.`,
-    };
-  }
+  const baseHex = option.hex ?? NEUTRAL_BASE_HEX;
 
-  const tile = solidPngDataUrl(option.hex);
+  const tile = solidPngDataUrl(baseHex);
   if (!tile) {
     // Reachable only if a catalogue entry has a malformed hex — worth saying
     // out loud, because the picker would be painting a broken colour too.
@@ -107,7 +107,10 @@ export async function generateSwatchAction(
     groupKey: group.key,
     label: option.label,
     renderHint: option.renderHint,
-    hex: option.hex,
+    // Null, not the substitute grey: the prompt has to know the difference
+    // between "match this colour" and "this grey is only a surface".
+    hex: option.hex ?? null,
+    blurb: option.blurb,
   });
 
   const result = await renderFinishImage({ prompt, referenceDataUrl: tile });

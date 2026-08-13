@@ -68,9 +68,11 @@ export function SwatchStudio() {
               return (
                 <div key={o.key} className="flex flex-wrap items-start gap-3 border-b py-3">
                   {/* What the picker paints today. */}
-                  {/* Options without a hex describe work, not an appearance —
-                      prep and extras. Shown as an outline so the row still
-                      lines up rather than collapsing. */}
+                  {/* Options with no colour of their own — the topcoats, prep,
+                      extras — show an outline here rather than a swatch,
+                      because there is no colour to show. They generate on a
+                      neutral substrate; the picture that comes back appears in
+                      the box to the right like any other. */}
                   <span
                     aria-hidden
                     style={o.hex ? { background: o.hex } : undefined}
@@ -121,7 +123,11 @@ export function SwatchStudio() {
                     <button
                       type="button"
                       onClick={() => run(g.key, o.key)}
-                      disabled={busy !== null || !o.hex}
+                      /* WAS `|| !o.hex`, which locked out all four topcoats
+                         and every prep and extra. See swatchGen.ts: a
+                         colourless option now generates on a neutral concrete
+                         substrate. Only the one-at-a-time rule remains. */
+                      disabled={busy !== null}
                       className="rounded border px-3 py-1.5 font-data text-xs uppercase tracking-wide disabled:opacity-40"
                     >
                       {running ? 'Generating…' : r?.ok ? 'Again' : 'Generate'}
