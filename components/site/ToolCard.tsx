@@ -457,6 +457,28 @@ export function ToolCard({
   /** Opens typed entry on arrival — set when measuring failed or was unsure. */
   const [entryOpen, setEntryOpen] = useState(false);
 
+  /**
+   * ==========================================================================
+   * ONE DECISION PER SCREEN.
+   * ==========================================================================
+   *
+   * The panel used to render the size, the whole picker, the price, the call
+   * to action, the contact form and the finished renders as one continuous
+   * column. On a phone that is five or six screens of scrolling with no sense
+   * of where you are in it, and it is why the finished result felt cramped —
+   * the most important thing the tool produces was arriving at the bottom of a
+   * page that had already asked for everything.
+   *
+   * SIZE, then FINISH, then the RESULT. Each gets the full height of the card,
+   * which is what makes it possible to design the last one properly at all.
+   *
+   * THE RESULT STEP IS NOT IN THIS UNION. It is `unlocked`, which is owned by
+   * the contact gate and cannot be reached by pressing Next — the visitor
+   * arrives there by giving his details, and a step you can walk into would
+   * make that gate decorative.
+   */
+  const [step, setStep] = useState<'size' | 'finish'>('size');
+
   const sessionId = useMemo(
     () => 'home-' + toolId + '-' + Math.random().toString(36).slice(2, 10),
     [toolId]
@@ -604,6 +626,35 @@ export function ToolCard({
     });
     return () => cancelAnimationFrame(id);
   }, [flow.k]);
+
+  /**
+   * THE SAME TREATMENT FOR A STEP CHANGE, and it matters more here than for a
+   * flow change.
+   *
+   * Pressing Next at the BOTTOM of the size step replaces the whole panel with
+   * the picker. Without this the browser holds its scroll offset and the
+   * person lands halfway down a grid of swatches, having never seen the
+   * heading that says what he is now choosing — which reads as the button
+   * having done something wrong.
+   *
+   * `firstStep` guards the initial mount: the panel appearing for the first
+   * time is already handled by the flow effect above, and running both would
+   * scroll twice.
+   */
+  const firstStep = useRef(true);
+  useEffect(() => {
+    if (firstStep.current) {
+      firstStep.current = false;
+      return;
+    }
+    const el = cardRef.current;
+    if (!el) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const id = requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [step]);
 
   // ---- gathering frames ----------------------------------------------------
 
@@ -798,6 +849,17 @@ export function ToolCard({
        */
       const usable =
         seed !== null && seed >= pricer.sqftMin && seed <= pricer.sqftMax ? seed : null;
+
+      /**
+       * A NEW MEASUREMENT ALWAYS RETURNS TO STEP ONE.
+       *
+       * Sending fresh photographs is a restart. Leaving the wizard on the
+       * finish step would show a newly measured floor size behind a picker,
+       * with the number that just changed sitting one screen out of sight —
+       * and the whole point of step one is that the size is stated to his face
+       * before anything is priced against it.
+       */
+      setStep('size');
 
       if (usable !== null && confident) {
         setSqft(usable);
@@ -1144,6 +1206,7 @@ export function ToolCard({
                         className="tc-link"
                         onClick={() => {
                           setEntryOpen(true);
+                          setStep('size');
                           setFlow({ k: 'ready', confident: false });
                         }}
                       >
@@ -1181,6 +1244,7 @@ export function ToolCard({
                       className="tc-link"
                       onClick={() => {
                         setEntryOpen(true);
+                        setStep('size');
                         setFlow({ k: 'ready', confident: false });
                       }}
                     >
@@ -1291,6 +1355,21 @@ export function ToolCard({
             {showPanel && (
               <div className="tc-panel">
                 {/* ------------------------------------------------------------
+                    WHERE YOU ARE. Two dots, not a progress bar with
+                    percentages: there are two decisions before the result and
+                    a person can hold two in his head. It disappears once the
+                    result is unlocked, because at that point there is nothing
+                    left to be partway through.
+                   ------------------------------------------------------------ */}
+                {!unlocked && (
+                  <p className="tc-eyebrow" aria-live="polite">
+                    {step === 'size' ? 'Step 1 of 2 · The floor' : 'Step 2 of 2 · The finish'}
+                  </p>
+                )}
+
+                {step === 'size' && !unlocked && (
+                  <>
+                {/* ------------------------------------------------------------
                     THE AREA, STATED RATHER THAN ASKED.
 
                     This block used to be a sentence, a "Not right?" link and a
@@ -1315,6 +1394,49 @@ export function ToolCard({
                     setEntryOpen(false);
                   }}
                 />
+
+                    {/* NEXT IS DISABLED UNTIL THERE IS A SIZE, and the reason
+                        is written beside it rather than left to be guessed
+                        from a grey button. `areaKnown` is the same condition
+                        the final call to action uses, so the two can never
+                        disagree about whether this floor has been measured. */}
+                    <div className="tc-actions" style={{ marginTop: '1.25rem' }}>
+                      <button
+                        type="button"
+                        className="n15-btn n15-btn-primary"
+                        disabled={!areaKnown}
+                        onClick={() => setStep('finish')}
+                      >
+                        Next — choose the finish
+                      </button>
+                    </div>
+                    {!areaKnown && (
+                      <p className="tc-up-note" style={{ marginTop: '0.5rem' }}>
+                        We need the size of the floor first.
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {step === 'finish' && !unlocked && (
+                  <>
+                    {/* THE SIZE STAYS ON SCREEN, in one line.
+
+                        Moving to a second step must not mean losing the answer
+                        from the first: a person choosing a finish is deciding
+                        what to spend, and the number that decides the spend is
+                        the square footage. It is also the way back — tapping
+                        it returns to step one, which is more discoverable than
+                        a separate Back button and says what it goes back TO. */}
+                    <button
+                      type="button"
+                      className="tc-link"
+                      onClick={() => setStep('size')}
+                      style={{ display: 'block', marginBottom: '1rem' }}
+                    >
+                      {sqft === null ? 'Set the floor size' : `${sqft.toLocaleString('en-US')} sq ft`}
+                      {' · change'}
+                    </button>
 
                 {/* ------------------------------------------------------------
                     THE PICKER REPLACED THREE CHIPS.
@@ -1372,7 +1494,12 @@ export function ToolCard({
                     </button>
                   </div>
                 )}
+                  </>
+                )}
 
+                {/* The gate and the result sit OUTSIDE the two steps. Once the
+                    details are given, the wizard is finished and the card
+                    belongs entirely to what he came for. */}
                 {gateOpen && !unlocked && (
                   <ContactGate
                     headline="Where should we send it?"
