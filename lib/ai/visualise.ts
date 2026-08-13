@@ -181,6 +181,41 @@ function buildPrompt(args: VisualiseArgs): string {
     'Do not add furniture, people, text or reflections that were not there.',
     'The coating should look evenly applied and ordinary, as a real installed floor looks',
     'in this exact lighting — not idealised, not a showroom, not a catalogue photograph.',
+
+    /**
+     * ======================================================================
+     * THE REALISM CLAUSES. EACH ONE IS A FLAW OBSERVED IN AN ACTUAL RENDER.
+     * ======================================================================
+     *
+     * The first working render of a Port-au-Prince courtyard came back
+     * convincing at a glance and wrong in two specific, repeatable ways, both
+     * of which a contractor would notice immediately and neither of which the
+     * prompt above forbids.
+     *
+     * 1. A BLOWN-OUT WHITE HIGHLIGHT IN THE MIDDLE OF THE FLOOR, with no
+     *    light source anywhere in frame to justify it. It reads as spilled
+     *    paint rather than as a reflection. Image models add a hero highlight
+     *    to glossy surfaces because that is how glossy surfaces are usually
+     *    PHOTOGRAPHED — in a studio, lit deliberately. A courtyard at dusk has
+     *    no such light, so the highlight is an object that does not exist.
+     *
+     * 2. THE FAR EDGE FADED TO NEAR-WHITE, which looks like an unfinished
+     *    pour — the single most alarming thing a coating can look like to
+     *    somebody about to pay for one.
+     *
+     * A gloss finish reflects what is ACTUALLY THERE. That is the instruction:
+     * not "less shiny", which would flatten the wet look that makes high gloss
+     * worth paying for, but "reflect the real room". A floor mirroring the
+     * doorway that is genuinely in the photograph looks more expensive than
+     * one carrying an invented highlight, and it is also true.
+     */
+    'Any shine must reflect only what is actually visible in the photograph — the doorway, the walls, the sky, the objects already present.',
+    'Do not add a bright highlight, a glare spot, a light bloom or a sun flare. If no light source appears in the photograph, none may appear on the floor.',
+    'Carry the finish right to the edges of the slab at full strength. Do not fade, lighten, blur or wash out the far edge or the corners — a pale edge reads as an unfinished pour.',
+    'Keep the coating continuous and consistent across the whole floor: the same colour, the same density of pattern and the same gloss at the front as at the back, allowing only for the room\'s own natural falloff in light.',
+    'Match the photograph\'s own exposure, white balance, colour temperature and grain. The result must look like the same camera took it at the same moment, not like a rendering composited into a snapshot.',
+    'Keep the existing shadows: anything that cast a shadow on the old floor casts the same shadow on the new one, in the same place and the same softness.',
+
     'Return only the edited photograph.'
   );
 
