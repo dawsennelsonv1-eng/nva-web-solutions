@@ -311,7 +311,35 @@ export function FinishVisualiser({
          * pretends otherwise, and the real error is captured for `?debug=1`
          * instead of being swallowed.
          */
-        const detail = e instanceof Error ? e.name + ': ' + e.message : String(e);
+        /**
+         * ==================================================================
+         * THE DIGEST. WITHOUT IT THIS ERROR IS UNSOLVABLE FROM A PHONE.
+         * ==================================================================
+         *
+         * "An error occurred in the Server Components render. The specific
+         * message is omitted in production builds to avoid leaking sensitive
+         * details." is Next redacting a server-side throw on purpose, and it
+         * is correct to do so — a raw stack in a homeowner's browser could
+         * carry a connection string.
+         *
+         * What Next leaves behind is a `digest`: a short hash it ALSO writes
+         * next to the unredacted error in the server log. That pair is the
+         * only bridge between what a person can see on their screen and what
+         * actually threw. Reading `e.message` alone, as this did, throws the
+         * bridge away and leaves a paragraph explaining that the real message
+         * exists somewhere else.
+         *
+         * It is not on the Error type, because it is Next's addition rather
+         * than the platform's — hence the narrow structural read rather than a
+         * cast to any.
+         */
+        const digest =
+          typeof e === 'object' && e !== null && 'digest' in e
+            ? String((e as { digest?: unknown }).digest ?? '')
+            : '';
+        const detail =
+          (e instanceof Error ? e.name + ': ' + e.message : String(e)) +
+          (digest ? ' [digest ' + digest + ']' : '');
         const f = explainRenderFault('client_exception', detail);
         setPhase({
           k: 'failed',

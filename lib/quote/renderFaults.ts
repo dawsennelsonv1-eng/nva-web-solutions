@@ -107,6 +107,36 @@ const RULES: readonly Rule[] = [
     },
   },
   {
+    /**
+     * NEXT'S PRODUCTION REDACTION. The most important rule in this table,
+     * because it is the one that tells somebody where the answer actually is.
+     *
+     * This message means a Server Action threw on the SERVER and Next replaced
+     * the real error with a placeholder before it reached the browser. That is
+     * deliberate and right — an unredacted stack in a homeowner's browser
+     * could carry a connection string.
+     *
+     * The `digest` is the bridge. Next writes the same hash beside the real,
+     * unredacted error in the server log, so the digest turns an unreadable
+     * screen into one log search.
+     *
+     * IT SITS ABOVE THE server_exception RULE ON PURPOSE. Both can match the
+     * same text, and this one is more specific: server_exception means our own
+     * wrapper caught it and we already have the message, while this means the
+     * throw escaped the wrapper entirely and the message is only in the log.
+     */
+    match: /Server Components render|omitted in production|digest/i,
+    fault: {
+      headline:
+        'The preview could not be produced. That is a fault on our side — your quote and your details are unaffected.',
+      cause:
+        'A Server Action threw on the server and Next redacted the message before sending it to the browser. Because visualiseAction is wrapped in its own try/catch, the throw did NOT come from inside the action body — it escaped it. That points at module-level evaluation of app/actions/visualise.ts or one of its imports, or at serialising the result.',
+      action:
+        'Open Vercel → the deployment → Runtime Logs, and search for the digest printed below. The unredacted error and its stack are logged there against that exact hash.',
+      retryable: false,
+    },
+  },
+  {
     match: /server_exception/i,
     fault: {
       headline:
