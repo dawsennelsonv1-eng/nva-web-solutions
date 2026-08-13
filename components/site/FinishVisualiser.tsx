@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { explainRenderFault } from '@/lib/quote/renderFaults';
 import { visualiseAction } from '@/app/actions/visualise';
 
 /**
@@ -119,10 +120,17 @@ type Phase =
       message: string;
       diagnostic?: string[];
       /**
-       * A fault in our own code, shown to everyone. See the render block for
-       * why this one is not gated behind ?debug=1.
+       * What went wrong, in words. From lib/quote/renderFaults.ts, which turns
+       * a code and an exception string into a headline, a cause and an action.
+       *
+       * `cause` and `action` are written for the operator and shown to
+       * everyone: they name our own components, never a model or a vendor. The
+       * alternative is what this feature has been doing for days — failing
+       * anonymously and forcing the cause to be guessed at from a phone.
        */
-      serverFault?: string;
+      cause?: string;
+      action?: string;
+      raw?: string;
     };
 
 export function FinishVisualiser({
@@ -248,22 +256,25 @@ export function FinishVisualiser({
           ...(selections ? { selections } : {}),
         });
         if (!result.ok) {
-          setPhase({
-            k: 'failed',
-            message: result.message,
-            ...(result.failure
-              ? {
-                  diagnostic: [
-                    result.failure.code +
-                      (result.failure.detail ? ': ' + result.failure.detail : ''),
-                    ...result.failure.attempts,
-                  ],
-                  ...(result.failure.code === 'server_exception' && result.failure.detail
-                    ? { serverFault: result.failure.detail }
-                    : {}),
-                }
-              : {}),
-          });
+          if (result.failure) {
+            const f = explainRenderFault(result.failure.code, result.failure.detail);
+            setPhase({
+              k: 'failed',
+              // The table's headline replaces the action's own sentence: it is
+              // written per-cause, where `message` has to cover everything.
+              message: f.headline,
+              cause: f.cause,
+              action: f.action,
+              raw: result.failure.code + (result.failure.detail ? ': ' + result.failure.detail : ''),
+              diagnostic: [
+                result.failure.code +
+                  (result.failure.detail ? ': ' + result.failure.detail : ''),
+                ...result.failure.attempts,
+              ],
+            });
+          } else {
+            setPhase({ k: 'failed', message: result.message });
+          }
           onSettled?.(false);
           return;
         }
@@ -301,10 +312,13 @@ export function FinishVisualiser({
          * instead of being swallowed.
          */
         const detail = e instanceof Error ? e.name + ': ' + e.message : String(e);
+        const f = explainRenderFault('client_exception', detail);
         setPhase({
           k: 'failed',
-          message:
-            'The preview could not be sent. Check your connection — your quote and your details are unaffected.',
+          message: f.headline,
+          cause: f.cause,
+          action: f.action,
+          raw: 'client_exception: ' + detail,
           diagnostic: ['client_exception: ' + detail],
           /**
            * ALSO SHOWN WITHOUT ?debug=1 NOW.
@@ -316,7 +330,6 @@ export function FinishVisualiser({
            * separates "the server broke" from "the network broke" without
            * anybody having to edit a URL on a phone.
            */
-          serverFault: 'client_exception: ' + detail,
         });
         onSettled?.(false);
       }
@@ -383,8 +396,19 @@ export function FinishVisualiser({
               Everything else — chain failures, rate limits, model names — is
               still gated behind ?debug=1 exactly as before.
              ---------------------------------------------------------------- */}
-          {phase.serverFault && (
-            <pre style={DIAG_STYLE}>{phase.serverFault}</pre>
+          {/* THE EXPLANATION, SHOWN TO EVERYONE.
+
+              `cause` and `action` name our own components and nothing else —
+              no model, no vendor, no key. A visitor will not read them and
+              loses nothing; the operator reads them on his phone, on the live
+              site, and knows what broke without a query parameter, a database
+              or a laptop. That is the whole point of this phase. */}
+          {phase.cause && (
+            <pre style={DIAG_STYLE}>
+              {phase.cause}
+              {phase.action ? '\n\n→ ' + phase.action : ''}
+              {phase.raw ? '\n\n' + phase.raw : ''}
+            </pre>
           )}
           {debug && phase.diagnostic && phase.diagnostic.length > 0 && (
             <pre style={DIAG_STYLE}>{phase.diagnostic.join('\n')}</pre>
