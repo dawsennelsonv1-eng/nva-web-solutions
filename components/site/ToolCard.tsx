@@ -1416,7 +1416,11 @@ export function ToolCard({
                            thing that turns it. */
                         key={renderNonce}
                         enabled={renderEnabled}
-                        photo={photo}
+                        // The WHOLE set. He was asked for three to five and the
+                        // measurement read all of them; showing him one
+                        // finished floor made the tool look as though it had
+                        // only used one.
+                        photos={photos}
                         finishLabel={selectedFinish?.label ?? 'the finish'}
                         finishDescription={renderDescription(selections)}
                         selections={selections}

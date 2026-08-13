@@ -37,6 +37,23 @@ import { visualiseAction } from '@/app/actions/visualise';
  * app/layout.tsx for four lines of debugging text. It is not part of the
  * design, so it does not go in the design system.
  */
+/**
+ * "metallic-pour-midnight-blue-high-gloss-2.webp".
+ *
+ * Lowercased, punctuation stripped, spaces to hyphens — a filename that
+ * survives being emailed, put on a USB stick and opened on a Windows machine
+ * belonging to whoever is quoting against you.
+ */
+function fileNameFor(finishLabel: string, index: number): string {
+  const slug =
+    finishLabel
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'floor-preview';
+  return `${slug}-${index}.webp`;
+}
+
 const DIAG_STYLE: CSSProperties = {
   marginTop: '0.75rem',
   padding: '0.6rem 0.7rem',
@@ -58,7 +75,24 @@ export interface PreparedPhoto {
 
 export interface FinishVisualiserProps {
   enabled: boolean;
-  photo: PreparedPhoto;
+  /**
+   * ==========================================================================
+   * EVERY PHOTOGRAPH HE SENT, NOT JUST THE FIRST.
+   * ==========================================================================
+   *
+   * This was `photo: PreparedPhoto`, and ToolCard passed `photos[0]`. The
+   * visitor is asked for THREE TO FIVE pictures — "one from each corner" — the
+   * measurement reads all of them, and then he was shown one floor.
+   *
+   * From his side that reads as the tool only using one, which quietly
+   * undercuts the instruction that got him to take five. From the contractor's
+   * side it wastes the strongest thing this feature produces: a corner shot
+   * and a wide shot of the same finished floor is a far better argument than
+   * either alone.
+   *
+   * `photos` is the whole prepared set, in the order he chose them.
+   */
+  photos: PreparedPhoto[];
   finishLabel: string;
   surfaceLabel: string;
   sessionId: string;
@@ -105,10 +139,23 @@ export interface FinishVisualiserProps {
   selections?: Record<string, string | string[] | undefined>;
 }
 
+/**
+ * One rendered photograph: the original the visitor sent, and the same floor
+ * with the finish applied.
+ *
+ * Kept as a PAIR rather than two parallel arrays so a before and its after can
+ * never drift out of step — which, with renders arriving one at a time and
+ * some of them failing, is a real risk rather than a theoretical one.
+ */
+interface Shot {
+  beforeUrl: string;
+  afterUrl: string;
+}
+
 type Phase =
   | { k: 'idle' }
-  | { k: 'rendering' }
-  | { k: 'done'; afterUrl: string; disclosure: string }
+  | { k: 'rendering'; doneCount: number; total: number }
+  | { k: 'done'; shots: Shot[]; disclosure: string }
   /**
    * `diagnostic` is the operator's copy: the failure code and every model the
    * chain tried, with what each one said. Printed ONLY under `?debug=1`, the
@@ -135,7 +182,7 @@ type Phase =
 
 export function FinishVisualiser({
   enabled,
-  photo,
+  photos,
   finishLabel,
   surfaceLabel,
   sessionId,
@@ -236,13 +283,36 @@ export function FinishVisualiser({
   }
 
   const run = () => {
-    setPhase({ k: 'rendering' });
+    setPhase({ k: 'rendering', doneCount: 0, total: photos.length });
     renderedFor.current = finishLabel;
     void (async () => {
+      /**
+       * ====================================================================
+       * ONE AT A TIME, AND A FAILURE DOES NOT SINK THE SET.
+       * ====================================================================
+       *
+       * SEQUENTIAL because five renders fired at once would hit the per-IP
+       * rate limit designed to stop exactly that, and because the daily spend
+       * ceiling should be able to stop a run partway rather than discovering
+       * afterwards that five requests were already in flight.
+       *
+       * PARTIAL SUCCESS IS SUCCESS. If the third photograph fails and the
+       * other four render, the visitor sees four finished floors. Discarding
+       * them because one of five did not come back would be the worse trade by
+       * a wide margin — and it is what the previous single-photo shape did by
+       * construction, since one failure was total failure.
+       *
+       * The loop only gives up entirely when NOTHING renders.
+       */
+      const shots: Shot[] = [];
+      let disclosure = '';
+      let lastFailure: { code: string; detail: string | null; attempts: string[] } | null = null;
+
       try {
-        const result = await visualiseAction({
-          photoBase64: photo.base64,
-          photoMediaType: photo.mediaType,
+        for (const source of photos) {
+          const result = await visualiseAction({
+            photoBase64: source.base64,
+            photoMediaType: source.mediaType,
           // The picker's full description when there is one, so the model is
           // told "metallic epoxy floor with swirling copper and bronze
           // pigment, high gloss" rather than just "Metallic pour".
@@ -250,12 +320,37 @@ export function FinishVisualiser({
             finishDescription && finishDescription.trim().length > 0
               ? finishDescription
               : finishLabel,
-          surfaceLabel,
-          sessionId,
-          prototypeId: null,
-          ...(selections ? { selections } : {}),
-        });
-        if (!result.ok) {
+            surfaceLabel,
+            sessionId,
+            prototypeId: null,
+            ...(selections ? { selections } : {}),
+          });
+
+          if (!result.ok) {
+            // Remember why, and carry on to the next photograph.
+            lastFailure = result.failure ?? {
+              code: 'unknown',
+              detail: result.message,
+              attempts: [],
+            };
+            continue;
+          }
+
+          shots.push({ beforeUrl: source.previewUrl, afterUrl: result.dataUrl });
+          disclosure = result.disclosure;
+          if (shots.length === 1) onRendered?.(result.storagePath);
+          setPhase({ k: 'rendering', doneCount: shots.length, total: photos.length });
+        }
+
+        if (shots.length > 0) {
+          setPhase({ k: 'done', shots, disclosure });
+          onSettled?.(true);
+          return;
+        }
+
+        // Nothing rendered. Report the last real reason rather than a shrug.
+        {
+          const result = { ok: false as const, failure: lastFailure, message: '' };
           if (result.failure) {
             const f = explainRenderFault(result.failure.code, result.failure.detail);
             setPhase({
@@ -273,14 +368,15 @@ export function FinishVisualiser({
               ],
             });
           } else {
-            setPhase({ k: 'failed', message: result.message });
+            setPhase({
+              k: 'failed',
+              message:
+                'The preview could not be produced. Your quote and your details are unaffected.',
+            });
           }
-          onSettled?.(false);
-          return;
         }
-        setPhase({ k: 'done', afterUrl: result.dataUrl, disclosure: result.disclosure });
-        onRendered?.(result.storagePath);
-        onSettled?.(true);
+        onSettled?.(false);
+        return;
       } catch (e) {
         /**
          * ==================================================================
@@ -376,13 +472,23 @@ export function FinishVisualiser({
           <button type="button" className="n15-btn n15-btn-ghost tc-render-go" onClick={run}>
             Show me this on my floor
           </button>
-          <p className="tc-up-note">Uses the photo you already sent. About thirty seconds.</p>
+          <p className="tc-up-note">
+            Uses the {photos.length > 1 ? `${photos.length} photos` : 'photo'} you already
+            sent. About thirty seconds each.
+          </p>
         </>
       )}
 
       {phase.k === 'rendering' && (
         <p className="tc-up-stage" aria-live="polite">
-          Putting {finishLabel.toLowerCase()} on your floor. About thirty seconds.
+          {/* PROGRESS, NOT A FIXED PROMISE. With five photographs this runs for
+              two or three minutes, and "about thirty seconds" said over and
+              over while nothing changes is how a working process comes to look
+              like a stuck one. A count that moves is the reassurance. */}
+          Putting {finishLabel.toLowerCase()} on your floor
+          {phase.total > 1
+            ? ` — ${phase.doneCount} of ${phase.total} done.`
+            : '. About thirty seconds.'}
         </p>
       )}
 
@@ -446,19 +552,80 @@ export function FinishVisualiser({
 
       {phase.k === 'done' && (
         <>
-          <div className="tc-up-shots">
-            <figure className="tc-shot">
-              {/* Plain <img>: a blob: URL and a data: URL, neither of which
-                  next/image can optimise. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo.previewUrl} alt="The floor as you photographed it" />
-              <figcaption className="tc-shot-cap">Your photo</figcaption>
-            </figure>
-            <figure className="tc-shot">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={phase.afterUrl} alt={'The same floor with ' + finishLabel + ' applied'} />
-              <figcaption className="tc-shot-cap">{finishLabel}</figcaption>
-            </figure>
+          {/* ----------------------------------------------------------------
+              EVERY PHOTOGRAPH HE SENT, EACH BESIDE ITS OWN BEFORE.
+
+              Pairs rather than one gallery of afters: the whole persuasive
+              force of this feature is the COMPARISON, and an after on its own
+              is just a picture of a nice floor that could have come from
+              anywhere. Side by side, it is unmistakably his floor.
+             ---------------------------------------------------------------- */}
+          {phase.shots.map((shot, i) => (
+            <div className="tc-up-shots" key={shot.afterUrl.slice(-32) + i}>
+              <figure className="tc-shot">
+                {/* Plain <img>: a blob: URL and a data: URL, neither of which
+                    next/image can optimise. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={shot.beforeUrl} alt="The floor as you photographed it" />
+                <figcaption className="tc-shot-cap">
+                  Your photo{phase.shots.length > 1 ? ` ${i + 1}` : ''}
+                </figcaption>
+              </figure>
+              <figure className="tc-shot">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={shot.afterUrl} alt={'The same floor with ' + finishLabel + ' applied'} />
+                <figcaption className="tc-shot-cap">{finishLabel}</figcaption>
+              </figure>
+            </div>
+          ))}
+
+          {/* ----------------------------------------------------------------
+              DOWNLOAD.
+
+              These are data: URLs already in the page, so `download` on an
+              anchor saves them with no round trip and no server involvement.
+
+              THE FILES ARE NAMED FOR THE FINISH, not "download(1).webp". A
+              person who saves five pictures to show a partner or another
+              installer needs to know six weeks later what he was looking at,
+              and the finish label is the only thing that answers that.
+
+              "Save all" clicks each anchor with a gap between them. Browsers
+              throttle rapid successive downloads and some block the second
+              silently; a short delay is what makes a multi-file save actually
+              deliver every file.
+             ---------------------------------------------------------------- */}
+          <div className="tc-actions" style={{ marginTop: '0.9rem' }}>
+            {phase.shots.length > 1 && (
+              <button
+                type="button"
+                className="n15-btn n15-btn-ghost"
+                onClick={() => {
+                  phase.shots.forEach((shot, i) => {
+                    setTimeout(() => {
+                      const a = document.createElement('a');
+                      a.href = shot.afterUrl;
+                      a.download = fileNameFor(finishLabel, i + 1);
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                    }, i * 400);
+                  });
+                }}
+              >
+                Save all {phase.shots.length}
+              </button>
+            )}
+            {phase.shots.map((shot, i) => (
+              <a
+                key={'dl' + i}
+                className="n15-btn n15-btn-ghost"
+                href={shot.afterUrl}
+                download={fileNameFor(finishLabel, i + 1)}
+              >
+                Save{phase.shots.length > 1 ? ` ${i + 1}` : ''}
+              </a>
+            ))}
           </div>
           {/* Printed verbatim, beside the image. A render that reaches a screen
               without it is the one failure this feature was built to avoid. */}
