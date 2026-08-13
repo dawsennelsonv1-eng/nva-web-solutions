@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { generateSwatchAction, type SwatchGenResult } from '@/app/actions/swatchGen';
-import { EPOXY_GROUPS } from '@/lib/verticals/epoxy/options';
+import { createFinishUploadAction, saveFinishMediaAction } from '@/app/actions/finishMedia';
+import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
+import { EPOXY_GROUPS, swatchKeyFor } from '@/lib/verticals/epoxy/options';
 
 /**
  * components/admin/SwatchStudio.tsx — generate the 53 finish swatches.
@@ -24,6 +26,85 @@ import { EPOXY_GROUPS } from '@/lib/verticals/epoxy/options';
 export function SwatchStudio() {
   const [busy, setBusy] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, SwatchGenResult>>({});
+  /** Per-row status line for the save half of the job. */
+  const [saved, setSaved] = useState<Record<string, string>>({});
+
+  /**
+   * ==========================================================================
+   * SAVE NOW MEANS SAVE. IT USED TO MEAN DOWNLOAD.
+   * ==========================================================================
+   *
+   * Phase 13 shipped a download link, because lib/finishes/media.ts and
+   * lib/storage/toolMedia.ts had not been read and inventing a storage path
+   * would have produced code that compiled and failed on deploy. The operator
+   * downloaded 53 pictures and re-uploaded them one at a time on another
+   * screen.
+   *
+   * This is the same three-step sequence CombinationUploader already performs,
+   * followed exactly rather than reinvented:
+   *
+   *   1. createFinishUploadAction mints a one-shot signed upload.
+   *   2. The BROWSER puts the file into the 'tool-media' bucket. Not the
+   *      server: a server action body is capped and base64 inflates by a
+   *      third, which is precisely why that action hands back a URL instead of
+   *      accepting the file.
+   *   3. saveFinishMediaAction writes the row, upserting on
+   *      (vertical, kind, media_key) — so regenerating a swatch REPLACES it
+   *      rather than leaving two pictures competing on sort order.
+   *
+   * The data URL has to become a real File first. `fetch` on a data: URL is
+   * the shortest correct way to get a Blob out of one — it is a same-document
+   * read with no network involved, and it handles the base64 decode without a
+   * hand-rolled atob loop that would have to get the binary string right.
+   */
+  const save = async (groupKey: string, optionKey: string, label: string) => {
+    const id = groupKey + '|' + optionKey;
+    const dataUrl = results[id]?.dataUrl;
+    if (!dataUrl) return;
+
+    setBusy(id);
+    setSaved((p) => ({ ...p, [id]: 'Saving…' }));
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const contentType = blob.type || 'image/png';
+      const file = new File([blob], `swatch-${groupKey}-${optionKey}.png`, { type: contentType });
+
+      const signed = await createFinishUploadAction({ contentType });
+      if (!signed.ok) {
+        setSaved((p) => ({ ...p, [id]: signed.message }));
+        return;
+      }
+
+      const supabase = getSupabaseBrowserClient();
+      const { error } = await supabase.storage
+        .from('tool-media')
+        .uploadToSignedUrl(signed.path, signed.token, file);
+      if (error) {
+        setSaved((p) => ({ ...p, [id]: 'Upload refused: ' + error.message }));
+        return;
+      }
+
+      const res = await saveFinishMediaAction({
+        vertical: 'epoxy',
+        kind: 'swatch',
+        // The picker looks the swatch up by exactly this key. Imported rather
+        // than rebuilt inline so the two can never drift apart.
+        mediaKey: swatchKeyFor(groupKey, optionKey),
+        src: signed.publicUrl,
+        alt: label,
+        caption: '',
+        sortOrder: 0,
+      });
+      setSaved((p) => ({ ...p, [id]: res.ok ? 'Live in the picker.' : res.message }));
+    } catch (e) {
+      setSaved((p) => ({
+        ...p,
+        [id]: 'Could not save: ' + (e instanceof Error ? e.message : String(e)),
+      }));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const run = async (groupKey: string, optionKey: string) => {
     const id = groupKey + '|' + optionKey;
@@ -109,6 +190,11 @@ export function SwatchStudio() {
                         )}
                       </p>
                     )}
+                    {saved[id] && (
+                      <p className="mt-1 font-data text-xs" role="status">
+                        {saved[id]}
+                      </p>
+                    )}
                     {r?.ok && (
                       <p className="mt-1 font-data text-xs text-rule">
                         {r.model}
@@ -133,16 +219,27 @@ export function SwatchStudio() {
                       {running ? 'Generating…' : r?.ok ? 'Again' : 'Generate'}
                     </button>
                     {r?.ok && r.dataUrl && (
-                      /* `download` on a data: URL saves without a round trip.
-                         The filename matches swatchKeyFor's convention so the
-                         upload screen's expectations are obvious. */
-                      <a
-                        href={r.dataUrl}
-                        download={`swatch-${g.key}-${o.key}.png`}
-                        className="rounded border px-3 py-1.5 text-center font-data text-xs uppercase tracking-wide"
-                      >
-                        Save
-                      </a>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void save(g.key, o.key, o.label)}
+                          disabled={busy !== null}
+                          className="rounded border px-3 py-1.5 font-data text-xs uppercase tracking-wide disabled:opacity-40"
+                        >
+                          Use it
+                        </button>
+                        {/* The download stays. A generated picture worth
+                            keeping outside the product — for a thumbnail, an
+                            advert, a supplier conversation — should not have
+                            to be screenshotted out of an admin page. */}
+                        <a
+                          href={r.dataUrl}
+                          download={`swatch-${g.key}-${o.key}.png`}
+                          className="rounded border px-3 py-1.5 text-center font-data text-xs uppercase tracking-wide"
+                        >
+                          Download
+                        </a>
+                      </>
                     )}
                   </div>
                 </div>
