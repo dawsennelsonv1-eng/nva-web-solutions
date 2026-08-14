@@ -17,6 +17,26 @@ import { toolPageIds } from '@/lib/tools/catalogue';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * PHASE 38 ADDED IMAGE GENERATION TO THIS SCREEN, SO IT NEEDS THE CEILING.
+ *
+ * Every slot row can now call `generateToolMediaAction`, which runs an image
+ * model for 30-90 seconds. Vercel's default function ceiling is well under
+ * that, and the failure is a bad one to debug: the request is killed by the
+ * platform, so the browser sees a network error rather than anything the
+ * action returned, and the panel can only report that the request did not
+ * complete. Nothing in the logs names a timeout.
+ *
+ * 300 matches every other screen that generates a picture — /admin/swatches,
+ * /admin/combinations and /admin/tool-pictures all carry the same line for the
+ * same reason. This screen was the only generator without it.
+ *
+ * It is a CEILING, not a budget: a page that does two database reads still
+ * returns in milliseconds. It only matters when something legitimately runs
+ * long, which is now the case here.
+ */
+export const maxDuration = 300;
+
 export default async function MediaAdminPage() {
   const tools = await Promise.all(
     toolPageIds().map(async (id) => ({ id, slots: await mediaForToolInEditOrder(id) }))
@@ -44,3 +64,4 @@ export default async function MediaAdminPage() {
     </div>
   );
 }
+
