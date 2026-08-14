@@ -1020,7 +1020,42 @@ export function ToolCard({
       setGateOpen(false);
       return null;
     },
-    [pricer, computation, sessionId, photos.length, photoPath]
+    /**
+     * ========================================================================
+     * `selections` IS IN THIS ARRAY AND MUST STAY IN IT. PHASE 36.
+     * ========================================================================
+     *
+     * THIS EXACT DEPENDENCY WAS ADDED ONCE BEFORE AND WAS LOST AGAIN. It is
+     * recorded in the defect list of the previous handoff — "submitGate was
+     * missing `selections` from its dependency array" — and the build has been
+     * printing `react-hooks/exhaustive-deps` about this callback ever since it
+     * came back. A warning is not a build failure, so it deployed green every
+     * time and was wrong silently, which is the reason it survived.
+     *
+     * WHY IT IS NOT A COSMETIC LINT FIX. The body reads `selections` twice, at
+     * `finishSelections` and at `finishSummary` — the two fields that are the
+     * entire record of what the customer chose. Without the dependency the
+     * callback is only rebuilt when one of the other five changes, and of
+     * those only `computation` moves with the picker. `computation` depends on
+     * `tierKey`; `tierKey` is set by the effect below, which watches
+     * `selections.system` alone.
+     *
+     * So the chain rebuilt this callback when the COATING changed and at no
+     * other time. Change the flake blend from Domino to Sedona, change the
+     * topcoat from gloss to matte, submit — and the lead carried whatever was
+     * chosen when the system was last touched. The visitor sees the floor he
+     * built; the contractor is emailed a different one, and nobody finds out
+     * until install day, which is the exact failure this codebase refuses
+     * everywhere else.
+     *
+     * The cost of the fix is that a new closure is allocated on every tap in
+     * the picker. That is nothing — it is not passed to a memoised child and
+     * nothing downstream compares it by identity.
+     *
+     * If a future change makes this array shorter than the values the body
+     * reads, the same defect returns in the same place. Leave it exhaustive.
+     */
+    [pricer, computation, sessionId, photos.length, photoPath, selections]
   );
 
   /**
@@ -1775,3 +1810,4 @@ export function ToolCard({
  * imports, and an unused component is a thing a future reader has to work out
  * is dead before they can safely change anything near it.
  */
+
