@@ -127,70 +127,39 @@ export async function recordAiJob(rec: AiJobRecord): Promise<string | null> {
 }
 
 /**
- * The Phase 3 shape: exactly the nine columns vision.ts has always written,
- * and nothing else. Kept as its own function so the vision ledger rows after
- * this phase are indistinguishable from the ones before it.
- */
-/**
- * DEPRECATED AS OF PHASE 8. NOTHING CALLS THIS.
+ * ============================================================================
+ * `recordVisionJob` WAS REMOVED IN PHASE 37. DO NOT PUT IT BACK.
+ * ============================================================================
  *
- * lib/quote/vision.ts was its only caller and now relies on the router's own
- * ledger row, which is strictly richer — it carries fellBackFrom, the full
- * attempt log, the duration and the parsed output.
+ * It was the Phase 3 vision writer: nine columns, hardcoded to
+ * provider 'anthropic'. Phase 8 deprecated it, and it was kept only because
+ * deleting an export on the strength of an incomplete grep is how a build
+ * breaks on deploy rather than in a typechecker. The note it carried named the
+ * exact test:
  *
- * KEPT, NOT DELETED, because it is exported and a vertical outside the files
- * read during this work could still import it. Deleting an export on the
- * strength of an incomplete grep is how a build breaks on deploy rather than
- * in a typechecker.
- *
- * VERIFY, then delete:
  *   grep -rn "recordVisionJob" --include=*.ts --include=*.tsx .
- * If this file is the only hit, remove the function.
+ *   If this file is the only hit, remove the function.
  *
- * DO NOT CALL IT ALONGSIDE A ROUTE WITH `record: true`. Two rows for one call
- * double-counts cost_cents, and ai_spend_today_cents feeds the daily ceiling —
- * which means the budget trips at half the real spend and the visualiser
- * starts refusing work for a reason that is not true.
+ * That grep has now been run across the repository. The only hits were this
+ * file's own definition, this file's own note, and one sentence of history in
+ * lib/quote/vision.ts describing the call it USED to make. No caller anywhere.
+ *
+ * WHY IT MATTERED ENOUGH TO DELETE RATHER THAN LEAVE LYING. Its own header
+ * warned that calling it alongside a route with `record: true` writes TWO rows
+ * for one call — and `ai_spend_today_cents` sums `cost_cents` across the whole
+ * table to feed the daily ceiling, so a duplicate row makes the budget trip at
+ * half the real spend and the visualiser starts refusing work for a reason
+ * that is not true. That is precisely the outage lib/quote/vision.ts documents
+ * having already been caused once. A convenient, plausible-looking function
+ * whose only remaining effect is to recreate a self-inflicted outage is not
+ * neutral dead weight; leaving it available is the risk.
+ *
+ * The router's ledger row replaced it and is strictly richer: it carries
+ * fellBackFrom, the full attempt log, the duration and the parsed output.
+ * ONE CALL, ONE ROW. If vision jobs ever go missing from ai_jobs, check
+ * `record` on the vision_analysis route in lib/ai/config.ts. Do not add a
+ * second writer back here.
  */
-export async function recordVisionJob(args: {
-  prototypeId: string | null;
-  model: string;
-  status: AiJobStatus;
-  inputTokens: number;
-  outputTokens: number;
-  costCents: number;
-  error?: string;
-  /**
-   * WHICH VENDOR ACTUALLY RAN IT.
-   *
-   * This column was hardcoded to 'anthropic' from Phase 3, when the vision
-   * route had exactly one candidate and that candidate was direct Anthropic.
-   * The route now leads with OpenRouter, so every row written since then has
-   * named the wrong provider — which makes the ledger actively misleading
-   * exactly when somebody is using it to work out why measurement stopped.
-   *
-   * Optional, defaulting to the old value, so no existing caller changes
-   * behaviour by being left alone.
-   */
-  provider?: ProviderId;
-}): Promise<void> {
-  try {
-    const db = getAiDb();
-    await db.from('ai_jobs').insert({
-      prototype_id: args.prototypeId,
-      job_type: 'vision_analysis',
-      provider: args.provider ?? 'anthropic',
-      model: args.model,
-      input_tokens: args.inputTokens,
-      output_tokens: args.outputTokens,
-      cost_cents: args.costCents,
-      status: args.status,
-      error: args.error ?? null,
-    });
-  } catch {
-    /* cost logging must never fail the request */
-  }
-}
 
 export interface StoredAiJob {
   id: string;
@@ -305,3 +274,4 @@ export async function spendTodayCents(): Promise<number | null> {
     return null;
   }
 }
+
