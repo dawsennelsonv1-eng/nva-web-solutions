@@ -10,7 +10,6 @@ import { SimilarTools } from '@/components/tools/SimilarTools';
 import { ToolCtaRail } from '@/components/tools/ToolCtaRail';
 import { Machinery } from '@/components/site/Sections';
 import { DemoExperience } from '@/components/demo/DemoExperience';
-import { MotionProvider } from '@/lib/motion';
 import { toolPageFor, toolPageIds } from '@/lib/tools/catalogue';
 import { mediaForTool } from '@/lib/tools/media';
 import { PUBLIC_TOOLS, QUIET_REASON, pricerFor, tintFor } from '@/lib/tools/card-config';
@@ -200,41 +199,32 @@ export default async function ToolPage({ params }: { params: { toolId: string } 
             <div className="tp-widget">
               {/*
                 ============================================================
-                MotionProvider IS LOAD-BEARING HERE. DO NOT REMOVE IT.
+                THE MotionProvider THAT WAS HERE MOVED INTO DemoExperience.
                 ============================================================
 
-                This is why the widget rendered blank on /demo, and it had been
-                blank since Phase 13B rather than since I moved it.
+                It used to wrap this mount and carried a warning not to remove
+                it, because without it DemoExperience's root `m.div` sat at
+                opacity 0 — present, focusable, correct in the inspector,
+                invisible on screen, silent in the console. That is why /demo
+                rendered blank from Phase 13B onwards: 13B removed the provider
+                from app/(public)/layout.tsx reasoning that QuoteWidget brings
+                its own, which is true of QuoteWidget and false of the m.div
+                DemoExperience wraps it in.
 
-                DemoExperience's root is <AnimatePresence><m.div
-                initial={{opacity: 0}} animate={{opacity: 1}}>. `m` components
-                come from framer-motion's LazyMotion build and only receive
-                animation features inside a <LazyMotion> tree — which is what
-                MotionProvider is.
+                The warning was correct and it was also the wrong shape. It put
+                a requirement on every caller, recorded in a comment on ONE of
+                them, where the penalty for not knowing is an invisible widget
+                and no error. Phase 40 moved the provider inside
+                DemoExperience, so the component that needs the context now
+                carries it and no mount has to remember anything.
 
-                Outside one, they still render. They simply never animate. So
-                `initial` applies, `animate` never runs, and the entire widget
-                sits in the DOM at opacity 0 — present, focusable, invisible.
-                That is worse than a crash: nothing appears in the console and
-                the element is there in the inspector with the right markup.
-
-                13B removed MotionProvider from app/(public)/layout.tsx on the
-                stated reasoning that "the widget brings its own MotionProvider
-                (see QuoteWidget), so routes that mount it are unaffected."
-                That is true of QuoteWidget, which does mount one — but
-                DemoExperience wraps QuoteWidget in its own m.div, one level
-                ABOVE that provider. The layer that needed the context was the
-                one nobody checked.
-
-                THE LESSON FOR THE NEXT MOUNT: any route rendering
-                DemoExperience directly must provide this. The safest permanent
-                fix is moving the provider inside DemoExperience itself so it
-                cannot be forgotten — worth doing, but it is that component's
-                file and this phase does not own it.
+                Removed here rather than left in place. Nesting would have been
+                harmless — MotionProvider renders no DOM and LazyMotion loads
+                its features once — but a wrapper labelled load-bearing that is
+                no longer load-bearing is worse than either keeping it or
+                dropping it cleanly. The next person to read it would trust it.
               */}
-              <MotionProvider>
-                <DemoExperience surface="demo" entryPoint="demo_page" />
-              </MotionProvider>
+              <DemoExperience surface="demo" entryPoint="demo_page" />
             </div>
           </div>
         </section>
@@ -269,3 +259,4 @@ export default async function ToolPage({ params }: { params: { toolId: string } 
     </>
   );
 }
+

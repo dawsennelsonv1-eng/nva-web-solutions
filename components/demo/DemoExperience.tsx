@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AnimatePresence, m } from '@/lib/motion';
+import { AnimatePresence, m, MotionProvider } from '@/lib/motion';
 import { deriveSessionId } from '@/lib/analytics';
 import { QuoteWidget } from '@/components/widget/QuoteWidget';
 import { PayloadScreen } from './PayloadScreen';
@@ -152,58 +152,98 @@ export function DemoExperience({
     });
   }
 
+  /**
+   * ==========================================================================
+   * THE PROVIDER IS INSIDE THIS COMPONENT NOW, AND MUST STAY HERE. PHASE 40.
+   * ==========================================================================
+   *
+   * THE BUG IT FIXES. The root below is `<AnimatePresence><m.div
+   * initial={{opacity: 0}} animate={{opacity: 1}}>`. `m` comes from
+   * framer-motion's LazyMotion build and only receives animation features
+   * inside a `<LazyMotion>` tree, which is all MotionProvider is. Outside one
+   * these still RENDER — they simply never animate. So `initial` applies,
+   * `animate` never runs, and the whole widget sits in the DOM at opacity 0:
+   * present, focusable, correct markup in the inspector, invisible on screen,
+   * nothing in the console. That is worse than a crash.
+   *
+   * WHY IT WENT UNNOTICED FOR SO LONG. Phase 13B removed MotionProvider from
+   * app/(public)/layout.tsx reasoning that "the widget brings its own
+   * MotionProvider (see QuoteWidget), so routes that mount it are
+   * unaffected." That is true OF QuoteWidget — but this component wraps
+   * QuoteWidget in its own `m.div` ONE LEVEL ABOVE that provider. The layer
+   * that needed the context was the layer nobody checked. /demo has been blank
+   * ever since.
+   *
+   * WHY IT BELONGS HERE RATHER THAN AT EACH MOUNT. The tool page carried this
+   * wrapper with a comment explaining that any route mounting DemoExperience
+   * directly must provide it — a rule that lives in a comment on ONE caller
+   * and has to be rediscovered by every future one, at the cost of a silently
+   * invisible widget each time. A component whose own root needs animation
+   * features should carry them. Now it cannot be forgotten, because there is
+   * nothing left to remember.
+   *
+   * NESTING IS FREE. MotionProvider renders no DOM — it is exactly
+   * `<LazyMotion features={domAnimation} strict>` — and LazyMotion loads its
+   * feature bundle once however deep the tree goes. QuoteWidget mounts another
+   * one below this, and has done since before this change; that pairing ships
+   * and works today. So any caller that still wraps this component is harmless
+   * rather than wrong.
+   */
   return (
-    <AnimatePresence mode="wait">
-      {payload ? (
-        <m.div
-          key="payload"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <PayloadScreen
-            payload={payload}
-            surface={surface}
-            onPurchaseClick={() => router.push('/pricing?plan=foundation&from=' + surface)}
-          />
-        </m.div>
-      ) : (
-        <m.div
-          key="widget"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <QuoteWidget
-            mode="live"
-            surface={surface}
-            sessionId={sessionId}
-            prototypeId={null}
-            entryPoint={entryPoint}
-            config={{
-              vertical: DEMO_VERTICAL,
-              step1Question: catalogue.step1Question,
-              surfaceTypes: catalogue.surfaceTypes,
-              finishes: catalogue.finishes,
-              rules: DEMO_RULES,
-              sqftMin: DEMO_SQFT_MIN,
-              sqftMax: DEMO_SQFT_MAX,
-              conditionModifiers: catalogue.conditionModifiers,
-              contractorName: DEMO_CONTRACTOR.name,
-              contractorPhone: DEMO_CONTRACTOR.phone,
-            }}
-            ports={{
-              analyze: analyzeAdapter,
-              persistQuote: persistQuoteAdapter,
-              submitLead: submitLeadAdapter,
-              touchSession: touchSessionAdapter,
-            }}
-          />
-        </m.div>
-      )}
-    </AnimatePresence>
+    <MotionProvider>
+      <AnimatePresence mode="wait">
+        {payload ? (
+          <m.div
+            key="payload"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <PayloadScreen
+              payload={payload}
+              surface={surface}
+              onPurchaseClick={() => router.push('/pricing?plan=foundation&from=' + surface)}
+            />
+          </m.div>
+        ) : (
+          <m.div
+            key="widget"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <QuoteWidget
+              mode="live"
+              surface={surface}
+              sessionId={sessionId}
+              prototypeId={null}
+              entryPoint={entryPoint}
+              config={{
+                vertical: DEMO_VERTICAL,
+                step1Question: catalogue.step1Question,
+                surfaceTypes: catalogue.surfaceTypes,
+                finishes: catalogue.finishes,
+                rules: DEMO_RULES,
+                sqftMin: DEMO_SQFT_MIN,
+                sqftMax: DEMO_SQFT_MAX,
+                conditionModifiers: catalogue.conditionModifiers,
+                contractorName: DEMO_CONTRACTOR.name,
+                contractorPhone: DEMO_CONTRACTOR.phone,
+              }}
+              ports={{
+                analyze: analyzeAdapter,
+                persistQuote: persistQuoteAdapter,
+                submitLead: submitLeadAdapter,
+                touchSession: touchSessionAdapter,
+              }}
+            />
+          </m.div>
+        )}
+      </AnimatePresence>
+    </MotionProvider>
   );
 }
+
 
