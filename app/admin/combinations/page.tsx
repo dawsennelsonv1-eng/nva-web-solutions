@@ -24,10 +24,17 @@ export default async function CombinationsPage() {
    * Which combinations already have a picture, resolved on the server so the
    * page arrives knowing what to skip. Without it a re-run would regenerate —
    * and pay for — everything that already exists.
+   *
+   * PHASE 35: THE ADDRESS COMES DOWN TOO, not just the key. This used to be a
+   * list of keys, which meant the studio knew a picture existed but had no way
+   * to show it — so after a refresh every completed row rendered an empty box
+   * next to the words "Has a picture", and the run looked as though it had
+   * been thrown away. It had not; the rows were in finish_media all along. See
+   * the note on `savedSrc` in ComboStudio.
    */
   const existing = (await finishMediaFor('epoxy'))
     .filter((s) => s.kind === 'combination')
-    .map((s) => s.mediaKey);
+    .map((s) => ({ mediaKey: s.mediaKey, src: s.src }));
 
   return (
     <div>
@@ -45,8 +52,9 @@ export default async function CombinationsPage() {
       </p>
 
       <div style={{ marginTop: '1.5rem' }}>
-        <ComboStudio existingKeys={existing} />
+        <ComboStudio existing={existing} />
       </div>
     </div>
   );
 }
+

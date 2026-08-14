@@ -2,6 +2,11 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { generateComboAction, type ComboSpec } from '@/app/actions/comboGen';
+// No ExpandButton here: in a dense list the thumbnail IS the control, and an
+// overlay affordance on a 72px tile would cover most of the picture it is
+// offering to enlarge.
+import { ImageViewer, type ViewerItem } from '@/components/tools/ImageViewer';
+import { downloadImage } from '@/lib/media/download';
 import { createFinishUploadAction, saveFinishMediaAction } from '@/app/actions/finishMedia';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { EPOXY_GROUPS, comboKeyFor, visibleGroups } from '@/lib/verticals/epoxy/options';
@@ -82,7 +87,19 @@ function topcoatOptions() {
   return EPOXY_GROUPS.find((g) => g.key === 'topcoat')?.options ?? [];
 }
 
-export function ComboStudio({ existingKeys }: { existingKeys: string[] }) {
+/**
+ * What is ALREADY in finish_media, with its address.
+ *
+ * It used to be `existingKeys: string[]` — keys and nothing else. That is the
+ * whole reason this screen appeared to lose work: see the note on `saved`
+ * below.
+ */
+export interface ExistingCombo {
+  mediaKey: string;
+  src: string;
+}
+
+export function ComboStudio({ existing }: { existing: ExistingCombo[] }) {
   /**
    * ==========================================================================
    * YOU CHOOSE THE SUBSET. THE DEFAULT IS ONE TOPCOAT, NOT ALL FOUR.
@@ -132,7 +149,40 @@ export function ComboStudio({ existingKeys }: { existingKeys: string[] }) {
   const [running, setRunning] = useState(false);
   const [skipExisting, setSkipExisting] = useState(true);
   const stop = useRef(false);
-  const have = useMemo(() => new Set(existingKeys), [existingKeys]);
+  const [viewing, setViewing] = useState<ViewerItem | null>(null);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
+
+  /**
+   * ==========================================================================
+   * THE PICTURES WERE NEVER LOST. THIS SCREEN WAS JUST FORGETTING THEM.
+   * ==========================================================================
+   *
+   * The reported symptom was that generated combinations "are gone after I
+   * refresh". They were not. `runOne` uploads to the bucket and calls
+   * `saveFinishMediaAction` on every success, and the upsert in
+   * lib/finishes/media.ts is correct — the rows were in finish_media the whole
+   * time.
+   *
+   * What vanished was this list's memory of them. The thumbnail came from
+   * `state[key].url`, which is the data URL the model returned, held in React
+   * state and therefore gone the instant the page reloads. The page handed
+   * down only the KEYS of what existed, so after a refresh every row could say
+   * "Has a picture" beside an empty dashed box. A screen that says a thing
+   * exists while showing nothing is indistinguishable from one where the work
+   * failed, and the reasonable conclusion was that it had.
+   *
+   * So the page now passes the `src` as well, and a row falls back to the
+   * STORED picture whenever there is no fresh one in memory. The list shows
+   * what is actually in the database, which is the only thing it was ever
+   * supposed to be reporting.
+   */
+  const savedSrc = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of existing) m.set(e.mediaKey, e.src);
+    return m;
+  }, [existing]);
+
+  const have = useMemo(() => new Set(existing.map((e) => e.mediaKey)), [existing]);
 
   const pickPhoto = async (file: File | undefined) => {
     if (!file) return;
@@ -216,6 +266,20 @@ export function ComboStudio({ existingKeys }: { existingKeys: string[] }) {
       }
     } finally {
       setRunning(false);
+    }
+  };
+
+  const saveOne = async (src: string, comboKey: string) => {
+    setSaveNote(null);
+    try {
+      const outcome = await downloadImage(src, comboKey);
+      setSaveNote(
+        outcome === 'downloaded'
+          ? 'Saved to your downloads.'
+          : 'Opened in a new tab — long-press there to save it.'
+      );
+    } catch {
+      setSaveNote('It could not be saved. Long-press the picture instead.');
     }
   };
 
@@ -336,6 +400,16 @@ export function ComboStudio({ existingKeys }: { existingKeys: string[] }) {
       <div style={{ marginTop: '1rem', display: 'grid', gap: '0.35rem' }}>
         {rows.map((r) => {
           const st = state[r.comboKey];
+          /**
+           * Fresh render first, stored picture second.
+           *
+           * The order matters during a run: the moment a combination is
+           * regenerated, the operator has to see THE NEW ONE, not the old one
+           * still sitting in the database from a previous session. Outside a
+           * run `st` is undefined and the stored picture is all there is,
+           * which is the case that used to show an empty box.
+           */
+          const thumb = st?.url ?? savedSrc.get(r.comboKey) ?? null;
           return (
             <div
               key={r.comboKey}
@@ -348,25 +422,54 @@ export function ComboStudio({ existingKeys }: { existingKeys: string[] }) {
                 opacity: st?.status === 'running' ? 1 : 0.9,
               }}
             >
-              {st?.url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={st.url}
-                  alt=""
-                  style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 4 }}
-                />
+              {thumb ? (
+                <button
+                  type="button"
+                  className="cs-thumb"
+                  onClick={() =>
+                    setViewing({
+                      src: thumb,
+                      alt: r.label,
+                      caption: r.comboKey,
+                      downloadName: r.comboKey,
+                    })
+                  }
+                  aria-label={'See ' + r.label + ' full size'}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={thumb} alt="" />
+                </button>
               ) : (
                 <span
                   style={{
-                    width: 56,
-                    height: 40,
+                    width: 72,
+                    height: 52,
+                    flex: '0 0 auto',
                     borderRadius: 4,
                     border: '1px dashed var(--n15-card-edge)',
                   }}
                 />
               )}
-              <span style={{ flex: 1, fontSize: '0.85rem' }}>{r.label}</span>
-              <span style={{ fontSize: '0.72rem', opacity: 0.7, textAlign: 'right' }}>
+              <span style={{ flex: 1, fontSize: '0.85rem', minWidth: 0 }}>{r.label}</span>
+
+              {thumb ? (
+                <button
+                  type="button"
+                  className="n15-btn n15-btn-ghost cs-save"
+                  onClick={() => void saveOne(thumb, r.comboKey)}
+                >
+                  Save
+                </button>
+              ) : null}
+
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  opacity: 0.7,
+                  textAlign: 'right',
+                  flex: '0 0 7rem',
+                }}
+              >
                 {st?.status === 'running'
                   ? 'Rendering…'
                   : (st?.note ?? (have.has(r.comboKey) ? 'Has a picture' : ''))}
@@ -375,6 +478,15 @@ export function ComboStudio({ existingKeys }: { existingKeys: string[] }) {
           );
         })}
       </div>
+
+      {saveNote ? (
+        <p style={{ marginTop: '0.8rem', fontSize: '0.82rem' }} role="status">
+          {saveNote}
+        </p>
+      ) : null}
+
+      <ImageViewer item={viewing} onClose={() => setViewing(null)} />
     </div>
   );
 }
+

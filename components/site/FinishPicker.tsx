@@ -1,18 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   visibleGroups,
   missingRequired,
   comboKeyFor,
   swatchKeyFor,
   selectionSummary,
+  withDefaults,
+  isAutoFilledGroup,
   type Selections,
   type FinishOptionDef,
+  type FinishGroupDef,
   type CostTier,
 } from '@/lib/verticals/epoxy/options';
 import { getFinishMediaAction, isOperatorAction } from '@/app/actions/finishMedia';
 import { CombinationUploader } from '@/components/site/CombinationUploader';
+import { ExpandButton, ImageViewer, type ViewerItem } from '@/components/tools/ImageViewer';
+import { downloadImage } from '@/lib/media/download';
 
 /**
  * components/site/FinishPicker.tsx — WHERE A HOMEOWNER BUILDS HIS FLOOR.
@@ -72,6 +77,33 @@ interface Pic {
   src: string;
   alt: string;
   caption: string;
+}
+
+/**
+ * A stable string for one set of choices, used only to compare two of them.
+ *
+ * NOT `comboKeyFor`. That deliberately excludes groups which change nothing
+ * visible, so two genuinely different selections can share a combination key —
+ * and comparing on it would make the defaults effect believe an answer had
+ * been applied when it had not. This has to see every group.
+ */
+function signatureOf(selections: Selections): string {
+  return Object.keys(selections)
+    .filter((k) => {
+      const v = selections[k];
+      return Array.isArray(v) ? v.length > 0 : typeof v === 'string' && v.length > 0;
+    })
+    .sort()
+    .map((k) => {
+      const v = selections[k];
+      return k + '=' + (Array.isArray(v) ? [...v].sort().join('+') : String(v));
+    })
+    .join('&');
+}
+
+const VIDEO_SRC_RE = /^[^?]+\.(mp4|webm|mov)(\?|$)/i;
+function isVideoSrc(src: string): boolean {
+  return VIDEO_SRC_RE.test(src);
 }
 
 function CostRank({ tier }: { tier: CostTier }) {
@@ -166,6 +198,51 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
     };
   }, []);
 
+  /** The picture currently open full screen, if any. */
+  const [viewing, setViewing] = useState<ViewerItem | null>(null);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
+
+  /**
+   * ==========================================================================
+   * NOTHING IS EVER UNANSWERED. PHASE 35.
+   * ==========================================================================
+   *
+   * On arrival the picker filled in nothing, so the first thing a visitor met
+   * was an empty state telling him to start — and, far worse, the combination
+   * key it computed from those blanks could not match anything the admin
+   * combination studio had ever generated. `withDefaults` in
+   * lib/verticals/epoxy/options.ts sets out that mismatch in full; the short
+   * version is that an unanswered `topcoat` guaranteed a miss on every single
+   * combination.
+   *
+   * THE PARENT STILL OWNS THE STATE. This component is controlled — ToolCard
+   * holds `selections` — so the fill cannot be done locally without the two
+   * copies disagreeing about what the visitor chose. It asks, through the same
+   * `onChange` a tap goes through, which also means the lead carries the
+   * defaults exactly as it carries a deliberate choice.
+   *
+   * TWO GUARDS AGAINST AN ENDLESS LOOP, and both are needed:
+   *
+   *   1. If the filled version equals what we already have, do nothing. This
+   *      is what stops the effect after the parent accepts the change.
+   *
+   *   2. If we have ALREADY asked for this exact set and it did not take, do
+   *      not ask again. A parent that ignores or filters `onChange` would
+   *      otherwise be asked on every render for ever, and `onChange` is an
+   *      inline arrow at the call site, so it changes identity every render
+   *      and cannot be relied on to settle by itself.
+   */
+  const defaulted = useMemo(() => withDefaults(selections), [selections]);
+  const asked = useRef<string | null>(null);
+
+  useEffect(() => {
+    const wanted = signatureOf(defaulted);
+    if (wanted === signatureOf(selections)) return;
+    if (asked.current === wanted) return;
+    asked.current = wanted;
+    onChange(defaulted);
+  }, [defaulted, selections, onChange]);
+
   const byKey = useMemo(() => {
     const m = new Map<string, Pic>();
     for (const p of pics ?? []) m.set(p.kind + '|' + p.mediaKey, p);
@@ -178,13 +255,32 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
   const hero = byKey.get('combination|' + comboKey);
   const summary = selectionSummary(selections);
 
-  const pick = (groupKey: string, optionKey: string, multiple: boolean) => {
+  const pick = (group: FinishGroupDef, optionKey: string) => {
+    const groupKey = group.key;
+    const multiple = group.multiple;
     const current = selections[groupKey];
     if (!multiple) {
       const clearing = current === optionKey;
-      // Tapping the chosen option again clears it. A required group's
-      // "missing" state then returns, which is honest — the person genuinely
-      // has not decided.
+
+      /**
+       * PHASE 35: A MANDATORY GROUP CANNOT BE CLEARED BY TAPPING TWICE.
+       *
+       * It used to be. The comment that stood here argued that returning to
+       * the "missing" state was honest, and against a picker that started
+       * blank it was. It is not compatible with one that fills itself in:
+       * `withDefaults` would put the same answer straight back, and what the
+       * person would see is a swatch that flashes off and on and appears not
+       * to work. Between an honest empty state nobody can reach and a control
+       * that visibly misbehaves, the control wins.
+       *
+       * Still describes the option, because tapping it is a reasonable way to
+       * ask "what is this one again?" and the strip is the answer.
+       */
+      if (clearing && isAutoFilledGroup(group)) {
+        setLastPick({ group: groupKey, option: optionKey });
+        return;
+      }
+
       onChange({ ...selections, [groupKey]: clearing ? undefined : optionKey });
       // The strip describes what he just touched, so an option he just
       // REMOVED must not stay described at the top of the screen as though it
@@ -209,6 +305,40 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
     byKey.get('swatch|' + swatchKeyFor(groupKey, o.key));
 
   /**
+   * Open the pinned picture full screen.
+   *
+   * `downloadName` is the COMBINATION KEY, not the alt text. When an operator
+   * saves twenty of these to check them against each other, the file name is
+   * the only thing left that says which mix each one is — and the key is the
+   * exact string the picker looks a photograph up by, so a file named after it
+   * can always be traced back to the row it came from.
+   */
+  const openHero = useCallback(() => {
+    if (!hero) return;
+    setViewing({
+      src: hero.src,
+      alt: hero.alt,
+      caption: hero.caption,
+      downloadName: comboKey,
+    });
+  }, [hero, comboKey]);
+
+  const saveHero = useCallback(async () => {
+    if (!hero) return;
+    setSaveNote(null);
+    try {
+      const outcome = await downloadImage(hero.src, comboKey);
+      setSaveNote(
+        outcome === 'downloaded'
+          ? 'Saved to your downloads.'
+          : 'Opened in a new tab — long-press there to save it.'
+      );
+    } catch {
+      setSaveNote('It could not be saved. Long-press the picture instead.');
+    }
+  }, [hero, comboKey]);
+
+  /**
    * The option the strip is currently describing.
    *
    * Resolved against `groups`, which is `visibleGroups(selections)` — so an
@@ -226,7 +356,7 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
   return (
     <div className="fp">
       {/* ------------------------------------------------------------------
-          THE STICKY BLOCK — PREVIEW PLUS THE ONE-LINE DESCRIPTION.
+          THE PINNED PREVIEW. NOTHING ELSE IS IN HERE ANY MORE.
 
           The preview used to scroll away with everything else, so choosing a
           flake blend meant scrolling to the top to see what the last one
@@ -234,26 +364,28 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
           The picture is the whole reason the options mean anything; it has to
           be on screen while they are being chosen.
 
-          `position: sticky` in phase30.css, capped so it can never take more
-          than about a third of a phone screen. NOT IntersectionObserver:
+          PHASE 35 changed two things about it. The description strip moved out
+          from underneath — it is now below this block — and the picture took
+          the space that freed, going from 32vh to 42vh. It is `.fp-stage*`
+          rather than `.fp-hero*` because phase30.css owns the old names and a
+          later layer may not redefine what an earlier one declared; phase35.css
+          sets out that constraint in full.
+
+          `position: sticky` in phase35.css. NOT IntersectionObserver:
           `no-restricted-syntax` bans it on components/site/** and it would be
           the wrong tool anyway — this is a layout behaviour, and the browser
           does it for free.
          ------------------------------------------------------------------ */}
-      <div className="fp-hero">
+      <div className="fp-stage">
         {hero ? (
-          <>
-            {/* A plain img: these are Supabase public URLs and the card is a
-                client component with no access to next/image's loader config
-                for that host. */}
+          <div className="fp-stage-media">
             {/* ----------------------------------------------------------------
                 VIDEO AS WELL AS STILLS.
 
                 A flake blend is a texture and a metallic pour is movement in
                 resin. A still photograph of either is the weakest possible
-                version of the argument, and the pinned bar is now the most
-                valuable real estate in the tool — it stays on screen through
-                the entire scroll, so whatever sits in it is what the visitor
+                version of the argument, and this bar stays on screen through
+                the entire scroll — whatever sits in it is what the visitor
                 looks at while he decides.
 
                 An ANIMATED GIF needs nothing here: the browser plays it inside
@@ -264,35 +396,54 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
                 autoPlay + muted + loop + playsInline is the exact set required
                 for a video to play inline and unattended on iOS. Drop `muted`
                 and Safari refuses to autoplay; drop `playsInline` and it takes
-                over the whole screen in fullscreen, which on a phone means the
-                picker vanishes underneath it.
+                over the whole screen, which on a phone means the picker
+                vanishes underneath it.
 
-                No controls: this is a swatch, not a video the visitor is meant
-                to operate.
+                No controls: pinned, this is a swatch, not a video the visitor
+                is meant to operate. It gets controls in the full-screen
+                viewer, where operating it is the point.
                ---------------------------------------------------------------- */}
-            {/^[^?]+\.(mp4|webm|mov)(\?|$)/i.test(hero.src) ? (
+            {isVideoSrc(hero.src) ? (
               <video
-                className="fp-hero-img"
+                className="fp-stage-img"
                 src={hero.src}
                 autoPlay
                 muted
                 loop
                 playsInline
-                /* The poster keeps the reserved box filled while the first
-                   frame decodes, so the pinned bar does not flash empty and
-                   resize under a thumb mid-scroll. */
                 preload="metadata"
                 aria-label={hero.alt}
               />
             ) : (
+              /* A plain img: these are Supabase public URLs and this is a
+                 client component with no access to next/image's loader config
+                 for that host. */
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={hero.src} alt={hero.alt} className="fp-hero-img" />
+              <img
+                src={hero.src}
+                alt={hero.alt}
+                className="fp-stage-img"
+                onClick={() => openHero()}
+              />
             )}
-            {hero.caption && <p className="fp-hero-cap">{hero.caption}</p>}
-          </>
+
+            {/* Two controls, both over the picture rather than under it —
+                under it is the space this phase was spent reclaiming. */}
+            <div className="fp-stage-tools">
+              <ExpandButton onClick={() => openHero()} label="See this floor full size" />
+              <button
+                type="button"
+                className="lb-open"
+                aria-label="Save this picture"
+                onClick={() => void saveHero()}
+              >
+                <span aria-hidden>&darr;</span>
+              </button>
+            </div>
+          </div>
         ) : (
-          <div className="fp-hero-none">
-            <p className="fp-hero-none-h">
+          <div className="fp-stage-none">
+            <p className="fp-stage-none-h">
               {summary.length > 0 ? 'Your mix' : 'Start with the coating'}
             </p>
             {summary.length > 0 ? (
@@ -302,44 +453,53 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
-                <p className="fp-hero-none-b">
+                <p className="fp-stage-none-b">
                   No reference photo of this exact combination yet. You will see it on
-                  your own floor at the end — that one is made from your photos.
+                  your own floor at the end &mdash; that one is made from your photos.
                 </p>
               </>
             ) : (
-              <p className="fp-hero-none-b">
-                Pick a coating below and this fills in.
-              </p>
+              <p className="fp-stage-none-b">Pick a coating below and this fills in.</p>
             )}
           </div>
         )}
-
-        {/* ----------------------------------------------------------------
-            ONE DESCRIPTION, FOR THE OPTION JUST TAPPED.
-
-            Inside the sticky block on purpose: it is pinned with the picture,
-            so a person tapping through a colour group reads the note without
-            his eye leaving the preview.
-
-            THE SPACE IS RESERVED WHETHER OR NOT ANYTHING IS DESCRIBED. An
-            empty strip that collapses would push the entire grid up and down
-            by a line on every single tap — the exact class of movement phase 3
-            was spent eliminating. It holds its height and shows a prompt
-            instead.
-           ---------------------------------------------------------------- */}
-        <div className="fp-note" aria-live="polite">
-          {described ? (
-            <>
-              <span className="fp-note-label">{described.label}</span>
-              <span className="fp-note-blurb">{described.blurb}</span>
-              <CostRank tier={described.costTier} />
-            </>
-          ) : (
-            <span className="fp-note-idle">Tap any option to read about it.</span>
-          )}
-        </div>
       </div>
+
+      {/* ------------------------------------------------------------------
+          THE DESCRIPTION STRIP, NOW BELOW THE PINNED PICTURE.
+
+          It used to live INSIDE the sticky block, directly under the frame.
+          That is the most expensive real estate on this screen and it was
+          being spent on the least important element: `.fp-note` is a fixed
+          2.75rem, and with its margin it was taking roughly a fifth of the
+          pinned budget away from the photograph the whole feature exists to
+          show. Moving it out is what pays for the bigger picture.
+
+          THE TRADE, STATED PLAINLY: it now scrolls away with the page, so
+          somebody tapping a swatch far down a long group no longer has the
+          description on screen. That is a real loss and it is the smaller
+          one. The picture answers "what does this look like", which is the
+          question people are actually asking of a floor; the blurb answers
+          "what is it called", and it remains on every swatch's `title` and in
+          the strip the moment they scroll back up.
+         ------------------------------------------------------------------ */}
+      <div className="fp-note fp-note-lower" aria-live="polite">
+        {described ? (
+          <>
+            <span className="fp-note-label">{described.label}</span>
+            <span className="fp-note-blurb">{described.blurb}</span>
+            <CostRank tier={described.costTier} />
+          </>
+        ) : (
+          <span className="fp-note-idle">Tap any option to read about it.</span>
+        )}
+      </div>
+
+      {saveNote ? (
+        <p className="fp-save-note" role="status">
+          {saveNote}
+        </p>
+      ) : null}
 
       {/* ---- the groups ---- */}
       {groups.map((g) => (
@@ -363,7 +523,7 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
                   className={'fp-sw' + (on ? ' fp-sw-on' : '')}
                   aria-pressed={on}
                   title={o.blurb}
-                  onClick={() => pick(g.key, o.key, g.multiple)}
+                  onClick={() => pick(g, o.key)}
                 >
                   <span className="fp-sw-img">
                     {pic ? (
@@ -406,6 +566,9 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
       )}
 
       {children}
+
+      <ImageViewer item={viewing} onClose={() => setViewing(null)} />
     </div>
   );
 }
+

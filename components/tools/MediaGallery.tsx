@@ -4,84 +4,90 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // From media-types, NOT media: this is a client component, and a value
 // import from the server-only module puts it in the browser graph.
 import { MIN_SLOTS, type MediaSlot } from '@/lib/tools/media-types';
+import { ExpandButton, ImageViewer, type ViewerItem } from '@/components/tools/ImageViewer';
 
 /**
- * components/tools/MediaGallery.tsx — the showcase at the top of a tool page.
+ * components/tools/MediaGallery.tsx — the showcase at the top of a tool card.
  *
  * ============================================================================
- * HOW IT ADVANCES
+ * PHASE 35: REBUILT, AND ON AN ENTIRELY NEW SET OF CLASS NAMES
  * ============================================================================
  *
- * Each slide holds for its own declared duration and then moves on. Animations
- * declare the length of the recording; stills use three seconds. The reason
- * duration is per-slide rather than a fixed timer is in lib/tools/media.ts: the
- * browser will not tell us when a GIF has finished, so the author says.
+ * WHAT WAS WRONG. The picture was small — `.tc-gallery .mg-stage` in
+ * phase18.css pins it to 3:2 at card width, about a quarter of a phone screen
+ * — it could not be opened any larger, there was no way to save one, and the
+ * caption sat directly beneath the frame taking the space the picture wanted.
+ * On a page whose entire job is to make somebody want a floor, the photograph
+ * of the floor was the smallest thing on screen.
  *
- * The timer is a chain of one-shot timeouts, not an interval. An interval fires
- * on a fixed beat regardless of what is on screen, which would cut a six-second
- * recording at three. Each slide schedules the next one.
+ * WHY EVERY CLASS NAME CHANGED, `.mg-*` TO `.rv-*`. This stack has one
+ * non-negotiable rule: a later layer ADDS, it never redefines a selector an
+ * earlier layer owns. The old sizing lives in phase16.css (`.mg-stage`) and
+ * phase18.css (`.tc-gallery .mg-stage`), both imported before anything new
+ * can be. There is no legal way to make `.mg-stage` bigger from phase35.css.
  *
- * ============================================================================
- * WHY THE FRAMES ARE ALL MOUNTED AT ONCE
- * ============================================================================
+ * So the component asks for new names and phase35.css styles them from
+ * nothing. The old rules are untouched and simply stop applying here — no
+ * override, no specificity fight, and no risk to anything else that might use
+ * them. Same move phase26.css made when it introduced `.tc-gallery-lead`
+ * rather than editing `.tc-gallery`.
  *
- * Every slide stays in the DOM and cross-fades on opacity. Swapping the `src`
- * of a single <img> would restart every GIF from frame zero on each visit and
- * flash white while the next file decodes. Mounted frames also mean an
- * animation is already running when its slide arrives, rather than starting a
- * beat late.
- *
- * The cost is that all slides load up front, which is why MAX_SLOTS is ten and
- * why the first slide is eager while the rest are lazy — the visitor sees frame
- * one immediately and the others arrive during the seconds he spends on it.
- *
- * Only opacity animates. No layout, no paint, compositor only.
+ * `.tc-gallery` and `.tc-gallery-lead` still wrap it from ToolCard and still
+ * own the outer margins. Only the inside is new. TOOLCARD IS UNCHANGED — the
+ * props are the same two they always were.
  *
  * ============================================================================
- * WHEN IT STOPS
+ * WHAT IS DELIBERATELY KEPT
  * ============================================================================
  *
- * - Hidden tab: paused, via visibilitychange. Ten mounted GIFs cycling behind a
- *   background tab is a battery bill for nothing.
- * - Reduced motion: no autoplay at all. The first slide holds and the dots
- *   still work. This is a designed state, not a broken one — a person who has
- *   asked their operating system to stop moving things gets a gallery he drives.
- * - One slide: no timer is ever started.
+ * Everything about how it advances, because none of it was the problem:
  *
- * NO SCROLL-TRIGGERED ANYTHING. 13A build constraint 4 bans IntersectionObserver
- * on these surfaces, so the gallery does not know or care where the viewport is.
- * The tab check covers the case that actually costs a user something.
+ * - Each slide holds for ITS OWN declared duration. The browser will not say
+ *   when a GIF has finished, so the author does. A fixed interval would cut a
+ *   six-second recording at three.
+ * - The timer is a chain of one-shot timeouts, not an interval.
+ * - Every frame stays mounted and cross-fades on opacity. Swapping one `src`
+ *   restarts every GIF from frame zero and flashes white while the next file
+ *   decodes. Only opacity animates: compositor only.
+ * - Hidden tab pauses it. Reduced motion disables autoplay entirely and leaves
+ *   a gallery the visitor drives — a designed state, not a broken one.
+ * - It pads up to MIN_SLOTS with reserved frames when at least one real frame
+ *   exists, and renders NOTHING when there are none. A gallery made entirely
+ *   of empty boxes announces that the product is unfinished; an invisible one
+ *   means nobody discovers the slots exist.
+ * - A failed load swaps to a labelled placeholder rather than a torn-page
+ *   glyph at the top of the page that is supposed to sell the product.
  *
- * ============================================================================
- * IT PADS TO THREE INSTEAD OF VANISHING — PHASE 17C
- * ============================================================================
- *
- * It used to render NOTHING below MIN_SLOTS, on the argument that a two-frame
- * carousel undersells a tool worse than no carousel does.
- *
- * That argument was right about a finished site and wrong about this one. The
- * effect in practice was that the picture area was invisible — not sparse,
- * absent — so there was no way to see where the recordings go or that the
- * feature existed at all. A slot you cannot see is a slot nobody fills.
- *
- * So: with at least one real frame it renders, padding up to three with
- * reserved frames that say what belongs there. With NO frames at all it still
- * renders nothing, because a gallery made entirely of empty boxes is an
- * announcement that the product is unfinished.
- *
- * IF YOU ARE SEEING NO GALLERY AT ALL, the likely cause is not this file:
- * migration 0019_tool_media.sql seeds five epoxy rows, and until it has been
- * run the table is empty and there is nothing to pad.
+ * NO SCROLL-TRIGGERED ANYTHING. IntersectionObserver is banned on these
+ * surfaces and would be the wrong tool regardless. The tab check covers the
+ * case that actually costs a visitor something.
  *
  * ============================================================================
- * MISSING FILES ARE A DESIGNED STATE
+ * THE THREE THINGS THAT ARE NEW
  * ============================================================================
  *
- * None of the recordings exist yet. A broken <img> would put a torn-page glyph
- * at the top of the page that is supposed to sell the product, so a failed load
- * swaps to a labelled placeholder carrying that slide's caption. The gallery
- * stays the right shape and the page stays honest — it shows a frame reserved
- * for a recording rather than a fake screenshot of a thing that never happened.
+ * 1. THE STAGE IS MUCH LARGER, sized by `min-height` in viewport units rather
+ *    than by aspect ratio alone — phase35.css explains why that is the only
+ *    way to get a real increase on a narrow screen.
+ *
+ * 2. IT OPENS FULL SCREEN. Tapping the picture opens the shared viewer at
+ *    `object-fit: contain`, which is the only place the whole frame is
+ *    actually visible. There is a visible expand control as well as the tap
+ *    target, because an expandable picture that looks exactly like a
+ *    non-expandable one is a feature nobody finds.
+ *
+ * 3. IT CAN BE SAVED, from inside the viewer. These are Supabase public URLs
+ *    on another origin, where a plain `download` attribute is silently
+ *    ignored; lib/media/download.ts explains what is done instead.
+ *
+ * THE CAPTION MOVED BELOW THE DOTS. It was between the picture and the dots —
+ * the one place on this component where vertical space is worth the most. It
+ * is the least important element here and now sits last, quietly.
+ *
+ * AUTOPLAY STOPS WHILE THE VIEWER IS OPEN. Otherwise the frame behind advances
+ * during the seconds somebody spends looking at a full-screen photograph, and
+ * closing returns them to a different picture than the one they opened — which
+ * reads as the app having lost their place.
  */
 
 export interface MediaGalleryProps {
@@ -93,10 +99,9 @@ export interface MediaGalleryProps {
 export function MediaGallery({ slots, label }: MediaGalleryProps) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [viewing, setViewing] = useState<ViewerItem | null>(null);
   const timer = useRef<number>(0);
 
-  // Reserved frames, so the shape of the section is visible while the real
-  // recordings are still being made. Never shown when there are none at all.
   const padding = slots.length > 0 ? Math.max(0, MIN_SLOTS - slots.length) : 0;
   const enough = slots.length > 0;
   const count = slots.length + padding;
@@ -109,7 +114,7 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
   }, []);
 
   useEffect(() => {
-    if (!enough || count <= 1 || paused) return;
+    if (!enough || count <= 1 || paused || viewing !== null) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     // A reserved frame has no declared duration; it holds for the default.
@@ -119,7 +124,7 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
     }, hold);
 
     return clear;
-  }, [index, count, paused, enough, slots, clear]);
+  }, [index, count, paused, enough, slots, clear, viewing]);
 
   useEffect(() => {
     const onVisibility = () => setPaused(document.hidden);
@@ -128,35 +133,54 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
+  const current = slots[index];
+
+  const expand = useCallback(() => {
+    const slot = slots[index];
+    if (!slot) return;
+    setViewing({
+      src: slot.src,
+      alt: slot.alt,
+      caption: slot.caption,
+      downloadName: label + '-' + slot.key,
+    });
+  }, [slots, index, label]);
+
+  // AFTER the hooks, never before. Hooks declared below an early return is the
+  // rules-of-hooks violation that broke FinishVisualiser in an earlier phase.
   if (!enough) return null;
 
   return (
-    <figure className="mg" aria-roledescription="carousel" aria-label={label + ' — how it works'}>
-      <div className="mg-stage">
+    <figure className="rv" aria-roledescription="carousel" aria-label={label + ' — how it works'}>
+      <div className="rv-stage">
         {slots.map((slot, i) => (
-          <MediaFrame key={slot.key} slot={slot} active={i === index} eager={i === 0} />
+          <MediaFrame
+            key={slot.key}
+            slot={slot}
+            active={i === index}
+            eager={i === 0}
+            onExpand={expand}
+          />
         ))}
         {Array.from({ length: padding }, (_, n) => (
           <div
             key={'reserved-' + n}
-            className={'mg-frame' + (slots.length + n === index ? ' mg-frame-on' : '')}
+            className={'rv-frame' + (slots.length + n === index ? ' rv-frame-on' : '')}
             aria-hidden={slots.length + n !== index}
           >
-            <div className="mg-ph">
-              <span className="mg-ph-k">Slot {slots.length + n + 1}</span>
-              <span className="mg-ph-t">Add a recording in admin</span>
+            <div className="rv-ph">
+              <span className="rv-ph-k">Slot {slots.length + n + 1}</span>
+              <span className="rv-ph-t">Add a recording in admin</span>
             </div>
           </div>
         ))}
+
+        {/* Only over a real frame. A reserved slot has nothing to enlarge, and
+            offering to expand an empty box is an invitation to disappointment. */}
+        {current ? <ExpandButton onClick={expand} label="See this picture full size" /> : null}
       </div>
 
-      {/* aria-live so the caption is announced as it changes; the frames
-          themselves are hidden from the tree when inactive. */}
-      <figcaption className="mg-cap" aria-live="polite">
-        {slots[index]?.caption ?? 'Nothing here yet'}
-      </figcaption>
-
-      <div className="mg-dots" role="tablist" aria-label="Choose a frame">
+      <div className="rv-dots" role="tablist" aria-label="Choose a frame">
         {Array.from({ length: count }, (_, i) => (
           <button
             key={'dot-' + i}
@@ -164,7 +188,7 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
             role="tab"
             aria-selected={i === index}
             aria-label={slots[i]?.caption ?? 'Empty slot ' + (i + 1)}
-            className={'mg-dot' + (i === index ? ' mg-dot-on' : '')}
+            className={'rv-dot' + (i === index ? ' rv-dot-on' : '')}
             onClick={() => {
               clear();
               setIndex(i);
@@ -172,6 +196,14 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
           />
         ))}
       </div>
+
+      {/* aria-live so the caption is announced as it changes; the frames
+          themselves are hidden from the tree when inactive. */}
+      <figcaption className="rv-cap" aria-live="polite">
+        {current?.caption ?? 'Nothing here yet'}
+      </figcaption>
+
+      <ImageViewer item={viewing} onClose={() => setViewing(null)} />
     </figure>
   );
 }
@@ -180,19 +212,21 @@ function MediaFrame({
   slot,
   active,
   eager,
+  onExpand,
 }: {
   slot: MediaSlot;
   active: boolean;
   eager: boolean;
+  onExpand: () => void;
 }) {
   const [failed, setFailed] = useState(false);
 
   return (
-    <div className={'mg-frame' + (active ? ' mg-frame-on' : '')} aria-hidden={!active}>
+    <div className={'rv-frame' + (active ? ' rv-frame-on' : '')} aria-hidden={!active}>
       {failed ? (
-        <div className="mg-ph">
-          <span className="mg-ph-k">Recording</span>
-          <span className="mg-ph-t">{slot.caption}</span>
+        <div className="rv-ph">
+          <span className="rv-ph-k">Recording</span>
+          <span className="rv-ph-t">{slot.caption}</span>
         </div>
       ) : (
         // A plain <img>, deliberately. next/image cannot serve an animated GIF
@@ -206,6 +240,11 @@ function MediaFrame({
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"
           onError={() => setFailed(true)}
+          /* The whole frame is the tap target, not just the small control. On
+             a phone the picture IS the button people reach for. Inactive
+             frames are pointer-events: none in CSS, so only the visible one
+             can be tapped. */
+          onClick={onExpand}
         />
       )}
     </div>

@@ -35,6 +35,29 @@ import './phase33.css';
 import './phase34.css';
 
 /**
+ * PHASE 35 — the pictures get their space back. Registered after phase34.
+ *
+ * ADDITIONS ONLY, and it is worth being precise about how that was achieved,
+ * because the obvious implementation would have broken the rule. The gallery's
+ * size is set by `.mg-stage` in phase16.css and narrowed again by
+ * `.tc-gallery .mg-stage` in phase18.css; the picker's preview is capped at
+ * 32vh by `.fp-hero-img` in phase30.css. Every one of those is imported before
+ * this file and owned by its own layer, so there is no legal way to enlarge
+ * them from here.
+ *
+ * Rather than redefine them, the two components were changed to ask for NEW
+ * names — `.rv-*` and `.fp-stage*` — which this layer styles from nothing. The
+ * old rules are untouched and simply stop matching. Same move phase26.css made
+ * with `.tc-gallery-lead`.
+ *
+ * It declares no themed colour beyond `--n15-*` tokens and `currentColor`, so
+ * like phase29, phase30 and phase33 it needs no light-theme block. The single
+ * hardcoded colour is the full-screen viewer's backdrop, argued for at the
+ * rule itself.
+ */
+import './phase35.css';
+
+/**
  * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
  *
  * THE IMPORT ORDER IS THE WHOLE MECHANISM and it is deliberate. Each file adds
@@ -172,3 +195,4 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     </html>
   );
 }
+

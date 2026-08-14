@@ -1,0 +1,476 @@
+/* ============================================================================
+   PHASE 35 — THE PICTURES GET THEIR SPACE BACK
+   ----------------------------------------------------------------------------
+   Registered after phase34.css. ADDITIONS ONLY: every selector in this file is
+   a name no earlier layer defines. Nothing here overrides anything.
+
+   That constraint is why three components changed their class names rather
+   than their styles. `.mg-stage` (phase16) and `.tc-gallery .mg-stage`
+   (phase18) fix the gallery at 3:2 within a card; `.fp-hero-img` (phase30)
+   caps the picker preview at 32vh. All three are imported before this file and
+   all three are owned by their layers. Making the pictures bigger from here
+   would mean redefining them, which is the one thing this stack does not do.
+
+   So MediaGallery now asks for `.rv-*` and FinishPicker's preview asks for
+   `.fp-stage*`, and both are built from nothing below. The old rules stay
+   exactly where they are and simply stop matching.
+
+   NO LIGHT-THEME BLOCK, for the same reason phase29, phase30 and phase33 need
+   none: every colour here is a `--n15-*` token or `currentColor`, so
+   html[data-n15-theme='light'] retints it with no rules written. The single
+   exception is the viewer's backdrop, argued for at the rule itself.
+========================================================================== */
+
+/* ----------------------------------------------------------------------------
+   THE REVEAL — the gallery on a tool card
+--------------------------------------------------------------------------- */
+
+.rv {
+  margin: 0;
+}
+
+/*
+ * WHY `min-height` AND NOT JUST A TALLER ASPECT RATIO.
+ *
+ * The stage is as wide as the card, and on a 360px phone that is about 320px.
+ * At 3:2 — the old shape — the picture is 213px tall, roughly a quarter of the
+ * screen. Changing the ratio to 4:3 buys 27px. It is not the ratio that is
+ * making it small, it is the width, and the width is fixed by the card.
+ *
+ * The only way to get a genuinely bigger picture is to stop deriving height
+ * from width. `min-height: 38vh` is 304px on that same phone — half again as
+ * tall — and `object-fit: cover` crops rather than squashes what is inside.
+ *
+ * The ratio is KEPT as well, so on a wide screen where 4:3 is already taller
+ * than 38vh the picture grows with the card instead of being pinned to the
+ * viewport. `max-height` then stops it eating a desktop window whole.
+ *
+ * The box is reserved before any media arrives, so nothing below jumps as
+ * frames decode at different times.
+ */
+.rv-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  min-height: 38vh;
+  max-height: 66vh;
+  overflow: hidden;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  background: rgba(10, 13, 18, 0.55);
+  box-shadow: var(--n15-shadow-rest);
+}
+
+.rv-frame {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 520ms ease;
+  /* Inactive frames must not be tappable — they are stacked directly on top of
+     the visible one, so without this the tap that opens the viewer would
+     sometimes enlarge a picture nobody can see. */
+  pointer-events: none;
+}
+
+.rv-frame-on {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.rv-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: zoom-in;
+}
+
+/* The reserved frame. It says what belongs here rather than pretending to be
+   it — no fake screenshot, no grey box, no broken-image glyph. */
+.rv-ph {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.5rem;
+  text-align: center;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(201, 112, 47, 0.12), transparent 65%),
+    rgba(13, 17, 23, 0.6);
+}
+
+.rv-ph-k {
+  font-family: var(--n15-sans);
+  font-weight: 500;
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(var(--n15-ink), 0.4);
+}
+
+.rv-ph-t {
+  font-family: var(--n15-serif);
+  font-size: clamp(1.1rem, 3.6vw, 1.5rem);
+  line-height: 1.2;
+  color: rgba(var(--n15-ink), 0.75);
+}
+
+.rv-dots {
+  margin-top: 0.85rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* 34px tall so the tap target clears the 30px floor, while the visible dot
+   stays small. Padding does the work; the dot is drawn by the background. */
+.rv-dot {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  position: relative;
+  cursor: pointer;
+}
+
+.rv-dot::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.28;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.rv-dot-on::after {
+  background: var(--n15-copper);
+  opacity: 1;
+  transform: scale(1.35);
+}
+
+/*
+ * THE CAPTION, LAST AND QUIET.
+ *
+ * It was directly under the frame, between the picture and the dots — the most
+ * expensive line on the component. It is the least important element here: it
+ * names what is already visible. Set as an eyebrow rather than as a sentence,
+ * below the dots, holding one line's height so nothing hops when it wraps.
+ */
+.rv-cap {
+  margin: 0.55rem 0 0;
+  min-height: 1.4em;
+  font-family: var(--n15-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  opacity: 0.5;
+}
+
+/* ----------------------------------------------------------------------------
+   THE PICKER'S PINNED PREVIEW
+--------------------------------------------------------------------------- */
+
+/*
+ * The same pinning phase30.css argued for, on a new name so the picture inside
+ * it can be bigger. Everything phase30 established about WHY it is pinned and
+ * why it must be opaque still holds and is not repeated here:
+ *
+ *   - `top` clears the 56px fixed header from phase15b.css.
+ *   - It REQUIRES `.tc { overflow: clip }` from phase34.css. `overflow:
+ *     hidden` on an ancestor makes it a scroll container and a sticky
+ *     descendant then sticks to THAT, which looks exactly like sticky doing
+ *     nothing. `clip` clips identically and creates no scroll container.
+ *   - The background is declared twice, one copy over the other, because
+ *     `--n15-panel` is 55% opaque by design and a pinned bar that content
+ *     scrolls through is illegible.
+ */
+.fp-stage {
+  position: sticky;
+  top: calc(56px + 0.25rem);
+  z-index: 20;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.7rem 0.7rem;
+  margin-left: -0.7rem;
+  margin-right: -0.7rem;
+  background-image: linear-gradient(var(--n15-panel), var(--n15-panel));
+  background-color: var(--n15-panel);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-bottom: 1px solid var(--n15-card-edge-lit);
+  box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.55);
+}
+
+.fp-stage-media {
+  position: relative;
+}
+
+/*
+ * 42vh, UP FROM 32vh, AND WHERE THE OTHER TEN CAME FROM.
+ *
+ * phase30's cap was not arbitrary: a pinned preview that leaves no room for
+ * the options is worse than one that scrolls away. That argument is still
+ * correct, so the extra height is not simply taken — it is paid for.
+ *
+ * `.fp-note` moved OUT of this block in phase 35. It was a fixed 2.75rem plus
+ * a 0.5rem margin plus a border, about 56px, sitting inside the pinned budget
+ * describing an option. Removing it funds most of the increase; the pinned bar
+ * ends up roughly 40px taller than before while the PICTURE is about 80px
+ * taller. That is the trade this phase makes: the same screen real estate,
+ * spent on the photograph instead of on a caption.
+ *
+ * `max-height` still wins over `aspect-ratio`, and `cover` crops rather than
+ * squashing.
+ */
+.fp-stage-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  max-height: 42vh;
+  object-fit: cover;
+  border-radius: var(--n15-r-card);
+  border: 1px solid var(--n15-card-edge);
+  cursor: zoom-in;
+}
+
+/* The controls sit ON the picture, top right. Under it is the space this whole
+   phase exists to reclaim. */
+.fp-stage-tools {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  gap: 0.35rem;
+}
+
+/*
+ * The empty state occupies the same footprint as a photograph would, so the
+ * bar does not jump when one appears. It is a real answer, not a skeleton:
+ * plenty of combinations will never be rendered and this has to look
+ * intentional forever, not like something still loading.
+ */
+.fp-stage-none {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  aspect-ratio: 3 / 2;
+  max-height: 42vh;
+  overflow: hidden;
+  padding: 1.25rem;
+  border: 1px dashed var(--n15-card-edge);
+  border-radius: var(--n15-r-card);
+  background: rgba(127, 127, 127, 0.05);
+}
+
+.fp-stage-none-h {
+  margin: 0;
+  font-family: var(--n15-serif);
+  font-size: 1.25rem;
+}
+
+.fp-stage-none-b {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  opacity: 0.7;
+}
+
+/*
+ * The description strip, now scrolling with the page rather than pinned.
+ *
+ * It keeps `.fp-note`'s fixed height — that rule exists so the option grid
+ * below cannot jump by a line on every tap, and that is still true here. This
+ * modifier only restates the margins, which were tuned for sitting directly
+ * under a picture and are wrong now that it sits under a pinned bar.
+ */
+.fp-note-lower {
+  margin-top: 0;
+  margin-bottom: 1.15rem;
+}
+
+.fp-save-note {
+  margin: -0.6rem 0 1rem;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+/* ----------------------------------------------------------------------------
+   THE COMBINATION STUDIO'S RESULT ROWS
+--------------------------------------------------------------------------- */
+
+/*
+ * Bigger than the 56x40 it was. At that size a metallic pour and a flake blend
+ * are two grey smudges, and the operator's actual job on this screen is to
+ * look at the results and decide whether they are any good.
+ */
+.cs-thumb {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid var(--n15-card-edge);
+  border-radius: 4px;
+  overflow: hidden;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.cs-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cs-save {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+/* ----------------------------------------------------------------------------
+   THE FULL-SCREEN VIEWER
+--------------------------------------------------------------------------- */
+
+/*
+ * THE ONE HARDCODED COLOUR IN THIS FILE, AND WHY.
+ *
+ * Every other surface here uses a theme token so light mode retints it for
+ * free. The backdrop behind a photograph must not. Its job is to remove the
+ * page so the eye has nothing to compare the picture against, and a pale
+ * scrim in light mode would do the opposite — it would wash out the very
+ * thing somebody opened full screen to look at. Photographs are judged
+ * against darkness in every viewer ever built, in both themes.
+ */
+.lb {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  overscroll-behavior: contain;
+}
+
+.lb-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: 100%;
+  max-width: 1100px;
+  max-height: 100%;
+}
+
+.lb-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+/*
+ * `contain`, and the height budget that makes it mean anything.
+ *
+ * This is the one surface whose entire purpose is showing the whole frame, so
+ * nothing is cropped. `min-height: 0` is not decoration — without it a flex
+ * child refuses to shrink below its content size and a tall picture pushes the
+ * caption and the buttons off the bottom of the screen.
+ */
+.lb-media {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  object-fit: contain;
+  border-radius: var(--n15-r-inner);
+}
+
+.lb-cap,
+.lb-note {
+  margin: 0;
+  flex: 0 0 auto;
+  font-family: var(--n15-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  line-height: 1.6;
+  text-align: center;
+  color: rgba(244, 242, 237, 0.7);
+  word-break: break-word;
+}
+
+.lb-note {
+  letter-spacing: 0;
+  font-family: var(--n15-sans);
+  font-size: 0.8125rem;
+  color: rgba(244, 242, 237, 0.9);
+}
+
+.lb-x,
+.lb-save {
+  padding: 0.45rem 0.9rem;
+  font-family: var(--n15-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgba(244, 242, 237, 0.92);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--n15-r-chip);
+  cursor: pointer;
+}
+
+.lb-save {
+  background: var(--n15-copper);
+  border-color: transparent;
+  color: #12140f;
+}
+
+.lb-save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/*
+ * The expand affordance that sits on a picture.
+ *
+ * 34px square so it clears the tap-target floor without covering the image it
+ * is offering to enlarge. Semi-opaque dark in both themes because it sits on a
+ * photograph, not on a panel — a themed token would vanish against half the
+ * pictures in the catalogue.
+ */
+.lb-open {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: rgba(244, 242, 237, 0.95);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-frame,
+  .rv-dot::after {
+    transition: none;
+  }
+}
