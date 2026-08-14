@@ -5,6 +5,7 @@ import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { getQueueDb } from '@/lib/queue/db';
 import { getTool } from '@/lib/queue/tools';
+import { clientIpFromHeaders } from '@/lib/quote/guards';
 
 /**
  * app/actions/queue.ts — writes for the build queue.
@@ -30,11 +31,37 @@ function voterHash(): string | null {
   const salt = process.env.QUEUE_VOTE_SALT;
   if (!salt) return null;
   const h = headers();
-  // split() always returns at least one element, but noUncheckedIndexedAccess
-  // types [0] as possibly undefined, so it is optional-chained rather than
-  // asserted. The fallback is also the correct behaviour behind a proxy that
-  // strips the header.
-  const ip = (h.get('x-forwarded-for') ?? '').split(',')[0]?.trim() || 'unknown';
+  /**
+   * ==========================================================================
+   * THE SPOOFABLE READ THAT USED TO BE HERE. PHASE 41.
+   * ==========================================================================
+   *
+   * It was `(h.get('x-forwarded-for') ?? '').split(',')[0]?.trim()`. Take
+   * element zero of x-forwarded-for and trust it.
+   *
+   * ELEMENT ZERO IS THE CLIENT-SUPPLIED END OF THAT HEADER. Each proxy appends
+   * to the right, so the leftmost entry is whatever the original caller chose
+   * to send — and nothing stops a caller sending a header that was never
+   * theirs. One vote per person here is enforced by hashing salt + ip + ua, so
+   * a caller who varies that string at will gets a fresh identity per request
+   * and the whole limit becomes decorative. The queue rank is the one number
+   * on that page a stranger has a reason to push.
+   *
+   * lib/quote/guards.ts already fixed exactly this and wrote down why:
+   * x-vercel-forwarded-for first, then x-real-ip, and only then the RIGHTMOST
+   * element of x-forwarded-for, which is the entry the nearest trusted proxy
+   * appended rather than the one the caller invented. The fix landed in the
+   * guards and never reached this file.
+   *
+   * IMPORTED RATHER THAN COPIED. A second implementation is how the two
+   * drifted apart in the first place, and this one drifted for long enough to
+   * be found by a grep rather than by a report.
+   *
+   * The 'unknown' fallback is kept and is still correct: behind a proxy that
+   * strips every header there is genuinely nothing to key on, and every such
+   * caller collapsing into one bucket is the conservative outcome.
+   */
+  const ip = clientIpFromHeaders(h) ?? 'unknown';
   const ua = h.get('user-agent') ?? 'unknown';
   return createHash('sha256').update(`${salt}:${ip}:${ua}`).digest('hex');
 }
@@ -168,3 +195,4 @@ export async function addBuildLogEntry(formData: FormData): Promise<ActionResult
     return { ok: false, message: 'That did not save.' };
   }
 }
+
