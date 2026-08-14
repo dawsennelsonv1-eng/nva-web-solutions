@@ -4,24 +4,32 @@ import { useState } from 'react';
 import { generateToolMediaAction, type ToolMediaGenResult } from '@/app/actions/toolMediaGen';
 import { createToolMediaUploadAction } from '@/app/actions/toolMedia';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+// The beats live in lib/tools/media-presets.ts, shared with ToolMediaEditor,
+// which grew the same generator in phase 38. Two copies of this list would
+// have drifted; see that file.
+import { MEDIA_PRESETS, firstPresetSubject } from '@/lib/tools/media-presets';
 
 /**
  * components/admin/ToolMediaStudio.tsx — pictures for the tool page.
  *
  * ============================================================================
- * PRESETS, BECAUSE THE HARD PART IS KNOWING WHAT TO ASK FOR
+ * WHAT THIS SCREEN IS FOR, NOW THAT THE EDITOR CAN GENERATE TOO
  * ============================================================================
  *
- * A blank prompt box in an admin screen is a way of handing the difficult part
- * back to the operator. The tool page tells one story in a fixed order —
- * photograph the floor, it works out the size, choose the finish, see it on
- * your own floor, the installer calls — and each beat wants a picture of that
- * specific moment.
+ * Phase 38 put the same generator on every slot row in ToolMediaEditor, which
+ * is the shorter path for the ordinary case: fill slot 3, describe it, done,
+ * without the address ever being visible.
  *
- * So the beats are written out as starting points. They are editable, because
- * a contractor selling patios rather than garages needs different words, and
- * because the fastest way to improve a generated picture is usually to change
- * one clause rather than to start again.
+ * THIS SCREEN IS NOT REDUNDANT. It generates WITHOUT committing to a slot,
+ * which is what you want when the question is "can the model do this at all"
+ * rather than "fill this slot" — trying six wordings for a beat, keeping the
+ * one that works, and only then deciding where it goes. It also hands back the
+ * bare address, which is the only way to put a generated picture somewhere the
+ * slot editor does not reach.
+ *
+ * The prompt presets it offers are in lib/tools/media-presets.ts, shared with
+ * the editor so the two screens cannot produce different pictures for the same
+ * named beat.
  *
  * ============================================================================
  * GENERATE, LOOK, THEN UPLOAD — THREE SEPARATE ACTS
@@ -33,37 +41,9 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
  * and clear later. Looking at it first is the actual work.
  */
 
-const PRESETS: readonly { label: string; subject: string }[] = [
-  {
-    label: 'Photographing the floor',
-    subject:
-      'a person standing in the doorway of a domestic garage holding up a phone to photograph the bare concrete floor, seen from behind',
-  },
-  {
-    label: 'The bare slab',
-    subject:
-      'the empty concrete floor of a two-car domestic garage in daylight, swept clean, some staining and hairline cracks visible',
-  },
-  {
-    label: 'Choosing the finish',
-    subject:
-      'a close-up of two hands holding physical epoxy floor sample tiles side by side over a bare concrete floor, comparing them',
-  },
-  {
-    label: 'The finished floor',
-    subject:
-      'a domestic garage with a finished decorative flake epoxy floor, a car parked on it, ordinary household clutter along one wall',
-  },
-  {
-    label: 'The installer arrives',
-    subject:
-      'a contractor in work clothes kneeling on a garage floor with a clipboard and a tape measure, checking the concrete',
-  },
-];
-
 export function ToolMediaStudio({ toolIds }: { toolIds: string[] }) {
   const [toolId, setToolId] = useState(toolIds[0] ?? '');
-  const [subject, setSubject] = useState(PRESETS[0]?.subject ?? '');
+  const [subject, setSubject] = useState(firstPresetSubject());
   const [busy, setBusy] = useState<null | 'gen' | 'upload'>(null);
   const [result, setResult] = useState<ToolMediaGenResult | null>(null);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
@@ -146,7 +126,7 @@ export function ToolMediaStudio({ toolIds }: { toolIds: string[] }) {
 
       <p className="n15-eyebrow">Which moment</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', margin: '0.4rem 0 0.9rem' }}>
-        {PRESETS.map((p) => (
+        {MEDIA_PRESETS.map((p) => (
           <button
             key={p.label}
             type="button"
@@ -250,3 +230,4 @@ export function ToolMediaStudio({ toolIds }: { toolIds: string[] }) {
     </div>
   );
 }
+

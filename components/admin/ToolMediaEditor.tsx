@@ -2,7 +2,9 @@
 
 import { useRef, useState } from 'react';
 import { saveToolMediaAction, createToolMediaUploadAction } from '@/app/actions/toolMedia';
+import { generateToolMediaAction } from '@/app/actions/toolMediaGen';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { MEDIA_PRESETS, firstPresetSubject } from '@/lib/tools/media-presets';
 // From media-types, NOT media: client component, value imports.
 import {
   MAX_SLOTS,
@@ -62,6 +64,36 @@ import {
  * Uploading and saving in one gesture would mean a half-finished row — a file
  * with no caption and no description — reaching the public gallery.
  *
+ * ============================================================================
+ * GENERATING A PICTURE, IN THE ROW THAT NEEDS IT — PHASE 38
+ * ============================================================================
+ *
+ * app/actions/toolMediaGen.ts was written before this file had been read, and
+ * its header said so plainly: it stops one step short of the slot list because
+ * `saveToolMediaAction` replaces a tool's ENTIRE slot set, and a generator
+ * that wrote through it without understanding this screen would silently
+ * delete the recordings already on a live tool page. So it generated, uploaded
+ * and handed back a URL for somebody to carry to the other screen by hand.
+ *
+ * THAT COPY-AND-PASTE IS GONE, and the danger it was avoiding never arrives,
+ * because generating here does exactly what the file upload above already
+ * does: it fills `src` on ONE row of the local draft and leaves the draft
+ * dirty. It does not call `saveToolMediaAction`. The whole-set write still
+ * happens once, from Save, from the list the operator can see.
+ *
+ * WHY IT DOES NOT SAVE ON ITS OWN, same reason the upload does not: a slot
+ * with a picture and no caption and no description is a half-finished row, and
+ * on a public gallery that reads as a bug rather than as work in progress.
+ *
+ * ONE AT A TIME, like the upload. Two renders at once cost twice as much,
+ * meter twice against the daily ceiling, and give an operator two things to
+ * judge when he was only ready to judge one.
+ *
+ * THE DESCRIPTION FIELD IS THE PROMPT. When a row already has one, it is what
+ * the generator opens with, because "what is happening in it" is exactly the
+ * sentence an image model needs and asking for it twice in two boxes is how
+ * they end up disagreeing about what the picture shows.
+ *
  * Styled with the LEGACY token system, like the rest of admin. Admin is not
  * part of the marketing redesign and should not start looking like it while the
  * screens either side of it do not.
@@ -101,6 +133,23 @@ export function ToolMediaEditor({ toolId, initial }: { toolId: string; initial: 
   const [uploading, setUploading] = useState<number | null>(null);
   const fileRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
+  /**
+   * The open generator, or null. ONE OBJECT, NOT A MAP KEYED BY ROW.
+   *
+   * Only one row can be generating at a time — the same rule the upload
+   * follows — so a map would be a second place for "which row is busy" to be
+   * recorded, and the two would eventually disagree. `index` is the single
+   * answer to that question.
+   */
+  const [gen, setGen] = useState<{
+    index: number;
+    subject: string;
+    busy: boolean;
+    dataUrl: string | null;
+    error: string | null;
+    attempts: string[];
+  } | null>(null);
+
   const patch = (i: number, next: Partial<Draft>) =>
     setRows((r) => r.map((row, n) => (n === i ? { ...row, ...next } : row)));
 
@@ -119,38 +168,146 @@ export function ToolMediaEditor({ toolId, initial }: { toolId: string; initial: 
     setNote(null);
     void (async () => {
       try {
-        const signed = await createToolMediaUploadAction({
-          toolId,
-          contentType: file.type,
-        });
-        if (!signed.ok) {
-          setNote(signed.message);
-          return;
-        }
+        /**
+         * `kind` is set from the file's own type rather than left to the
+         * operator: a GIF or an MP4 is an animation and a PNG or a JPG is a
+         * still, and getting that wrong changes the order frames appear in on
+         * the public page. WebP is the ambiguous one — it can be either — so it
+         * is the only type that leaves the existing choice alone.
+         */
+        const extra: Partial<Draft> = {};
+        if (file.type === 'image/gif' || file.type === 'video/mp4') extra.kind = 'animation';
+        if (file.type === 'image/png' || file.type === 'image/jpeg') extra.kind = 'still';
 
-        const supabase = getSupabaseBrowserClient();
-        const { error } = await supabase.storage
-          .from('tool-media')
-          .uploadToSignedUrl(signed.path, signed.token, file);
-
-        if (error) {
+        const failure = await putAndPatch(i, file, file.type, extra);
+        if (failure) {
           setNote(
-            'The upload was refused: ' +
-              error.message +
-              '. If it mentions size, the ceiling is 8 MB.'
+            'The upload was refused: ' + failure + '. If it mentions size, the ceiling is 8 MB.'
           );
           return;
         }
-
-        const next: Partial<Draft> = { src: signed.publicUrl };
-        if (file.type === 'image/gif' || file.type === 'video/mp4') next.kind = 'animation';
-        if (file.type === 'image/png' || file.type === 'image/jpeg') next.kind = 'still';
-        patch(i, next);
         setNote('Uploaded. Add a caption and a description, then press Save.');
       } catch {
         setNote('That upload did not finish. Check the connection and try again.');
       } finally {
         setUploading(null);
+      }
+    })();
+  };
+
+  /**
+   * Push a file that is already in memory to the bucket and write its address
+   * into the row.
+   *
+   * Shared by the upload above and the generator below, because they are the
+   * same three steps — mint a signed URL, PUT to Storage, patch `src` — and
+   * the one that matters is the third. A second copy of this would be a second
+   * place for the "did we actually write it into the draft" bug to live.
+   *
+   * Returns a message on failure and null on success, so each caller can put
+   * its own words around it: an upload that fails is usually a size problem, a
+   * generation that fails is usually not.
+   */
+  const putAndPatch = async (
+    i: number,
+    body: Blob,
+    contentType: string,
+    extra: Partial<Draft>
+  ): Promise<string | null> => {
+    const signed = await createToolMediaUploadAction({ toolId, contentType });
+    if (!signed.ok) return signed.message;
+
+    const supabase = getSupabaseBrowserClient();
+    const { error } = await supabase.storage
+      .from('tool-media')
+      .uploadToSignedUrl(
+        signed.path,
+        signed.token,
+        new File([body], 'slot', { type: contentType })
+      );
+    if (error) return error.message;
+
+    patch(i, { src: signed.publicUrl, ...extra });
+    return null;
+  };
+
+  const openGenerator = (i: number) => {
+    const row = rows[i];
+    /**
+     * The row's own description, when it has one, otherwise the first beat.
+     * `alt` is already written for a person who cannot see the picture, which
+     * is the same job as a prompt: describe the action, not the file.
+     */
+    const seed = row && row.alt.trim().length >= 8 ? row.alt.trim() : firstPresetSubject();
+    setGen({ index: i, subject: seed, busy: false, dataUrl: null, error: null, attempts: [] });
+  };
+
+  const generate = () => {
+    if (!gen || gen.busy) return;
+    const { index, subject } = gen;
+    setGen((g) => (g ? { ...g, busy: true, dataUrl: null, error: null, attempts: [] } : g));
+    setNote(null);
+    void (async () => {
+      try {
+        const res = await generateToolMediaAction({ toolId, subject });
+        setGen((g) =>
+          g && g.index === index
+            ? {
+                ...g,
+                busy: false,
+                dataUrl: res.ok ? (res.dataUrl ?? null) : null,
+                error: res.ok ? null : (res.error ?? 'It did not come back with a picture.'),
+                attempts: res.attempts ?? [],
+              }
+            : g
+        );
+      } catch (e) {
+        setGen((g) =>
+          g && g.index === index
+            ? {
+                ...g,
+                busy: false,
+                error:
+                  'The request did not complete. If it ran for about a minute the route timed out — check maxDuration on this page. ' +
+                  (e instanceof Error ? e.message : String(e)),
+              }
+            : g
+        );
+      }
+    })();
+  };
+
+  /**
+   * Keep the generated picture: upload it and fill the row in.
+   *
+   * `kind` is forced to 'still'. Everything this generator can produce is a
+   * single frame, and a still filed as an animation gets whatever hold time
+   * the row was carrying — which on the public gallery is a photograph sitting
+   * on screen for six seconds because somebody once typed that in for a
+   * recording.
+   */
+  const keepGenerated = () => {
+    if (!gen || !gen.dataUrl || gen.busy) return;
+    const { index, dataUrl } = gen;
+    setGen((g) => (g ? { ...g, busy: true } : g));
+    setNote(null);
+    void (async () => {
+      try {
+        const blob = await (await fetch(dataUrl)).blob();
+        const contentType = blob.type || 'image/webp';
+        const failure = await putAndPatch(index, blob, contentType, { kind: 'still' });
+        if (failure) {
+          setGen((g) => (g ? { ...g, busy: false, error: 'It could not be stored: ' + failure } : g));
+          return;
+        }
+        setGen(null);
+        setNote(
+          'Picture stored and slot ' +
+            (index + 1) +
+            ' filled in. Add a caption, then press Save — nothing is live until you do.'
+        );
+      } catch {
+        setGen((g) => (g ? { ...g, busy: false, error: 'It could not be stored. Try again.' } : g));
       }
     })();
   };
@@ -287,17 +444,116 @@ export function ToolMediaEditor({ toolId, initial }: { toolId: string; initial: 
                   <button
                     type="button"
                     className="press border border-ink bg-sheet px-4 py-3 text-base"
-                    disabled={uploading !== null}
+                    disabled={uploading !== null || gen?.busy === true}
                     onClick={() => fileRefs.current[i]?.click()}
                   >
                     {uploading === i ? 'Uploading…' : 'Choose a file'}
                   </button>
+
+                  {/* The second way to fill this slot. Deliberately beside the
+                      file picker rather than on a separate screen: they answer
+                      the same question and the operator should not have to know
+                      which screen owns which answer. */}
+                  <button
+                    type="button"
+                    className="press border border-rule bg-sheet px-4 py-3 text-base"
+                    disabled={uploading !== null || gen?.busy === true}
+                    onClick={() => (gen?.index === i ? setGen(null) : openGenerator(i))}
+                  >
+                    {gen?.index === i ? 'Close' : 'Generate one'}
+                  </button>
+
                   {row.src ? (
                     <span className="text-sm">Filled in</span>
                   ) : (
                     <span className="text-sm">Nothing here yet</span>
                   )}
                 </div>
+
+                {gen?.index === i && (
+                  <div className="mt-3 border border-rule bg-concrete p-3">
+                    <span className="font-data text-xs uppercase">Which moment</span>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {MEDIA_PRESETS.map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          className="press border border-rule bg-sheet px-3 py-2 text-sm"
+                          disabled={gen.busy}
+                          onClick={() =>
+                            setGen((g) => (g ? { ...g, subject: preset.subject } : g))
+                          }
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Editable, always. A preset is a starting point; the
+                        fastest way to improve a generated picture is usually to
+                        change one clause rather than to start again. */}
+                    <textarea
+                      className="mt-2 min-h-[88px] w-full border border-rule bg-sheet p-2 text-base"
+                      rows={3}
+                      value={gen.subject}
+                      disabled={gen.busy}
+                      onChange={(e) =>
+                        setGen((g) => (g ? { ...g, subject: e.target.value } : g))
+                      }
+                    />
+
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="press border border-ink bg-sheet px-4 py-3 text-base"
+                        disabled={gen.busy}
+                        onClick={generate}
+                      >
+                        {gen.busy && !gen.dataUrl ? 'Generating…' : gen.dataUrl ? 'Try again' : 'Generate'}
+                      </button>
+
+                      {/* Only after there is something to look at. LOOKING IS
+                          THE WORK — image models miss often, and a generator
+                          that filled the slot automatically would put rejects
+                          on a public page and rubbish in the bucket. */}
+                      {gen.dataUrl && (
+                        <button
+                          type="button"
+                          className="press border border-ink bg-hazard px-4 py-3 text-base text-sheet"
+                          disabled={gen.busy}
+                          onClick={keepGenerated}
+                        >
+                          {gen.busy ? 'Storing…' : 'Use this one'}
+                        </button>
+                      )}
+                    </div>
+
+                    {gen.dataUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={gen.dataUrl}
+                        alt="The picture just generated, not yet stored"
+                        className="mt-2 max-h-64 w-full border border-rule object-contain"
+                      />
+                    )}
+
+                    {gen.error && (
+                      <p className="mt-2 border border-rule bg-sheet p-2 text-sm" role="alert">
+                        {gen.error}
+                        {gen.attempts.length > 0 && (
+                          <span className="mt-1 block whitespace-pre-wrap opacity-70">
+                            {gen.attempts.join('\n')}
+                          </span>
+                        )}
+                      </p>
+                    )}
+
+                    <p className="mt-2 text-sm">
+                      Each one costs money and takes up to a minute. Nothing reaches
+                      the public page until you press Save.
+                    </p>
+                  </div>
+                )}
 
                 {/* A thumbnail, so the operator can see WHICH file this is
                     without opening a second tab. Stills and GIFs both render
@@ -377,4 +633,5 @@ export function ToolMediaEditor({ toolId, initial }: { toolId: string; initial: 
     </section>
   );
 }
+
 

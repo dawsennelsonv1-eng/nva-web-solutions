@@ -8,27 +8,23 @@ import { NEUTRAL_BASE_HEX, solidPngDataUrl } from '@/lib/ai/swatch';
  * app/actions/toolMediaGen.ts — generate an illustration for a tool page slot.
  *
  * ============================================================================
- * IT GENERATES AND RETURNS. IT DOES NOT SAVE THE SLOT.
+ * IT GENERATES AND RETURNS. IT NEITHER UPLOADS NOR SAVES.
  * ============================================================================
  *
  * `saveToolMediaAction` calls `replaceToolMedia`, which swaps a tool's ENTIRE
- * slot set for whatever it is given. A generator that wrote through it would
- * have to send every existing slot back untouched alongside the new one, and
- * components/admin/ToolMediaEditor.tsx — the screen that owns that list — has
- * not been read.
+ * slot set for whatever it is given, and getting that wrong does not fail
+ * loudly — it silently deletes the recordings already on a live tool page. So
+ * this action never touches the slot list. It returns a picture and stops.
  *
- * Getting that wrong does not fail loudly. It silently deletes the recordings
- * already on a live tool page. So this action stops one step short: it
- * generates the picture, uploads it to the tool-media bucket through the same
- * signed-URL path the editor uses, and hands back the public URL.
+ * Storing it is the caller's job, through the same signed-URL path the editor
+ * has always used for a chosen file. Two callers do this today:
+ * ToolMediaEditor, which patches one row of a local draft and leaves the
+ * operator to press Save, and ToolMediaStudio, which hands back a bare address
+ * for a slot this screen does not reach.
  *
- * The operator pastes that URL into the editor, which already accepts an
- * `https://` src and already validates it. One extra step, and the slot list
- * stays owned by the one screen that understands it.
- *
- * WHEN ToolMediaEditor IS AVAILABLE the generate button belongs inside it,
- * writing the whole set at once — and this comment should be deleted rather
- * than left as a fossil.
+ * The earlier version of this note asked for a generate button inside the
+ * editor once that file had been read. Phase 38 built it; the note is replaced
+ * rather than left as a fossil.
  *
  * ============================================================================
  * WHY A FLAT TILE IS THE REFERENCE
@@ -46,9 +42,16 @@ import { NEUTRAL_BASE_HEX, solidPngDataUrl } from '@/lib/ai/swatch';
 
 export interface ToolMediaGenResult {
   ok: boolean;
-  /** Paste this into the src field in the tool media editor. */
-  publicUrl?: string;
-  /** Shown immediately so the operator can judge it before pasting anything. */
+  /**
+   * Shown immediately so the operator can judge it before anything is stored.
+   *
+   * A `publicUrl` field used to be declared here too and was NEVER ONCE SET —
+   * this action does not upload, so it has no address to give. Both callers
+   * were already reading the address off `createToolMediaUploadAction`
+   * instead, so nothing broke; the field simply advertised a value that could
+   * not arrive, which is the kind of type that sends the next reader looking
+   * for a bug in the wrong file. Removed in phase 38.
+   */
   dataUrl?: string;
   prompt?: string;
   error?: string;
@@ -112,3 +115,4 @@ export async function generateToolMediaAction(args: {
     dataUrl: `data:${result.mediaType};base64,${result.base64}`,
   };
 }
+
