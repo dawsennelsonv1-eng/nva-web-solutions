@@ -1,5 +1,6 @@
 import 'server-only';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import type { Database } from '@/types/database';
 import type { FinishMediaKind, FinishMediaSlot } from '@/lib/finishes/media-types';
 
 /**
@@ -19,28 +20,39 @@ import type { FinishMediaKind, FinishMediaSlot } from '@/lib/finishes/media-type
  * all, so "no picture for this exact mix" has to be a first-class, unalarming
  * screen rather than something that looks broken.
  *
- * `types/database.ts` stops at migration 0005 and this table arrives in 0022,
- * so the narrow structural cast below is the established pattern for a
- * post-0005 table. Not `@ts-expect-error`, which would fail the build the day
- * the types are regenerated.
+ * ============================================================================
+ * THE `NarrowDb` CAST IS GONE. PHASE 49.
+ * ============================================================================
+ *
+ * This file used to open with a hand-written `NarrowDb` interface and three
+ * `getSupabaseAdminClient() as unknown as NarrowDb` casts, because
+ * `types/database.ts` did not know `finish_media` existed — the table arrives
+ * in migration 0022 and the generated types stopped at 0005. The comment that
+ * stood here called it "the established pattern for a post-0005 table", which
+ * it was, and it was also the thing making every column name in this file
+ * unchecked.
+ *
+ * `as unknown as` erases the real client type completely. Inside the casts,
+ * `media_key` and `mediakey` were equally valid, `.eq('verticl', ...)` compiled,
+ * and a column added to the table would never be visible. Every read here is
+ * wrapped in try/catch returning [] by design, so a typo of that kind surfaced
+ * as "no pictures for this combination" — indistinguishable from the honest
+ * empty state this file is built around, which is the worst possible place for
+ * an error to hide.
+ *
+ * Phase 47 generated the table's shape from the migration, so the typed client
+ * now covers it and the cast has nothing left to work around.
+ *
+ * `toSlot` STAYS, and it is not redundant. The types describe what the SCHEMA
+ * promises; `toSlot` checks what actually arrived. `kind` is `string` in the
+ * generated types because narrowing a CHECK constraint by hand goes stale, and
+ * a row written before that constraint existed can still hold anything. The
+ * types stop typos at compile time; toSlot stops bad data at runtime. Neither
+ * replaces the other.
  */
 
-type Row = Record<string, unknown>;
-
-interface Filterable<T> extends PromiseLike<T> {
-  eq(col: string, val: string): Filterable<T>;
-}
-
-interface NarrowDb {
-  from(table: string): {
-    select(cols: string): Filterable<{ data: Row[] | null; error: unknown }>;
-    upsert(
-      values: Record<string, unknown>,
-      opts: { onConflict: string }
-    ): PromiseLike<{ error: unknown }>;
-    delete(): Filterable<{ error: unknown }>;
-  };
-}
+/** One row as the generated types describe it. */
+type Row = Database['public']['Tables']['finish_media']['Row'];
 
 function toSlot(r: Row): FinishMediaSlot | null {
   const kind = r.kind;
@@ -68,7 +80,7 @@ function toSlot(r: Row): FinishMediaSlot | null {
  */
 export async function finishMediaFor(vertical = 'epoxy'): Promise<FinishMediaSlot[]> {
   try {
-    const db = getSupabaseAdminClient() as unknown as NarrowDb;
+    const db = getSupabaseAdminClient();
     const { data, error } = await db.from('finish_media').select('*').eq('vertical', vertical);
     if (error || !data) return [];
     return data.map(toSlot).filter((s): s is FinishMediaSlot => s !== null);
@@ -106,7 +118,7 @@ export async function saveFinishMedia(args: {
   sortOrder: number;
 }): Promise<boolean> {
   try {
-    const db = getSupabaseAdminClient() as unknown as NarrowDb;
+    const db = getSupabaseAdminClient();
     const { error } = await db.from('finish_media').upsert(
       {
         vertical: args.vertical,
@@ -131,7 +143,7 @@ export async function deleteFinishMedia(args: {
   mediaKey: string;
 }): Promise<boolean> {
   try {
-    const db = getSupabaseAdminClient() as unknown as NarrowDb;
+    const db = getSupabaseAdminClient();
     const { error } = await db
       .from('finish_media')
       .delete()
@@ -143,3 +155,4 @@ export async function deleteFinishMedia(args: {
     return false;
   }
 }
+
