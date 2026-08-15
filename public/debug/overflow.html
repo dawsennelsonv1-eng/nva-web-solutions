@@ -1,0 +1,24 @@
+<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">
+<style>body{font:14px system-ui;margin:0;padding:12px}li{margin:6px 0;word-break:break-all}</style>
+<h3 style="margin:0 0 8px">Wider than the screen</h3>
+<div id=out>checking…</div>
+<script>
+addEventListener('load',()=>{
+  const vw=document.documentElement.clientWidth, bad=[];
+  document.querySelectorAll('body *').forEach(el=>{
+    const r=el.getBoundingClientRect();
+    if(r.width===0&&r.height===0) return;
+    const right=r.right+scrollX;
+    if(right>vw+1){
+      let id=el.tagName.toLowerCase();
+      if(el.id) id+='#'+el.id;
+      if(el.className&&typeof el.className==='string') id+='.'+el.className.trim().split(/\s+/).slice(0,4).join('.');
+      bad.push({id,over:Math.round(right-vw),w:Math.round(r.width)});
+    }
+  });
+  bad.sort((a,b)=>b.over-a.over);
+  document.getElementById('out').innerHTML =
+    'viewport '+vw+'px · document '+document.documentElement.scrollWidth+'px<ul>'+
+    (bad.length?bad.slice(0,15).map(b=>'<li><b>+'+b.over+'px</b> — '+b.id+' (w '+b.w+')</li>').join(''):'<li>nothing found</li>')+'</ul>';
+});
+</script>
