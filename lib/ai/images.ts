@@ -123,11 +123,50 @@ function shouldFallThrough(reason: ImageFailureReason): boolean {
 }
 
 /**
- * A render is worth waiting for, but not indefinitely. 45s is past the point
- * where a homeowner has decided the site is broken, so the request is aborted
- * and the funnel continues without a picture — the quote never depended on it.
+ * ============================================================================
+ * 120s, RAISED FROM 45s. PHASE 44 — AND THIS WAS COSTING REAL RENDERS.
+ * ============================================================================
+ *
+ * WHAT THE LEDGER SHOWED. Every `finish_render` row on record follows the same
+ * shape: `google/gemini-2.5-flash-image` returns HTTP 400, `black-forest-labs/
+ * flux.2-flex` returns HTTP 400, and `openai/gpt-image-1` is aborted at
+ * exactly 45003 ms. Roughly one render in four was failing this way and
+ * nobody had read the ledger to see it.
+ *
+ * THE 400s AND THE TIMEOUT ARE ONE PROBLEM, NOT TWO. A 400 is what this
+ * endpoint returns for a slug it does not recognise — the header of this file
+ * already warns that image model names move faster than anything else in the
+ * stack. So the first two entries in the chain are dead, `shouldFallThrough`
+ * correctly falls past both, and EVERY render now lands on the third model.
+ *
+ * That model is not broken. It is slow — OpenRouter's own documentation, cited
+ * above, reports 94 seconds for a single render of this class. The 45s ceiling
+ * was chosen for the fast editing models at the HEAD of the chain, and the
+ * chain stopped reaching them. So a working model was being aborted nine
+ * seconds before it would have answered, and a picture the account was about
+ * to pay for was thrown away.
+ *
+ * WHY 120 AND NOT 60. It has to clear the documented 94s with room for a slow
+ * upload of the reference photograph, or this changes a guaranteed failure
+ * into a coin toss. 120s leaves that margin and still returns well inside the
+ * route's own `maxDuration = 300`.
+ *
+ * THE ORIGINAL ARGUMENT STILL STANDS AND IS NOT BEING OVERTURNED. A homeowner
+ * will not stare at a spinner indefinitely, and the quote never depended on
+ * the picture. But the choice is not "45s or forever" — it is between a wait
+ * that sometimes produces the floor he asked to see, and a wait that
+ * reliably produces nothing. The visualiser reports progress per photograph
+ * while this runs, so the wait is legible rather than blank.
+ *
+ * THIS IS THE STOPGAP, NOT THE FIX. The real repair is replacing the two dead
+ * slugs, which needs no deploy — `AI_IMAGE_MODELS` in Vercel overrides this
+ * chain with a comma-separated list. Check what is actually live with:
+ *   curl -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+ *        https://openrouter.ai/api/v1/images/models
+ * Once the head of the chain answers again, most renders will finish in a few
+ * seconds and this ceiling will stop mattering.
  */
-const TIMEOUT_MS = 45_000;
+const TIMEOUT_MS = 120_000;
 
 export type ImageFailureReason =
   | 'not_configured'
@@ -372,4 +411,5 @@ export async function renderFinishImage(
     ? { ...last, fellBackFrom: skipped, attempts }
     : { ...last, attempts };
 }
+
 
