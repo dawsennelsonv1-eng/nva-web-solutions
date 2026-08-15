@@ -607,6 +607,27 @@
    full-bleed section that forgets to clip its own bleed.
 --------------------------------------------------------------------------- */
 
-html {
+/*
+ * PHASE 54: `body` WAS ADDED, AND ON ITS OWN `html` WAS NOT ENOUGH.
+ *
+ * The rule shipped in phase 53 as `html { overflow-x: clip }` and the page
+ * still dragged. The reason is viewport propagation: the used overflow of the
+ * VIEWPORT is taken from `html`, and when it is, the value is treated as
+ * having been consumed — `html` itself keeps behaving as though it were
+ * `visible`, so a child that sticks out still widens the scrollable area.
+ * Setting it on both means the propagated value comes from `html` and `body`
+ * still clips its own overflowing children, which is the case that was
+ * actually biting.
+ *
+ * `max-width: 100%` on body is the belt to that braces: it stops body itself
+ * ever being sized wider than its containing block, which is the one way an
+ * overflowing child can widen the document even with clipping in place.
+ */
+html,
+body {
   overflow-x: clip;
+}
+
+body {
+  max-width: 100%;
 }
