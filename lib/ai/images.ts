@@ -229,6 +229,27 @@ export interface RenderImageArgs {
  */
 export const MAX_MATERIAL_REFS = 3;
 
+/**
+ * Identify an image format from the first few base64 characters.
+ *
+ * Base64 encodes three bytes per four characters from a fixed offset, so a
+ * known file header always produces the same leading string. These three
+ * prefixes are stable and unambiguous:
+ *
+ *   iVBORw0  ->  89 50 4E 47  ->  PNG
+ *   /9j/     ->  FF D8 FF     ->  JPEG
+ *   UklGR    ->  52 49 46 46  ->  RIFF, which at this endpoint is WebP
+ *
+ * PNG is the fallback because it is what an image endpoint returns when no
+ * format was requested, which is now the case for every call here.
+ */
+function sniffMediaType(b64: string): string {
+  if (b64.startsWith('iVBORw0')) return 'image/png';
+  if (b64.startsWith('/9j/')) return 'image/jpeg';
+  if (b64.startsWith('UklGR')) return 'image/webp';
+  return 'image/png';
+}
+
 interface OpenRouterImageResponse {
   data?: { b64_json?: string; media_type?: string }[];
   usage?: { cost?: number };
@@ -281,15 +302,55 @@ async function attemptRender(args: RenderImageArgs, model: string): Promise<Imag
             .map((url) => ({ type: 'image_url' as const, image_url: { url } })),
         ],
         n: 1,
-        // WebP at moderate compression: this is stored and then emailed to a
-        // contractor, so bytes matter more than the last few percent of
-        // fidelity. PNG would roughly triple the row.
-        output_format: 'webp',
-        output_compression: 82,
-        // Not streamed. Partial renders of a floor are worse than no render —
-        // a half-drawn surface reads as a defect in the coating rather than as
-        // a loading state, which is the opposite of reassuring.
-        stream: false,
+        /**
+         * ====================================================================
+         * `output_format` AND `output_compression` ARE NOT SENT. PHASE 45.
+         * ====================================================================
+         *
+         * THEY WERE, AND THEY WERE THE BUG. Every failed render in the ledger
+         * came back HTTP 400 with:
+         *
+         *   "No provider for google/gemini-2.5-flash-image supports ..."
+         *
+         * which reads like a retired model and is not. Both slugs are still
+         * live at /api/v1/images/models. What is not live is the PARAMETERS:
+         * OpenRouter advertises `supported_parameters` per model, and no
+         * single model on that endpoint accepts both of these.
+         *
+         *   google/gemini-2.5-flash-image   neither
+         *   black-forest-labs/flux.2-flex   output_format only
+         *   openai/gpt-image-1              output_compression only
+         *
+         * Sending both meant the first two models in the chain rejected EVERY
+         * request outright, `shouldFallThrough` correctly fell past both, and
+         * all traffic landed on the third — which is the slowest of the three
+         * and was then aborted by the timeout. One misplaced pair of
+         * parameters produced what looked like three unrelated faults.
+         *
+         * WHY DROPPED RATHER THAN SENT CONDITIONALLY. A per-model capability
+         * table is a second copy of something OpenRouter already publishes,
+         * and it goes stale silently — this failure is exactly what a stale
+         * copy looks like. These two are an optimisation, not a requirement:
+         * the models return a perfectly good image without them.
+         *
+         * THE FILE SIZE ARGUMENT THEY EXISTED FOR STILL MATTERS, and it is not
+         * being dismissed — a render is stored and then emailed. But a render
+         * that is never produced has no size at all, and the right place to
+         * normalise format is after the bytes arrive, where it works for every
+         * model rather than for whichever one happens to accept the flag.
+         */
+        /**
+         * `stream` IS NOT SENT EITHER, for the same reason as the two above:
+         * it appears in no model's `supported_parameters` on this endpoint,
+         * and this endpoint rejects the whole request over an unsupported
+         * parameter rather than ignoring it.
+         *
+         * Nothing is lost. `false` was the default, every model here reports
+         * `supports_streaming: false`, and the original reasoning holds by
+         * default rather than by declaration: a partially drawn floor reads as
+         * a defect in the coating rather than as a loading state, so a render
+         * arrives whole or not at all.
+         */
       }),
       signal: controller.signal,
     });
@@ -340,7 +401,19 @@ async function attemptRender(args: RenderImageArgs, model: string): Promise<Imag
     return {
       ok: true,
       base64: first.b64_json,
-      mediaType: first.media_type ?? 'image/webp',
+      /**
+       * DETECTED FROM THE BYTES, NOT ASSUMED.
+       *
+       * This used to default to 'image/webp', which was safe only because the
+       * request pinned `output_format: 'webp'`. That pin is gone, so each
+       * model now returns its own default — png for some, webp for others —
+       * and a data: URL carrying the wrong MIME type renders as a broken
+       * image in the browser with nothing in the logs to explain it.
+       *
+       * The reported `media_type` is preferred when present; the magic bytes
+       * are the fallback, and they cannot be wrong.
+       */
+      mediaType: first.media_type ?? sniffMediaType(first.b64_json),
       costCents,
       model,
       durationMs,
