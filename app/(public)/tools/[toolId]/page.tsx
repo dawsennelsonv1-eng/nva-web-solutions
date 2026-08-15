@@ -9,7 +9,6 @@ import { ToolReviews } from '@/components/tools/ToolReviews';
 import { SimilarTools } from '@/components/tools/SimilarTools';
 import { ToolCtaRail } from '@/components/tools/ToolCtaRail';
 import { Machinery } from '@/components/site/Sections';
-import { DemoExperience } from '@/components/demo/DemoExperience';
 import { toolPageFor, toolPageIds } from '@/lib/tools/catalogue';
 import { mediaForTool } from '@/lib/tools/media';
 import { PUBLIC_TOOLS, QUIET_REASON, pricerFor, tintFor } from '@/lib/tools/card-config';
@@ -185,50 +184,39 @@ export default async function ToolPage({ params }: { params: { toolId: string } 
       {/* 4 — extras. The live widget first: somebody who arrived on "Try it
              out" wants the thing, and reads the arithmetic after seeing a
              number come out of it. */}
-      {page.extras.includes('live-widget') && (
-        <section className="n15-sec tp-tight" aria-labelledby="live-h">
-          <div className="n15-in">
-            <p className="n15-eyebrow">For contractors</p>
-            <h2 id="live-h" className="n15-h2">
-              Walk the whole thing as your customer would.
-            </h2>
-            <p className="n15-lede">
-              The full four-step version, running as a sample company, so you can
-              see precisely what a homeowner does end to end on your own site.
-            </p>
-            <div className="tp-widget">
-              {/*
-                ============================================================
-                THE MotionProvider THAT WAS HERE MOVED INTO DemoExperience.
-                ============================================================
+      {/*
+        ============================================================
+        THE FOUR-STEP DemoExperience WAS REMOVED FROM THIS PAGE. PHASE 48.
+        ============================================================
 
-                It used to wrap this mount and carried a warning not to remove
-                it, because without it DemoExperience's root `m.div` sat at
-                opacity 0 — present, focusable, correct in the inspector,
-                invisible on screen, silent in the console. That is why /demo
-                rendered blank from Phase 13B onwards: 13B removed the provider
-                from app/(public)/layout.tsx reasoning that QuoteWidget brings
-                its own, which is true of QuoteWidget and false of the m.div
-                DemoExperience wraps it in.
+        It sat here under "Walk the whole thing as your customer would" and
+        rendered the OLD widget — the GARAGE / PATIO / COMMERCIAL step surface —
+        on the same page whose opening section already mounts the current
+        ToolCard.
 
-                The warning was correct and it was also the wrong shape. It put
-                a requirement on every caller, recorded in a comment on ONE of
-                them, where the penalty for not knowing is an invisible widget
-                and no error. Phase 40 moved the provider inside
-                DemoExperience, so the component that needs the context now
-                carries it and no mount has to remember anything.
+        WHY THAT WAS WORSE THAN REDUNDANT. A contractor deciding whether to buy
+        this scrolls one page and sees two different products. The one at the
+        top is what he would actually get; the one down here is an older
+        four-step flow that no longer looks or behaves like it. Given two
+        versions of the same thing, the reasonable conclusion is that the
+        screenshots are stale or the product is half-finished — and the second
+        widget was the more prominent of the two, sitting under a heading that
+        invited him to treat it as the real walkthrough.
 
-                Removed here rather than left in place. Nesting would have been
-                harmless — MotionProvider renders no DOM and LazyMotion loads
-                its features once — but a wrapper labelled load-bearing that is
-                no longer load-bearing is worse than either keeping it or
-                dropping it cleanly. The next person to read it would trust it.
-              */}
-              <DemoExperience surface="demo" entryPoint="demo_page" />
-            </div>
-          </div>
-        </section>
-      )}
+        NOTHING REPLACES IT HERE. The section's whole job was "see it working
+        end to end", and the ToolCard in section 1 does that with the same
+        upload, the same measurement and the same estimate — it IS the live
+        tool, not a demonstration of one. A second mount of the current widget
+        further down the same page would just be the same component twice.
+
+        `page.extras` may still list 'live-widget' for this or another tool.
+        That is left alone deliberately: the flag is data, other pages may read
+        it, and quietly rewriting content rows to match a layout decision is
+        how data and code drift apart. An unread flag costs nothing.
+
+        DemoExperience itself is untouched and still mounts at /demo, which is
+        where walking the sample company end to end belongs.
+      */}
 
       {page.extras.includes('pricing-model') && <Machinery />}
 
