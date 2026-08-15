@@ -74,9 +74,26 @@ function enumerateCombos(systems: Set<string>, topcoats: Set<string>): Row[] {
           label: `${sys.label} · ${c.label} · ${t.label}`,
         });
       }
+      /**
+       * DEDUPED BY KEY. PHASE 46.
+       *
+       * Topcoat left APPEARANCE_GROUPS, so `comboKeyFor` no longer varies by
+       * sheen — two ticked topcoats now produce two rows with the SAME key.
+       * Left alone that is a quiet money burner: both render, both upsert to
+       * one row, and the second silently overwrites the first. The operator
+       * pays twice and keeps one picture, with nothing on screen saying so.
+       *
+       * The first wins, and the topcoat filter still decides which sheen is
+       * DRAWN — it just no longer decides how many pictures exist.
+       */
     }
   }
-  return out;
+  const seen = new Set<string>();
+  return out.filter((r) => {
+    if (seen.has(r.comboKey)) return false;
+    seen.add(r.comboKey);
+    return true;
+  });
 }
 
 /** The five systems and the four topcoats, for the filter rows. */

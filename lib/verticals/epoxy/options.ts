@@ -508,6 +508,46 @@ export function findOption(groupKey: string, optionKey: string): FinishOptionDef
  * visible, so including it would split one photograph into four identical
  * ones.
  */
+/**
+ * ============================================================================
+ * WHICH CHOICES CHANGE WHICH PHOTOGRAPH IS SHOWN.
+ * ============================================================================
+ *
+ * TOPCOAT WAS REMOVED FROM THIS LIST IN PHASE 46, and it is the whole point of
+ * that phase.
+ *
+ * The catalogue offers four sheens. Including topcoat here meant every
+ * combination needed FOUR photographs instead of one, and the operator
+ * sensibly generates gloss only — ComboStudio defaults to exactly that. So the
+ * moment a visitor moved the sheen off gloss, the picker asked for a key that
+ * had never been rendered and the preview it had been showing a second ago
+ * vanished behind "no reference photo of this exact combination yet". The
+ * pictures had not gone anywhere; the question had changed.
+ *
+ * WHY DROPPING IT IS THE RIGHT TRADE AND NOT A SHORTCUT. Sheen is the least
+ * photographable decision in this catalogue. Colour and blend are what a
+ * person points at on a screen; the difference between satin and high gloss is
+ * a difference in reflection, which depends more on the light in the room and
+ * the angle of the shot than on the coating. A reference photograph answers
+ * "what will this look like on a floor", and it answers that just as well in
+ * one sheen as in four — while costing a quarter as much to produce and never
+ * disappearing mid-decision.
+ *
+ * THE SHEEN IS STILL A REAL CHOICE EVERYWHERE ELSE. It stays in the quote, in
+ * `selectionSummary`, in the lead sent to the contractor, and in
+ * `renderDescription` — so the model drawing the homeowner's OWN floor is
+ * still told which sheen he picked. Only the shared library photograph stops
+ * varying by it.
+ *
+ * TO PUT IT BACK: add 'topcoat' to this array and generate every sheen in
+ * /admin/combinations. Nothing else needs to change, and the studio's topcoat
+ * filter is still there for exactly that.
+ *
+ * `flake_coverage` and `flake_size` stay listed. They genuinely change what a
+ * floor looks like, and they are parked groups — not shown unless
+ * NEXT_PUBLIC_EPOXY_ALL_GROUPS is set — so in the shipped configuration they
+ * contribute nothing to a key and cost nothing.
+ */
 const APPEARANCE_GROUPS = [
   'system',
   'solid_colour',
@@ -516,7 +556,6 @@ const APPEARANCE_GROUPS = [
   'quartz_colour',
   'flake_coverage',
   'flake_size',
-  'topcoat',
 ];
 
 export function comboKeyFor(selections: Selections): string {
