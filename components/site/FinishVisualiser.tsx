@@ -564,12 +564,48 @@ export function FinishVisualiser({
              ---------------------------------------------------------------- */}
           {phase.shots.map((shot, i) => (
             <div className="tc-up-shots" key={shot.afterUrl.slice(-32) + i}>
-              <figure className="tc-shot">
+              {/* ------------------------------------------------------------
+                  THE BEFORE OPENS TOO. PHASE 51.
+
+                  Phase 43 gave only the after an expand control, reasoning that
+                  the before is a photograph he took himself and already has at
+                  full resolution on the same phone. That was wrong about how
+                  the pair is used: the point is COMPARISON, and a comparison
+                  where one side enlarges and the other does not cannot be made
+                  at all. Opening the after full screen and then having to
+                  remember what the concrete looked like is exactly the work
+                  this feature is supposed to remove.
+                 ------------------------------------------------------------ */}
+              <figure className="tc-shot rvl-shot">
                 {/* Plain <img>: a blob: URL and a data: URL, neither of which
                     next/image can optimise. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={shot.beforeUrl} alt="The floor as you photographed it" />
-                <figcaption className="tc-shot-cap">
+                <img
+                  src={shot.beforeUrl}
+                  alt="The floor as you photographed it"
+                  onClick={() =>
+                    setViewing({
+                      src: shot.beforeUrl,
+                      alt: 'Your photo' + (phase.shots.length > 1 ? ' ' + (i + 1) : ''),
+                      caption: 'Before',
+                      downloadName: 'your-photo-' + (i + 1),
+                    })
+                  }
+                />
+                <div className="rvl-tools">
+                  <ExpandButton
+                    onClick={() =>
+                      setViewing({
+                        src: shot.beforeUrl,
+                        alt: 'Your photo' + (phase.shots.length > 1 ? ' ' + (i + 1) : ''),
+                        caption: 'Before',
+                        downloadName: 'your-photo-' + (i + 1),
+                      })
+                    }
+                    label="See your photo full size"
+                  />
+                </div>
+                <figcaption className="tc-shot-cap rvl-cap">
                   Your photo{phase.shots.length > 1 ? ` ${i + 1}` : ''}
                 </figcaption>
               </figure>
@@ -612,7 +648,7 @@ export function FinishVisualiser({
                     label="See this floor full size"
                   />
                 </div>
-                <figcaption className="tc-shot-cap">{finishLabel}</figcaption>
+                <figcaption className="tc-shot-cap rvl-cap">{finishLabel}</figcaption>
               </figure>
             </div>
           ))}
