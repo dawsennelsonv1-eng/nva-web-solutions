@@ -287,6 +287,35 @@ export type AnalyticsEventInsert = Partial<AnalyticsEventRow> & {
 };
 export type AnalyticsEventUpdate = Partial<AnalyticsEventRow>;
 
+/**
+ * ============================================================================
+ * COMPLETED IN PHASE 50. THIS TYPE WAS STALE, NOT MERELY INCOMPLETE.
+ * ============================================================================
+ *
+ * It declared eleven columns. `lib/ai/jobs.ts` writes NINETEEN, and migration
+ * 0010_ai_suite.sql adds fifteen more to the table on top of the original
+ * create. The eight missing here are the ones every ledger row has carried
+ * since 0010: the cache token counts, the estimate flag, the prompt version,
+ * the attempt count, the duration, the request and output payloads, and the
+ * fallback chain.
+ *
+ * A STALE TYPE IS WORSE THAN AN ABSENT ONE. An absent table forces a cast,
+ * which is at least visibly a cast. This one looked complete, so anything
+ * reading `ai_jobs` through it saw a table that had not existed since
+ * migration 0010 — and `lib/ai/jobs.ts` worked around that with its own
+ * `as unknown as AiDb`, which then erased checking for the whole file
+ * including the columns that WERE correct here.
+ *
+ * Regenerated from 0010_ai_suite.sql: every `alter table ai_jobs add column`
+ * in that file, with nullability read from the statement rather than assumed.
+ * `fell_back_from` is `text[]`, which is why it is `string[]`.
+ *
+ * `applied_at`, `applied_by`, `apply_note` and `discarded_at` are included
+ * even though nothing in the code writes them yet. They exist in the table, so
+ * they belong in the type — a column that exists and is not declared is
+ * precisely the gap this phase is closing, and omitting them because they are
+ * currently unused rebuilds it.
+ */
 export type AiJobRow = {
   id: string;
   prototype_id: string | null;
@@ -295,9 +324,23 @@ export type AiJobRow = {
   model: string;
   input_tokens: number | null;
   output_tokens: number | null;
+  cached_input_tokens: number;
+  cache_write_tokens: number;
   cost_cents: number | null;
+  cost_estimated: boolean;
   status: DbAiJobStatus;
   error: string | null;
+  prompt_version: string | null;
+  attempts: number;
+  duration_ms: number | null;
+  created_by: string | null;
+  request: Json | null;
+  output: Json | null;
+  fell_back_from: string[] | null;
+  applied_at: string | null;
+  applied_by: string | null;
+  apply_note: string | null;
+  discarded_at: string | null;
   created_at: string;
 };
 export type AiJobInsert = Partial<AiJobRow> & {

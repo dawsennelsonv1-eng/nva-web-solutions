@@ -1,5 +1,6 @@
 import 'server-only';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import type { Json } from '@/types/database';
 import type { ProviderId, TokenUsage } from './types';
 
 /**
@@ -18,46 +19,65 @@ import type { ProviderId, TokenUsage } from './types';
  * (the job still runs; only the ledger row is lost).
  */
 
-interface QueryResult<T> {
-  data: T | null;
-  error: { message?: string } | null;
-  count?: number | null;
-}
-
-interface Filterable<T> extends PromiseLike<QueryResult<T>> {
-  eq(column: string, value: string): Filterable<T>;
-  gte(column: string, value: string): Filterable<T>;
-  is(column: string, value: null): Filterable<T>;
-  single(): PromiseLike<QueryResult<T>>;
-  maybeSingle(): PromiseLike<QueryResult<T>>;
-}
-
-interface InsertBuilder extends PromiseLike<QueryResult<null>> {
-  select(columns: string): Filterable<{ id: string }>;
-}
-
-interface Table {
-  insert(row: Record<string, unknown>): InsertBuilder;
-  update(row: Record<string, unknown>): Filterable<null>;
-  select(
-    columns: string,
-    options?: { count?: 'exact'; head?: boolean }
-  ): Filterable<Record<string, unknown>>;
-}
-
-interface AiDb {
-  from(table: string): Table;
-  rpc(fn: string, args?: Record<string, unknown>): PromiseLike<QueryResult<number>>;
+/**
+ * ============================================================================
+ * THE CAST IS GONE. PHASE 50.
+ * ============================================================================
+ *
+ * The comment that stood here was accurate when written: the generated types
+ * could not know about columns a migration in the same ZIP had just added, and
+ * failing the build over a column that exists in the database is the worse
+ * outcome. So `AiDb` was maintained by hand and `as unknown as` bridged to it.
+ *
+ * WHAT THAT COST, ON THIS TABLE SPECIFICALLY. `ai_spend_today_cents` sums
+ * `cost_cents` across `ai_jobs` to decide whether the daily ceiling has been
+ * reached. A misspelled column in an insert here does not fail — Postgres
+ * rejects it, `recordAiJob` swallows the error by design so a ledger problem
+ * never breaks a customer's render, and the row silently never lands. The
+ * ceiling then under-reports for ever. That is the same shape as the phase 41
+ * bug where two whole code paths wrote no rows at all, and it is the reason
+ * this file of all files should be checked rather than cast.
+ *
+ * WHY IT IS SAFE NOW. Phase 47 typed the nine missing tables and phase 50
+ * completed `AiJobRow`, which had drifted to eleven columns while this file
+ * wrote nineteen. The generated types and the table agree again, so there is
+ * nothing left to work around.
+ *
+ * IF A FUTURE MIGRATION ADDS A COLUMN, add it to types/database.ts in the same
+ * ZIP. That is one extra edit and it buys a compiler that checks every query
+ * in this file. Reaching for `as unknown as` again turns the check off for
+ * everything, not just for the new column.
+ */
+export function getAiDb() {
+  return getSupabaseAdminClient();
 }
 
 /**
- * One cast, in one place, documented. The generated Supabase types cannot know
- * about columns added by a migration in this same ZIP, and a build failure on
- * a column that exists in the database is a worse outcome than a narrow
- * structural interface maintained by hand.
+ * Force an arbitrary value into something the `jsonb` columns actually accept.
+ *
+ * WHY THIS EXISTS. `AiJobRecord.request` and `.output` are `unknown` — callers
+ * put whatever describes their job in there, and that is the right shape for
+ * the interface. But `unknown` is not `Json`, so with the hand-written `AiDb`
+ * gone the compiler correctly refuses to hand it to a jsonb column.
+ *
+ * A cast back to `Json` would silence that and prove nothing. A round trip
+ * through `JSON.stringify` does the opposite: it GUARANTEES at runtime what the
+ * type claims. Anything the column could not have stored — a Date, a Map, a
+ * function, a circular reference — is either normalised or throws here and
+ * becomes null, rather than being written as `{}` and discovered months later
+ * when somebody tries to read the ledger back.
+ *
+ * The single `as Json` is on the result of `JSON.parse`, which is `any`. That
+ * one is honest: the value has just been proven serialisable by construction.
  */
-export function getAiDb(): AiDb {
-  return getSupabaseAdminClient() as unknown as AiDb;
+function toJsonColumn(value: unknown): Json | null {
+  if (value === undefined || value === null) return null;
+  try {
+    return JSON.parse(JSON.stringify(value)) as Json;
+  } catch {
+    // Circular, or a BigInt. The job row still matters; the payload does not.
+    return null;
+  }
 }
 
 export type AiJobStatus = 'succeeded' | 'failed' | 'invalid_output';
@@ -113,8 +133,8 @@ export async function recordAiJob(rec: AiJobRecord): Promise<string | null> {
         attempts: rec.attempts ?? 1,
         duration_ms: rec.durationMs ?? null,
         created_by: rec.createdBy ?? null,
-        request: rec.request ?? null,
-        output: rec.output ?? null,
+        request: toJsonColumn(rec.request),
+        output: toJsonColumn(rec.output),
         fell_back_from: rec.fellBackFrom && rec.fellBackFrom.length > 0 ? rec.fellBackFrom : null,
       })
       .select('id')
