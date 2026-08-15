@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { downloadImage } from '@/lib/media/download';
 
 /**
@@ -37,6 +38,32 @@ import { downloadImage } from '@/lib/media/download';
  * interact with the sticky machinery at all.
  *
  * ============================================================================
+ * IT RENDERS THROUGH A PORTAL, AND THAT IS THE WHOLE FIX. PHASE 43.
+ * ============================================================================
+ *
+ * THE BUG THIS HAD. `position: fixed` normally resolves against the viewport —
+ * except when an ancestor has a `transform`, a `filter`, a `backdrop-filter` or
+ * a `will-change` on any of those. Any one of them makes that ancestor the
+ * containing block, and a fixed descendant is then trapped inside it.
+ *
+ * The picker's pinned bar carries `backdrop-filter: blur(20px)`. The tool card
+ * carries its own transforms. So the overlay opened INSIDE those boxes rather
+ * than over the page: it covered a few hundred pixels somewhere mid-screen,
+ * the Close and Download buttons landed in the middle of the document, and —
+ * because the scroll lock on `<body>` still applied — the page could not be
+ * scrolled either. The result read as the site freezing. It was not frozen;
+ * the way out was rendered somewhere the eye did not expect and the page
+ * underneath had been deliberately immobilised.
+ *
+ * `createPortal` to `document.body` puts the overlay outside every one of
+ * those ancestors, so `fixed` means what it says.
+ *
+ * MOUNTED-CHECK BEFORE PORTALLING. `document` does not exist during the server
+ * render, and calling createPortal there throws. The component returns null
+ * until an effect confirms it is in a browser, which costs one frame on open
+ * and nothing else.
+ *
+ * ============================================================================
  * SCROLL LOCK, AND THE ONE THING TO BE CAREFUL ABOUT
  * ============================================================================
  *
@@ -68,8 +95,13 @@ const VIDEO_RE = /^[^?]+\.(mp4|webm|mov)(\?|$)/i;
 export function ImageViewer({ item, onClose }: { item: ViewerItem | null; onClose: () => void }) {
   const [note, setNote] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const open = item !== null;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -112,11 +144,11 @@ export function ImageViewer({ item, onClose }: { item: ViewerItem | null; onClos
     }
   }, [item]);
 
-  if (!item) return null;
+  if (!item || !mounted) return null;
 
   const isVideo = VIDEO_RE.test(item.src);
 
-  return (
+  return createPortal(
     <div
       className="lb"
       role="dialog"
@@ -158,7 +190,8 @@ export function ImageViewer({ item, onClose }: { item: ViewerItem | null; onClos
           </p>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // From media-types, NOT media: this is a client component, and a value
 // import from the server-only module puts it in the browser graph.
 import { MIN_SLOTS, type MediaSlot } from '@/lib/tools/media-types';
-import { ExpandButton, ImageViewer, type ViewerItem } from '@/components/tools/ImageViewer';
 
 /**
  * components/tools/MediaGallery.tsx — the showcase at the top of a tool card.
@@ -63,22 +62,25 @@ import { ExpandButton, ImageViewer, type ViewerItem } from '@/components/tools/I
  * case that actually costs a visitor something.
  *
  * ============================================================================
- * THE THREE THINGS THAT ARE NEW
+ * BIGGER. NOT EXPANDABLE, NOT CROPPED. PHASE 43 CORRECTED PHASE 35.
  * ============================================================================
  *
- * 1. THE STAGE IS MUCH LARGER, sized by `min-height` in viewport units rather
- *    than by aspect ratio alone — phase35.css explains why that is the only
- *    way to get a real increase on a narrow screen.
+ * Phase 35 made this bigger AND added tap-to-expand AND cropped it to fill the
+ * frame. Only the first of those was asked for. The other two were wrong:
  *
- * 2. IT OPENS FULL SCREEN. Tapping the picture opens the shared viewer at
- *    `object-fit: contain`, which is the only place the whole frame is
- *    actually visible. There is a visible expand control as well as the tap
- *    target, because an expandable picture that looks exactly like a
- *    non-expandable one is a feature nobody finds.
+ *   - EXPAND IS GONE. This is a marketing showcase on a page somebody is
+ *     reading, not an image browser. A picture that opens a full-screen
+ *     overlay interrupts the read for nothing — there is no detail in it that
+ *     the page itself is not already showing.
  *
- * 3. IT CAN BE SAVED, from inside the viewer. These are Supabase public URLs
- *    on another origin, where a plain `download` attribute is silently
- *    ignored; lib/media/download.ts explains what is done instead.
+ *   - IT IS NO LONGER CROPPED. `object-fit: cover` filled the box by cutting
+ *     the sides off, which on a wide photograph of a garage floor removes
+ *     precisely the part that shows it IS a garage floor. `contain` in
+ *     phase35.css now shows the whole frame. The stage keeps its larger
+ *     height and the picture sits inside it complete.
+ *
+ * What survives from phase 35 is the size and the caption moving below the
+ * dots. That was the request.
  *
  * THE CAPTION MOVED BELOW THE DOTS. It was between the picture and the dots —
  * the one place on this component where vertical space is worth the most. It
@@ -99,7 +101,6 @@ export interface MediaGalleryProps {
 export function MediaGallery({ slots, label }: MediaGalleryProps) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [viewing, setViewing] = useState<ViewerItem | null>(null);
   const timer = useRef<number>(0);
 
   const padding = slots.length > 0 ? Math.max(0, MIN_SLOTS - slots.length) : 0;
@@ -114,7 +115,7 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
   }, []);
 
   useEffect(() => {
-    if (!enough || count <= 1 || paused || viewing !== null) return;
+    if (!enough || count <= 1 || paused) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     // A reserved frame has no declared duration; it holds for the default.
@@ -124,7 +125,7 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
     }, hold);
 
     return clear;
-  }, [index, count, paused, enough, slots, clear, viewing]);
+  }, [index, count, paused, enough, slots, clear]);
 
   useEffect(() => {
     const onVisibility = () => setPaused(document.hidden);
@@ -134,17 +135,6 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
   }, []);
 
   const current = slots[index];
-
-  const expand = useCallback(() => {
-    const slot = slots[index];
-    if (!slot) return;
-    setViewing({
-      src: slot.src,
-      alt: slot.alt,
-      caption: slot.caption,
-      downloadName: label + '-' + slot.key,
-    });
-  }, [slots, index, label]);
 
   // AFTER the hooks, never before. Hooks declared below an early return is the
   // rules-of-hooks violation that broke FinishVisualiser in an earlier phase.
@@ -159,7 +149,6 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
             slot={slot}
             active={i === index}
             eager={i === 0}
-            onExpand={expand}
           />
         ))}
         {Array.from({ length: padding }, (_, n) => (
@@ -174,10 +163,6 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
             </div>
           </div>
         ))}
-
-        {/* Only over a real frame. A reserved slot has nothing to enlarge, and
-            offering to expand an empty box is an invitation to disappointment. */}
-        {current ? <ExpandButton onClick={expand} label="See this picture full size" /> : null}
       </div>
 
       <div className="rv-dots" role="tablist" aria-label="Choose a frame">
@@ -202,8 +187,6 @@ export function MediaGallery({ slots, label }: MediaGalleryProps) {
       <figcaption className="rv-cap" aria-live="polite">
         {current?.caption ?? 'Nothing here yet'}
       </figcaption>
-
-      <ImageViewer item={viewing} onClose={() => setViewing(null)} />
     </figure>
   );
 }
@@ -212,12 +195,10 @@ function MediaFrame({
   slot,
   active,
   eager,
-  onExpand,
 }: {
   slot: MediaSlot;
   active: boolean;
   eager: boolean;
-  onExpand: () => void;
 }) {
   const [failed, setFailed] = useState(false);
 
@@ -240,11 +221,6 @@ function MediaFrame({
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"
           onError={() => setFailed(true)}
-          /* The whole frame is the tap target, not just the small control. On
-             a phone the picture IS the button people reach for. Inactive
-             frames are pointer-events: none in CSS, so only the visible one
-             can be tapped. */
-          onClick={onExpand}
         />
       )}
     </div>

@@ -458,7 +458,7 @@ export function ComboStudio({ existing }: { existing: ExistingCombo[] }) {
                   className="n15-btn n15-btn-ghost cs-save"
                   onClick={() => void saveOne(thumb, r.comboKey)}
                 >
-                  Save
+                  Download
                 </button>
               ) : null}
 

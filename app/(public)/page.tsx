@@ -4,7 +4,6 @@ import { Hero } from '@/components/site/Hero';
 import { WhyUs } from '@/components/site/WhyUs';
 import { ToolDeck } from '@/components/site/ToolDeck';
 import { AiImplementation } from '@/components/site/AiImplementation';
-import { ProofOfOperation } from '@/components/site/ProofOfOperation';
 import { ProblemIntake } from '@/components/site/ProblemIntake';
 import { Faq, Integration } from '@/components/site/Sections';
 
@@ -88,7 +87,20 @@ export default function HomePage() {
       <ToolDeck />
       <AiImplementation />
       <Integration />
-      <ProofOfOperation />
+      {/*
+        ProofOfOperation REMOVED — PHASE 43.
+
+        It printed the live install count and framed being early as the offer:
+        "That install count is small because this launched this quarter."
+
+        It argued against itself. A contractor deciding whether to put this on
+        his own site does not want to be told he would be among the first; a
+        small number presented honestly still reads as a small number, and the
+        founding-price framing draws attention to it rather than away. Nothing
+        else on the page depends on it, so it is gone rather than reworded.
+        The component file is left in place — it costs nothing unmounted and
+        the count may be worth showing again once it is a number worth showing.
+      */}
       <ProblemIntake />
       <Faq />
     </>

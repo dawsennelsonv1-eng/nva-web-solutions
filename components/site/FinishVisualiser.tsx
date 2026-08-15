@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { ExpandButton, ImageViewer, type ViewerItem } from '@/components/tools/ImageViewer';
 import { explainRenderFault } from '@/lib/quote/renderFaults';
 import { visualiseAction } from '@/app/actions/visualise';
 
@@ -192,6 +193,7 @@ export function FinishVisualiser({
   finishDescription,
   selections,
 }: FinishVisualiserProps) {
+  const [viewing, setViewing] = useState<ViewerItem | null>(null);
   const [phase, setPhase] = useState<Phase>({ k: 'idle' });
 
   /**
@@ -571,9 +573,45 @@ export function FinishVisualiser({
                   Your photo{phase.shots.length > 1 ? ` ${i + 1}` : ''}
                 </figcaption>
               </figure>
-              <figure className="tc-shot">
+              {/* ------------------------------------------------------------
+                  THE AFTER OPENS FULL SIZE. PHASE 43.
+
+                  Only the after. The before is a photograph he took himself
+                  and already has at full resolution on the same phone;
+                  offering to enlarge it is offering him his own camera roll.
+
+                  The after is the thing he has never seen, it is the thing he
+                  will show somebody else, and at pair-width on a phone it is
+                  roughly 150px across — too small to judge a floor by, which
+                  is the entire decision this feature exists to support.
+                 ------------------------------------------------------------ */}
+              <figure className="tc-shot rvl-shot">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={shot.afterUrl} alt={'The same floor with ' + finishLabel + ' applied'} />
+                <img
+                  src={shot.afterUrl}
+                  alt={'The same floor with ' + finishLabel + ' applied'}
+                  onClick={() =>
+                    setViewing({
+                      src: shot.afterUrl,
+                      alt: finishLabel,
+                      caption: finishLabel,
+                      downloadName: fileNameFor(finishLabel, i + 1).replace(/\.[a-z0-9]+$/i, ''),
+                    })
+                  }
+                />
+                <div className="rvl-tools">
+                  <ExpandButton
+                    onClick={() =>
+                      setViewing({
+                        src: shot.afterUrl,
+                        alt: finishLabel,
+                        caption: finishLabel,
+                        downloadName: fileNameFor(finishLabel, i + 1).replace(/\.[a-z0-9]+$/i, ''),
+                      })
+                    }
+                    label="See this floor full size"
+                  />
+                </div>
                 <figcaption className="tc-shot-cap">{finishLabel}</figcaption>
               </figure>
             </div>
@@ -595,6 +633,8 @@ export function FinishVisualiser({
               silently; a short delay is what makes a multi-file save actually
               deliver every file.
              ---------------------------------------------------------------- */}
+          <ImageViewer item={viewing} onClose={() => setViewing(null)} />
+
           <div className="tc-actions" style={{ marginTop: '0.9rem' }}>
             {phase.shots.length > 1 && (
               <button
@@ -613,7 +653,7 @@ export function FinishVisualiser({
                   });
                 }}
               >
-                Save all {phase.shots.length}
+                Download all {phase.shots.length}
               </button>
             )}
             {phase.shots.map((shot, i) => (
@@ -623,7 +663,7 @@ export function FinishVisualiser({
                 href={shot.afterUrl}
                 download={fileNameFor(finishLabel, i + 1)}
               >
-                Save{phase.shots.length > 1 ? ` ${i + 1}` : ''}
+                Download{phase.shots.length > 1 ? ` ${i + 1}` : ''}
               </a>
             ))}
           </div>
@@ -635,3 +675,4 @@ export function FinishVisualiser({
     </div>
   );
 }
+

@@ -434,7 +434,7 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
               <button
                 type="button"
                 className="lb-open"
-                aria-label="Save this picture"
+                aria-label="Download this picture"
                 onClick={() => void saveHero()}
               >
                 <span aria-hidden>&darr;</span>
