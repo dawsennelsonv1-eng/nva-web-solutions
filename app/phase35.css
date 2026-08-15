@@ -572,3 +572,41 @@
   display: flex;
   gap: 0.3rem;
 }
+
+/* ----------------------------------------------------------------------------
+   HORIZONTAL OVERFLOW CONTAINMENT — PHASE 53
+   ----------------------------------------------------------------------------
+   THE SYMPTOM. The homepage drags left and right under a finger, and because
+   the document is wider than the screen, everything in normal flow renders
+   narrower than the viewport while the fixed header still spans it. It reads
+   as the site having loaded in desktop mode.
+
+   WHAT THIS RULE IS AND IS NOT. It is containment, not a diagnosis. Something
+   on the page is wider than the viewport and this stops it dragging the
+   document with it. The element responsible is still there and still wrong,
+   and it is worth finding — but a page that cannot be shoved sideways is the
+   correct behaviour regardless of which element was doing the shoving.
+
+   `clip`, NOT `hidden`, AND THE DIFFERENCE MATTERS HERE. `overflow: hidden`
+   makes an element a scroll container. A `position: sticky` descendant then
+   sticks to THAT container rather than to the page — which would silently
+   break the finish picker's pinned preview, the exact failure phase30.css
+   documents at length. `clip` clips identically and creates no scroll
+   container, so sticky keeps working. It is the same reason phase34.css chose
+   `clip` for `.tc`.
+
+   ONLY THE X AXIS. `overflow-y` is left alone: constraining it would break
+   normal page scrolling, and vertical overflow was never the problem.
+
+   Applied to `html` rather than `body` so it cannot be defeated by a later
+   rule setting a background or a height on body, and so the clip applies to
+   the scrolling element itself.
+
+   WHEN THE OFFENDING ELEMENT IS FOUND, fix that and this rule becomes
+   redundant — but harmless. Leaving it is cheap insurance against the next
+   full-bleed section that forgets to clip its own bleed.
+--------------------------------------------------------------------------- */
+
+html {
+  overflow-x: clip;
+}
