@@ -4,7 +4,7 @@ import { headers } from 'next/headers';
 import { visualiseFinish, RENDER_DISCLOSURE } from '@/lib/ai/visualise';
 import { MAX_MATERIAL_REFS } from '@/lib/ai/images';
 import { finishMediaFor, indexByKey } from '@/lib/finishes/media';
-import { renderDescription, swatchKeyFor } from '@/lib/verticals/epoxy/options';
+import { renderDescription, swatchKeyFor, comboKeyFor } from '@/lib/verticals/epoxy/options';
 import {
   validateImagePayload,
   checkIpRateLimit,
@@ -174,6 +174,47 @@ async function resolveMaterials(
     const slots = await finishMediaFor('epoxy');
     const byKey = indexByKey(slots);
     const urls: string[] = [];
+
+    /**
+     * ==================================================================
+     * THE COMBINATION PHOTOGRAPH GOES FIRST. PHASE 52.
+     * ==================================================================
+     *
+     * WHAT THIS FIXES. Each uploaded photograph is a SEPARATE model call, and
+     * nothing tied those calls together beyond the words in the prompt. So a
+     * homeowner who sent three shots of one garage got three different floors
+     * back — the same finish reinvented from scratch each time, with the
+     * marbling, the density and often the colour cast all disagreeing. Shown
+     * side by side, that reads as the tool guessing rather than previewing.
+     *
+     * A SEED WOULD NOT HAVE FIXED IT. Only `black-forest-labs/flux.2-flex`
+     * accepts `seed` on this endpoint; `google/gemini-2.5-flash-image` and
+     * `openai/gpt-image-1` do not, and phase 45 established that ONE
+     * unsupported parameter returns HTTP 400 and takes the whole request with
+     * it. Sending a seed would break two models out of three to stabilise the
+     * one in the middle.
+     *
+     * SO THE ANCHOR IS AN IMAGE INSTEAD, which every model here accepts:
+     * `input_references` is in all three. The combination render for this
+     * exact mix — the one the operator generated in /admin/combinations — is a
+     * photograph of a WHOLE FLOOR in the chosen finish. Handing the same one
+     * to all three calls gives them a shared, concrete answer to "what does
+     * this finish look like at floor scale", which is the question they were
+     * each answering differently.
+     *
+     * IT GOES BEFORE THE SWATCHES BECAUSE THE CAP IS REAL. Only
+     * MAX_MATERIAL_REFS references are sent, and swatches are close-cropped
+     * colour tiles: they pin the colour and say nothing about how a pour
+     * behaves across a slab. The combination shows both. If exactly one
+     * reference survives the cap, this is the one worth spending it on.
+     *
+     * WHEN THERE IS NO COMBINATION RENDER — an unphotographed mix, or a fresh
+     * install — nothing is pushed and the swatches carry it exactly as before.
+     * This strictly adds an anchor; it never removes one.
+     */
+    const comboKey = comboKeyFor(selections);
+    const combo = byKey.get('combination|' + comboKey);
+    if (combo && combo.src.startsWith('https://')) urls.push(combo.src);
 
     /**
      * ORDER IS DELIBERATE: the system first, then whichever colour group
@@ -377,3 +418,4 @@ async function runVisualise(args: VisualiseActionArgs): Promise<VisualiseActionR
  * BEFORE ADDING A CONSTANT TO ANY 'use server' FILE: it belongs in a plain
  * module that the action imports. The boundary only carries functions.
  */
+
