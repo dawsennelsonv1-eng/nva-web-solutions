@@ -7,6 +7,7 @@ import { AreaPanel, type AreaSource, type MeasuredBand } from '@/components/site
 import sheet from '@/components/site/ResultSheet.module.css';
 import { FinishVisualiser, type PreparedPhoto } from '@/components/site/FinishVisualiser';
 import { MediaGallery } from '@/components/tools/MediaGallery';
+import { ExpandButton, ImageViewer, type ViewerItem } from '@/components/tools/ImageViewer';
 import { analyzePhotoAction } from '@/app/actions/quote';
 import { persistDemoQuote, submitDemoLead, attachRenderToLead } from '@/app/actions/lead';
 import { ContactGate, type ContactGateFields } from '@/components/site/ContactGate';
@@ -479,6 +480,21 @@ export function ToolCard({
    * make that gate decorative.
    */
   const [step, setStep] = useState<'size' | 'finish'>('size');
+  /**
+   * The photograph currently open full screen. PHASE 58.
+   *
+   * The review grid is three tiles wide on a phone, so each thumbnail is
+   * about a hundred pixels square. That is enough to count the photographs
+   * and not remotely enough to judge one — and judging them is the entire
+   * reason this grid exists before a measurement is paid for. A blurred
+   * frame or a shot of the wrong room is obvious at full size and invisible
+   * at a hundred pixels.
+   *
+   * It is also the 'before' half of what the card ends with. Somebody who
+   * has looked closely at his own bare floor reads the finished render
+   * against a memory of it rather than against nothing.
+   */
+  const [viewingPhoto, setViewingPhoto] = useState<ViewerItem | null>(null);
 
   /**
    * The quote's public reference, once it has been persisted.
@@ -1398,6 +1414,25 @@ export function ToolCard({
                           own pipeline, and next/image cannot optimise those. */}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={p.previewUrl} alt={'Photo ' + (i + 1) + ' of your floor'} />
+                      {/* Positioned top-right by app/phase58.css. `.lb-open`
+                          carries its own appearance from phase35.css and no
+                          position at all, so without that rule this button is
+                          clipped out of the tile entirely. */}
+                      <ExpandButton
+                        onClick={() =>
+                          setViewingPhoto({
+                            src: p.previewUrl,
+                            alt: 'Photo ' + (i + 1) + ' of your floor',
+                            caption:
+                              'Your floor as it is today · photo ' +
+                              (i + 1) +
+                              ' of ' +
+                              photos.length,
+                            downloadName: 'before-' + (i + 1),
+                          })
+                        }
+                        label={'See photo ' + (i + 1) + ' full size'}
+                      />
                       <button
                         type="button"
                         className="tc-pick-x"
@@ -1822,6 +1857,11 @@ export function ToolCard({
                 Implement this in my business
               </Link>
             </div>
+
+            {/* The full-screen viewer. It portals to the document body, so it
+                is mounted here for readability rather than for position, and
+                renders nothing at all while `viewingPhoto` is null. */}
+            <ImageViewer item={viewingPhoto} onClose={() => setViewingPhoto(null)} />
           </>
         ) : (
           <>

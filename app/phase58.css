@@ -1,0 +1,60 @@
+/* ============================================================================
+   PHASE 58 — THE VISITOR CAN LOOK AT HIS OWN PHOTOGRAPHS.
+   ============================================================================
+
+   ONE RULE. That is not an accident of scope, it is the whole design of this
+   layer: the expand control already exists, already has its appearance, and
+   already works. `ExpandButton` in components/tools/ImageViewer.tsx renders
+   `.lb-open`, which phase35.css styles as a 34px circle with its own
+   background, border and blur. Everything about how it LOOKS is settled.
+
+   What was missing is where it sits. `.lb-open` declares no positioning of its
+   own, because in the picker it lives inside `.fp-stage-tools` — a flex
+   container that places it. The photo review grid has no such container: the
+   tile is `.tc-pick`, and its only child is an image filling it completely. A
+   button dropped in there unpositioned lands in normal flow BELOW that image,
+   inside a box that is `aspect-ratio: 1 / 1` with `overflow: hidden`, and is
+   therefore clipped away to nothing. The control would exist, be focusable,
+   respond to a tap it never receives, and be invisible.
+
+   ============================================================================
+   WHY THIS IS ADDITIVE AND DOES NOT BREAK THE LAYER RULE
+   ============================================================================
+
+   `.tc-pick .lb-open` is a selector no earlier layer declares. phase27.css
+   owns `.tc-pick`, `.tc-pick img` and `.tc-pick-x`; phase35.css owns
+   `.lb-open`. Neither is redefined here — this styles the INTERSECTION, which
+   did not previously exist because the two components had never met.
+
+   Every property set below is one that neither owner sets on this element.
+   `.lb-open` has no position, no inset, no z-index. So this adds and overrides
+   nothing, and deleting this file returns the button to being clipped rather
+   than leaving some other rule in a broken state.
+
+   ============================================================================
+   IT DECLARES NO COLOUR, SO IT NEEDS NO LIGHT-THEME BLOCK
+   ============================================================================
+
+   app/layout.tsx sets out the constraint in full: phase17.css is imported
+   SIXTH and can only retint selectors that existed by then, so every layer
+   after it must either carry its own html[data-n15-theme='light'] block or
+   declare no colour at all. phase34.css takes the second route and so does
+   this file — there is not a single colour, background or border-colour
+   below. The button's appearance in both themes remains entirely phase35's
+   business, which is correct: it sits on a photograph rather than on a panel,
+   and that is why phase35 gave it a theme-independent treatment in the first
+   place.
+============================================================================ */
+
+.tc-pick .lb-open {
+  position: absolute;
+  /* Top-RIGHT, because `.tc-pick-x` is pinned across the bottom of the same
+     tile as a full-width bar. Bottom corners are spoken for, and the top left
+     of a garage photograph is more often the part someone is trying to see. */
+  top: 0.375rem;
+  right: 0.375rem;
+  /* Above the image, which is a positioned-context sibling filling the tile.
+     Without this the stacking order is source order and the button is
+     reachable but visually underneath a photograph that covers it entirely. */
+  z-index: 1;
+}

@@ -58,6 +58,21 @@ import './phase34.css';
 import './phase35.css';
 
 /**
+ * PHASE 58 — the expand affordance on the photo review grid.
+ *
+ * ONE RULE, `.tc-pick .lb-open`, and it is registered here rather than
+ * appended to phase27.css or phase35.css because it belongs to neither: it
+ * styles the point where the review grid (phase27) and the full-screen viewer
+ * (phase35) meet, and putting it in either file would give one layer an
+ * opinion about a class the other owns.
+ *
+ * It declares no colour, so like phase34.css it carries no
+ * html[data-n15-theme='light'] block. See the note below on why that is the
+ * requirement and not an option.
+ */
+import './phase58.css';
+
+/**
  * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
  *
  * THE IMPORT ORDER IS THE WHOLE MECHANISM and it is deliberate. Each file adds
