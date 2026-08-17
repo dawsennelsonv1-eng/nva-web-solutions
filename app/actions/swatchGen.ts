@@ -5,7 +5,14 @@ import { renderFinishImage } from '@/lib/ai/images';
 import { recordAiJob } from '@/lib/ai/jobs';
 import { checkBudget } from '@/lib/ai/budget';
 import { EMPTY_USAGE } from '@/lib/ai/types';
-import { NEUTRAL_BASE_HEX, buildSwatchPrompt, solidPngDataUrl } from '@/lib/ai/swatch';
+import {
+  NEUTRAL_BASE_HEX,
+  buildSwatchPrompt,
+  paletteFromHint,
+  solidPngDataUrl,
+  speckledPngDataUrl,
+  wantsSpeckledReference,
+} from '@/lib/ai/swatch';
 import { EPOXY_GROUPS } from '@/lib/verticals/epoxy/options';
 
 /**
@@ -108,7 +115,39 @@ export async function generateSwatchAction(
    */
   const baseHex = option.hex ?? NEUTRAL_BASE_HEX;
 
-  const tile = solidPngDataUrl(baseHex);
+  /**
+   * ==========================================================================
+   * WHICH REFERENCE THIS OPTION GETS. PHASE 63.
+   * ==========================================================================
+   *
+   * THE COMPLAINT WAS THAT GENERATED SWATCHES LOOKED THE SAME AS EACH OTHER,
+   * and the cause was here rather than in the prompt. A flake blend is two to
+   * four pigments; one hex is their AVERAGE, and every grey blend averages to
+   * the same grey. Domino, Granite, Tuxedo and Silver fox were each handed a
+   * flat grey square and asked, in words, to be different materials. In an
+   * image EDIT the reference wins that argument.
+   *
+   * So multi-coloured groups now get a tile speckled in the palette their own
+   * renderHint names — 'brown, tan and cream flake blend' becomes a tile in
+   * brown, tan and cream. Solid colours and topcoats keep the flat tile,
+   * because for them it was always right: the hex the picker paints has to
+   * match the photograph that replaces it.
+   *
+   * THE PALETTE COMES FROM THE CATALOGUE, NOT FROM THE MODEL. Every renderHint
+   * in the epoxy catalogue already names its colours explicitly, so nothing had
+   * to be authored for this and no entry had to be edited.
+   */
+  const speckled = wantsSpeckledReference(group.key);
+  const palette = speckled ? paletteFromHint(option.renderHint, option.hex ?? null) : [];
+
+  /* `option.comboKey` is not used as the seed: the seed is the group, the
+     option and the palette, so a tile is reproducible across deploys and two
+     options that genuinely share a palette share a scatter rather than
+     diverging for no reason. */
+  const tile = speckled
+    ? speckledPngDataUrl(palette, group.key + '|' + option.key + '|' + palette.join(','))
+    : solidPngDataUrl(baseHex);
+
   if (!tile) {
     // Reachable only if a catalogue entry has a malformed hex — worth saying
     // out loud, because the picker would be painting a broken colour too.
@@ -123,6 +162,8 @@ export async function generateSwatchAction(
     // between "match this colour" and "this grey is only a surface".
     hex: option.hex ?? null,
     blurb: option.blurb,
+    reference: speckled ? 'speckle' : 'solid',
+    ...(speckled ? { palette } : {}),
   });
 
 /**
@@ -214,4 +255,5 @@ export async function generateSwatchAction(
     prompt,
   };
 }
+
 
