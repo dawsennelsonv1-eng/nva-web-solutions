@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { generateSwatchAction, type SwatchGenResult } from '@/app/actions/swatchGen';
 import { createFinishUploadAction, saveFinishMediaAction } from '@/app/actions/finishMedia';
+import { SWATCH_GUIDANCE } from '@/lib/finishes/media-types';
+import { extensionFor, shrinkForUpload } from '@/lib/finishes/resize';
 /**
  * '@/lib/supabase/client' — NOT '@/lib/supabase/browser'.
  *
@@ -73,9 +75,30 @@ export function SwatchStudio() {
     setBusy(id);
     setSaved((p) => ({ ...p, [id]: 'Saving…' }));
     try {
-      const blob = await (await fetch(dataUrl)).blob();
-      const contentType = blob.type || 'image/png';
-      const file = new File([blob], `swatch-${groupKey}-${optionKey}.png`, { type: contentType });
+      /**
+       * DOWN TO SWATCH SIZE BEFORE IT IS STORED. PHASE 60.
+       *
+       * This is where the picker's weight was. A swatch is rendered as a
+       * rectangle about a third of a phone screen wide — SWATCH_GUIDANCE has
+       * said 400x300 all along — and the picker loads twenty-five of them.
+       * Uploading the model's full-size output meant every visitor downloading
+       * roughly five times the bytes of the picture they were shown, on a
+       * storage tier with no resize on read.
+       *
+       * `shrinkForUpload` returns the ORIGINAL bytes untouched if the render
+       * was already this small or if the re-encode came out heavier, so this
+       * cannot make a swatch worse than it was.
+       */
+      const shrunk = await shrinkForUpload(dataUrl, {
+        width: SWATCH_GUIDANCE.idealWidth,
+        height: SWATCH_GUIDANCE.idealHeight,
+      });
+      const contentType = shrunk.contentType;
+      const file = new File(
+        [shrunk.blob],
+        `swatch-${groupKey}-${optionKey}.${extensionFor(contentType)}`,
+        { type: contentType }
+      );
 
       const signed = await createFinishUploadAction({ contentType });
       if (!signed.ok) {
@@ -259,3 +282,4 @@ export function SwatchStudio() {
     </div>
   );
 }
+

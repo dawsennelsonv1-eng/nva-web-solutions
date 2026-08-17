@@ -8,6 +8,8 @@ import { generateComboAction, type ComboSpec } from '@/app/actions/comboGen';
 import { ImageViewer, type ViewerItem } from '@/components/tools/ImageViewer';
 import { downloadImage } from '@/lib/media/download';
 import { createFinishUploadAction, saveFinishMediaAction } from '@/app/actions/finishMedia';
+import { COMBINATION_GUIDANCE } from '@/lib/finishes/media-types';
+import { extensionFor, shrinkForUpload } from '@/lib/finishes/resize';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { EPOXY_GROUPS, comboKeyFor, visibleGroups } from '@/lib/verticals/epoxy/options';
 
@@ -226,9 +228,27 @@ export function ComboStudio({ existing }: { existing: ExistingCombo[] }) {
       return { status: 'failed', note: gen.error ?? 'Render failed.' };
     }
 
-    // Same three-step upload as the swatch studio and CombinationUploader.
-    const blob = await (await fetch(gen.dataUrl)).blob();
-    const contentType = blob.type || 'image/webp';
+    /**
+     * Same three-step upload as the swatch studio and CombinationUploader,
+     * with the picture brought down to the size it is actually displayed at
+     * first. PHASE 60.
+     *
+     * COMBINATION_GUIDANCE has said 1200x800 since the media types were
+     * written, and until now that was advice printed to the operator while the
+     * code uploaded whatever the model happened to render. The hero image in
+     * the picker is capped at 32vh, so anything past this is bytes nobody sees
+     * — paid for once here and then downloaded by every visitor, because the
+     * free storage tier has no transform on read.
+     *
+     * It fits rather than crops: this is a photograph of a real garage and
+     * trimming it to hit an exact 3:2 would cut the floor out of the one
+     * picture whose subject is the floor.
+     */
+    const shrunk = await shrinkForUpload(gen.dataUrl, {
+      width: COMBINATION_GUIDANCE.idealWidth,
+      height: COMBINATION_GUIDANCE.idealHeight,
+    });
+    const contentType = shrunk.contentType;
     const signed = await createFinishUploadAction({ contentType });
     if (!signed.ok) return { status: 'failed', note: signed.message };
 
@@ -238,7 +258,9 @@ export function ComboStudio({ existing }: { existing: ExistingCombo[] }) {
       .uploadToSignedUrl(
         signed.path,
         signed.token,
-        new File([blob], row.comboKey + '.webp', { type: contentType })
+        new File([shrunk.blob], row.comboKey + '.' + extensionFor(contentType), {
+          type: contentType,
+        })
       );
     if (error) return { status: 'failed', note: 'Upload refused: ' + error.message };
 
@@ -506,4 +528,5 @@ export function ComboStudio({ existing }: { existing: ExistingCombo[] }) {
     </div>
   );
 }
+
 
