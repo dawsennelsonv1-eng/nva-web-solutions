@@ -1,0 +1,89 @@
+/* ============================================================================
+   PHASE 62 — THE WHOLE PICTURE, AS LARGE AS THE SCREEN ALLOWS.
+   ============================================================================
+
+   TWO COMPLAINTS, TWO DIFFERENT CAUSES, AND THEY ARE NOT THE SAME BUG.
+
+   1. THE HERO WAS LETTERBOXED, NOT CROPPED. `.fp-stage-img` in phase35.css is
+      already `object-fit: contain`, so nothing was ever cut off it — but it
+      also sets `aspect-ratio: 3 / 2`, which fixes the BOX. A render that is
+      squarer than 3:2 is then drawn whole inside a wider frame with bands of
+      background either side. Nothing missing, but the picture is smaller than
+      the space allotted to it and sits in a grey surround, which is what
+      "not shown properly" looks like.
+
+      Removing the fixed ratio is the fix. An `<img>` with `width: 100%` and no
+      `aspect-ratio` lays out at its OWN ratio: no bands, no crop, and the
+      picture occupies all the width it is given at whatever height that
+      implies. `object-fit` then has nothing to do, which is correct — it only
+      ever mattered because the box disagreed with the image.
+
+   2. THE SWATCHES WERE GENUINELY CROPPED. `.fp-sw-img img` is
+      `object-fit: cover` inside `aspect-ratio: 4 / 3`. The image generator
+      returns squares, so every swatch lost its top and bottom — about a
+      quarter of each material sample, silently. On a picture whose entire job
+      is to show what a chip blend looks like, that is the wrong quarter to
+      throw away.
+
+   ============================================================================
+   WHY NEW CLASS NAMES RATHER THAN EDITING phase30 AND phase35
+   ============================================================================
+
+   The layer rule is additive: a later sheet does not redefine an earlier
+   sheet's selectors. phase35 followed it when it superseded phase30's
+   `.fp-hero-*` — it did not rewrite those rules, it introduced `.fp-stage-*`
+   and left the old ones standing. `MediaGallery` did the same thing with
+   `.rv-*`.
+
+   So the component now asks for `.fp-stage-shot` and `.fp-sw-shot`, and this
+   file is the only place they are defined. `.fp-stage-img` and `.fp-sw-img img`
+   are untouched and still govern everything they governed before — which
+   matters, because `.fp-stage-img` is also worn by the `<video>` branch and by
+   the sizing, border and radius that should NOT change.
+
+   ============================================================================
+   62vh, AND THE ARGUMENT AGAINST IT
+   ============================================================================
+
+   phase30 capped the preview at 32vh and phase35 raised it to 50vh, both times
+   against the same objection, which is still valid and should be read before
+   this number is raised again: `.fp-stage` is STICKY. Every vh given to the
+   picture is taken from the options list underneath it, and a pinned preview
+   that leaves no room to choose anything is worse than a smaller one.
+
+   62vh is chosen as the point where a phone still shows a full row of swatches
+   below the picture. It is one number on one line; if it crowds the options in
+   practice, lower it rather than restructuring anything.
+
+   NO COLOUR IS DECLARED, so per the constraint documented in app/layout.tsx
+   this layer needs no html[data-n15-theme='light'] block.
+============================================================================ */
+
+.fp-stage-media .fp-stage-shot {
+  /* `auto` is the point of this whole rule: it releases the 3/2 box from
+     phase35 so the picture defines its own height. */
+  aspect-ratio: auto;
+  max-height: 62vh;
+  /* With no fixed ratio there is nothing to fit into, so the object-fit
+     inherited from `.fp-stage-img` is inert. Stated explicitly so a reader does
+     not go looking for a crop that is no longer possible. */
+  object-fit: contain;
+  /* The background band phase35 painted behind a letterboxed image has nothing
+     left to fill. Removing it stops a hairline of grey showing at the edges of
+     a picture that now matches its container exactly. */
+  background: none;
+}
+
+/*
+ * The swatch, whole. `.fp-sw-img img` is (0,1,1) so a bare class could not
+ * override it; this is (0,2,1) and wins on specificity rather than on load
+ * order, which means it keeps working if the layer order is ever rearranged.
+ *
+ * `contain` inside the 4/3 tile does letterbox a square render, and that is the
+ * correct trade here: `.fp-sw-img` already paints a neutral background for the
+ * gap, and seeing all of a material sample in a slightly smaller area beats
+ * seeing three-quarters of it filling the tile.
+ */
+.fp-sw-img img.fp-sw-shot {
+  object-fit: contain;
+}

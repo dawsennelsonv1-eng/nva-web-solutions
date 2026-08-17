@@ -87,6 +87,18 @@ import './phase58.css';
 import './phase59.css';
 
 /**
+ * PHASE 62 — the combination preview at full size, and every picture whole.
+ *
+ * Defines `.fp-stage-shot` and `.fp-sw-shot`, two class names that exist only
+ * here. It follows the precedent phase35 set when it superseded phase30's
+ * `.fp-hero-*`: new names rather than rewriting an earlier layer's rules, so
+ * `.fp-stage-img` keeps governing the video branch and the borders untouched.
+ *
+ * No colour, so no light-theme block.
+ */
+import './phase62.css';
+
+/**
  * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
  *
  * THE IMPORT ORDER IS THE WHOLE MECHANISM and it is deliberate. Each file adds

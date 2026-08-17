@@ -428,7 +428,7 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
                ---------------------------------------------------------------- */}
             {isVideoSrc(hero.src) ? (
               <video
-                className="fp-stage-img"
+                className="fp-stage-img fp-stage-shot"
                 src={hero.src}
                 autoPlay
                 muted
@@ -445,7 +445,10 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
               <img
                 src={hero.src}
                 alt={hero.alt}
-                className="fp-stage-img"
+                /* `fp-stage-shot` releases the 3/2 box phase35 fixed, so the
+                   picture lays out at its own ratio at up to 62vh instead of
+                   sitting letterboxed inside a wider frame. app/phase62.css. */
+                className="fp-stage-img fp-stage-shot"
                 decoding="async"
                 onClick={() => openHero()}
               />
@@ -557,7 +560,17 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
                          tap the visitor is in the middle of making. It does
                          not make the files smaller — see the note at the top
                          of this file about why they are the size they are. */
-                      <img src={pic.src} alt="" loading="lazy" decoding="async" />
+                      <img
+                        src={pic.src}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        /* `fp-sw-shot` swaps cover for contain. The generator
+                           returns squares and the tile is 4/3, so cover was
+                           quietly cutting a quarter off every material sample.
+                           app/phase62.css. */
+                        className="fp-sw-shot"
+                      />
                     ) : (
                       <span
                         aria-hidden
