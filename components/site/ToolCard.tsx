@@ -867,15 +867,32 @@ export function ToolCard({
         seed !== null && seed >= pricer.sqftMin && seed <= pricer.sqftMax ? seed : null;
 
       /**
-       * A NEW MEASUREMENT ALWAYS RETURNS TO STEP ONE.
+       * ======================================================================
+       * A MEASURED FLOOR GOES STRAIGHT TO THE PICKER. PHASE 57.
+       * ======================================================================
        *
-       * Sending fresh photographs is a restart. Leaving the wizard on the
-       * finish step would show a newly measured floor size behind a picker,
-       * with the number that just changed sitting one screen out of sight —
-       * and the whole point of step one is that the size is stated to his face
-       * before anything is priced against it.
+       * This used to be an unconditional `setStep('size')`, and the comment
+       * that stood here argued the size must be stated to his face before
+       * anything is priced against it. That was right about the honesty and
+       * wrong about the moment. The number IS stated to his face — on the
+       * estimate, beside the range it produced, under `Floor area`, where it
+       * can actually be checked against what it bought. Announcing it first,
+       * on its own screen, made a stranger stop and audit an arithmetic result
+       * before he had been given any reason to care about the arithmetic.
+       *
+       * So the measurement now happens quietly behind the photographs and he
+       * arrives where the interesting decision is. Nothing is hidden: the size
+       * is on the estimate, the correction control stays reachable from the
+       * picker, and a re-measurement still replaces it.
+       *
+       * WHEN IT IS NOT CONFIDENT, STEP ONE IS STILL THE RIGHT PLACE. There is
+       * no number to carry forward, `AreaPanel` opens on manual entry, and
+       * sending somebody to choose a finish for a floor of unknown size would
+       * produce a picker that cannot lead anywhere — `readyToRender` requires
+       * `areaKnown`, so the call to action at the end would sit disabled with
+       * the reason one screen behind him.
        */
-      setStep('size');
+      setStep(usable !== null && confident ? 'finish' : 'size');
 
       if (usable !== null && confident) {
         setSqft(usable);
@@ -1353,8 +1370,25 @@ export function ToolCard({
                ------------------------------------------------------------ */}
             {flow.k === 'collecting' && photos.length > 0 && (
               <div className="tc-review">
-                <p className="tc-review-h">
-                  {photos.length} of {MAX_PHOTOS} photos
+                {/* ------------------------------------------------------------
+                    WHAT THESE PHOTOGRAPHS ARE. PHASE 57.
+
+                    The grid used to be headed "3 of 5 photos", which counts
+                    them and says nothing about what they are FOR. Now that the
+                    measurement no longer announces itself as a step, these are
+                    the first thing the visitor sees of his own garage inside
+                    the tool, and they are the "before" half of a before-and-
+                    after he has not been shown yet.
+
+                    Naming them that does two things at once: it tells him the
+                    photographs are being used rather than merely collected,
+                    and it sets up the render at the end as the answer to a
+                    question the card has already asked. The count moves below,
+                    where it belongs — it is a constraint, not a heading.
+                   ------------------------------------------------------------ */}
+                <p className="tc-review-h">Your site, before the transformation</p>
+                <p className="tc-review-note">
+                  {photos.length} of {MAX_PHOTOS} photos of the floor as it is today.
                 </p>
 
                 <ul className="tc-picks">
@@ -1417,7 +1451,7 @@ export function ToolCard({
                    ------------------------------------------------------------ */}
                 {!unlocked && (
                   <p className="tc-eyebrow" aria-live="polite">
-                    {step === 'size' ? 'Step 1 of 2 · The floor' : 'Step 2 of 2 · The finish'}
+                    {step === 'size' ? 'The floor' : 'Choose your finish'}
                   </p>
                 )}
 
@@ -1474,22 +1508,28 @@ export function ToolCard({
 
                 {step === 'finish' && !unlocked && (
                   <>
-                    {/* THE SIZE STAYS ON SCREEN, in one line.
+                    {/* THE ROUTE BACK TO THE SIZE, WITHOUT THE SIZE. PHASE 57.
 
-                        Moving to a second step must not mean losing the answer
-                        from the first: a person choosing a finish is deciding
-                        what to spend, and the number that decides the spend is
-                        the square footage. It is also the way back — tapping
-                        it returns to step one, which is more discoverable than
-                        a separate Back button and says what it goes back TO. */}
+                        This line used to read "620 sq ft · change", which was
+                        right when the floor size was step one and he had just
+                        been shown it. Now that the measurement happens behind
+                        the photographs, printing the number here would put it
+                        on screen BEFORE the estimate — and the estimate is the
+                        one place it means anything, because that is where it
+                        sits beside the range it produced.
+
+                        The control itself stays, and stays reachable, because
+                        a measurement read off five photographs can be wrong
+                        and the person standing in the garage is the only one
+                        who can say so. Removing his way to correct it would be
+                        the fabrication this card is built to avoid. */}
                     <button
                       type="button"
                       className="tc-link"
                       onClick={() => setStep('size')}
                       style={{ display: 'block', marginBottom: '1rem' }}
                     >
-                      {sqft === null ? 'Set the floor size' : `${sqft.toLocaleString('en-US')} sq ft`}
-                      {' · change'}
+                      {sqft === null ? 'Set the floor size' : 'Change the floor size'}
                     </button>
 
                 {/* ------------------------------------------------------------
@@ -1810,4 +1850,5 @@ export function ToolCard({
  * imports, and an unused component is a thing a future reader has to work out
  * is dead before they can safely change anything near it.
  */
+
 

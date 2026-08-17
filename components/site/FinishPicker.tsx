@@ -55,6 +55,29 @@ import { downloadImage } from '@/lib/media/download';
  * figure. The number arrives once, with the render, at the end.
  *
  * ============================================================================
+ * ============================================================================
+ * WHY THE SWATCHES TAKE A MOMENT, AND WHAT WOULD ACTUALLY FIX IT
+ * ============================================================================
+ *
+ * Twenty-five swatches and ten combination photographs are fetched as one
+ * query and then rendered as thirty-five separate image requests to Supabase
+ * Storage, at whatever resolution the operator generated them.
+ * `loading="lazy"` and `decoding="async"` keep them off the critical path, and
+ * that is the whole of what this component can do about it.
+ *
+ * The bytes are the real cost and they cannot be reduced from here. Supabase's
+ * image transformation endpoint — the one that would let a 400px-wide swatch
+ * be requested at 400px wide instead of at full size — is a paid-plan feature,
+ * so on the current project the stored file IS the delivered file.
+ *
+ * THE FIX, WHEN IT MATTERS ENOUGH: resize on the way IN, in ComboStudio and
+ * the swatch generator, against the dimensions already stated in
+ * lib/finishes/media-types.ts. That is one write instead of thousands of
+ * reads, and it needs no plan change. It is deliberately not done here,
+ * because a component that rewrites image URLs it does not own is a component
+ * that silently breaks when the storage host changes.
+ *
+ * ============================================================================
  * SWATCHES ARE RECTANGLES, NOT CIRCLES
  * ============================================================================
  *
@@ -423,6 +446,7 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
                 src={hero.src}
                 alt={hero.alt}
                 className="fp-stage-img"
+                decoding="async"
                 onClick={() => openHero()}
               />
             )}
@@ -528,7 +552,12 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
                   <span className="fp-sw-img">
                     {pic ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={pic.src} alt="" loading="lazy" />
+                      /* `decoding="async"` so a swatch landing mid-scroll
+                         decodes off the main thread instead of stalling the
+                         tap the visitor is in the middle of making. It does
+                         not make the files smaller — see the note at the top
+                         of this file about why they are the size they are. */
+                      <img src={pic.src} alt="" loading="lazy" decoding="async" />
                     ) : (
                       <span
                         aria-hidden
@@ -571,4 +600,5 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
     </div>
   );
 }
+
 
