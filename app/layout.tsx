@@ -73,6 +73,20 @@ import './phase35.css';
 import './phase58.css';
 
 /**
+ * PHASE 59 — width constraints on the tool card and its media.
+ *
+ * Registered last. It declares no colour, so like phase34 and phase58 it
+ * carries no light-theme block.
+ *
+ * It is deliberately a CLAMP rather than a targeted fix: the element causing
+ * the homepage overflow was never measured, so every rule in it can only make
+ * something narrower and is inert if the cause lies elsewhere. The file says
+ * so at its head, and says what to do instead. If the probe is ever run and
+ * names the element, this layer should be replaced rather than added to.
+ */
+import './phase59.css';
+
+/**
  * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
  *
  * THE IMPORT ORDER IS THE WHOLE MECHANISM and it is deliberate. Each file adds

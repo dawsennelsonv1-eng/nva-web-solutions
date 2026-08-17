@@ -1,0 +1,82 @@
+/* ============================================================================
+   PHASE 59 — NOTHING INSIDE THE CARD MAY BE WIDER THAN THE CARD.
+   ============================================================================
+
+   BE HONEST ABOUT WHAT THIS FILE IS. It is a set of CONSTRAINTS, not a fix for
+   an identified rule. The offending element was never named: the probe at
+   /debug/overflow.html measures it in one page load and was not run, so what
+   follows is bounded by construction instead — every declaration below can
+   only ever make something NARROWER. If the real cause is elsewhere, these are
+   inert. That is the property that makes them safe to ship without the
+   measurement; it is not a substitute for having it.
+
+   WHAT IS KNOWN. The tool card renders correctly on /tools/[id] and overflows
+   on the homepage. The difference is `ToolDeck`, which places the card in
+   `.tc-deck` — a grid. Two screenshots a minute apart show the same card
+   overflowing and then correct, and the difference between them is which
+   `MediaGallery` frame is active: the broken one is a wide landscape
+   photograph, the correct one a tall portrait screenshot. That is the shape of
+   an unconstrained image, not of a static layout rule.
+
+   WHY IT LOOKS CLIPPED RATHER THAN SCROLLABLE. phases 53 and 54 put
+   `overflow-x: clip` on html and body. The overflow still happens; the browser
+   simply refuses to give a scrollbar for it, so content past the right edge is
+   cut mid-word instead of being reachable. Those rules stopped the SYMPTOM
+   being navigable and were never going to stop the cause.
+
+   ============================================================================
+   WHY `min-width: 0` ALONE WOULD HAVE BEEN A NO-OP
+   ============================================================================
+
+   The obvious fix for a grid item that will not shrink is `min-width: 0`, and
+   it is worth recording that it does nothing here so nobody spends an
+   afternoon on it again. `.tc` already sets `overflow: hidden` (phase15b.css),
+   and an element with overflow other than `visible` already has an automatic
+   minimum size of zero. The desktop track is `minmax(0, 1fr)` for the same
+   reason. It is included below anyway, because it costs nothing and states the
+   intent at the one place a reader will look.
+
+   `max-width: 100%` is the declaration doing real work: it caps the ITEM at
+   the width of its track regardless of what any descendant demands.
+
+   ============================================================================
+   ADDITIVE, AND NO COLOUR
+   ============================================================================
+
+   Every selector is new. phase15b.css owns `.tc` and `.tc-deck`; phase34.css
+   owns `.tc-deck > .tc:only-child`; phase27.css owns `.tc-pick img`;
+   phase34.css owns `.tc-picks img`. None of them declares `max-width` on these
+   elements, so nothing here overrides an earlier layer's decision — it
+   constrains elements those layers left unconstrained.
+
+   No colour is declared, so per the constraint set out in app/layout.tsx this
+   layer needs no html[data-n15-theme='light'] block.
+
+   IF THIS DOES NOT FIX IT: run the probe. The output names the element and the
+   overshoot in pixels, and this file should then be replaced by a rule aimed
+   at whatever it names rather than left in place as a blanket.
+============================================================================ */
+
+.tc-deck > .tc {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Media is the usual culprit and the one thing in this card whose intrinsic
+   size is decided by a file rather than by a stylesheet. An operator uploads a
+   3000px-wide recording and, absent a cap, that is the width the layout is
+   asked to accommodate. */
+.tc img,
+.tc video,
+.tc canvas,
+.tc svg {
+  max-width: 100%;
+}
+
+/* The gallery again, named directly, because on a tool page it mounts OUTSIDE
+   `.tc` and the rule above would not reach it there. Same clamp, so the two
+   surfaces cannot drift into behaving differently. */
+.rv img,
+.rv video {
+  max-width: 100%;
+}
