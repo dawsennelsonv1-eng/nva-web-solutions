@@ -558,9 +558,56 @@ const APPEARANCE_GROUPS = [
   'flake_size',
 ];
 
+/**
+ * ============================================================================
+ * THE KEY IS BUILT FROM THE VISIBLE GROUPS, NOT FROM EVERY GROUP. PHASE 56.
+ * ============================================================================
+ *
+ * WHAT WAS WRONG. This walked APPEARANCE_GROUPS and read `selections` straight
+ * through `chosenIn`. Switching system does not clear the previous system's
+ * colour answer — `visibleGroups` stops SHOWING it, and nothing anywhere
+ * removes it — so every colour a visitor had ever landed on stayed in the
+ * object and kept contributing a segment:
+ *
+ *     opens the picker   system=solid&solid_colour=slate
+ *     taps flake         system=flake&solid_colour=slate&flake_blend=domino
+ *     back to solid      system=solid&solid_colour=slate&flake_blend=domino
+ *
+ * Only the first of those exists in `finish_media`. So the first combination a
+ * visitor saw had a photograph, the next one did not, and returning to the one
+ * that had just worked did not bring it back — the stale segment was still
+ * riding along. From the outside that looks like the library emptying itself
+ * mid-session, which is exactly how it was reported.
+ *
+ * `withDefaults` makes it certain rather than likely. It fills the colour
+ * group of whatever system is showing, so merely LOOKING at a second system is
+ * enough to acquire a second colour segment. Nobody has to make a choice for
+ * this to break.
+ *
+ * WHY THE FIX IS HERE AND NOT A CLEAR ON SYSTEM CHANGE. Wiping the old colour
+ * when the system changes would fix the key and lose the visitor's place: a
+ * person comparing flake against solid would find his slate grey forgotten
+ * every time he looked away from it. The selections object holding answers to
+ * questions not currently on screen is the RIGHT behaviour for a picker with
+ * progressive reveal. What was wrong is that this function disagreed with
+ * every other consumer of that object about which answers currently count.
+ *
+ * `selectionSummary` and `renderDescription` both iterate `visibleGroups`.
+ * That is why "Your mix" listed the right materials while the lookup beneath
+ * it asked for something else — the display and the question had drifted
+ * apart. They now agree, and that agreement is the actual invariant: the key
+ * describes the floor the visitor is being shown, and nothing else.
+ *
+ * PARKED GROUPS FALL OUT FOR FREE. `flake_coverage` and `flake_size` are not
+ * returned by `visibleGroups` unless NEXT_PUBLIC_EPOXY_ALL_GROUPS is set, so
+ * they contribute nothing here — which is what the note above APPEARANCE_GROUPS
+ * already claimed was true, and now is.
+ */
 export function comboKeyFor(selections: Selections): string {
+  const visible = new Set(visibleGroups(selections).map((g) => g.key));
   const parts: string[] = [];
   for (const g of APPEARANCE_GROUPS) {
+    if (!visible.has(g)) continue;
     const vals = chosenIn(selections, g);
     if (vals.length === 0) continue;
     parts.push(g + '=' + [...vals].sort().join('+'));
@@ -722,3 +769,4 @@ export function isAutoFilledGroup(group: FinishGroupDef): boolean {
   if (group.multiple) return false;
   return group.required || AUTOFILL_OPTIONAL_KEYS.has(group.key);
 }
+
