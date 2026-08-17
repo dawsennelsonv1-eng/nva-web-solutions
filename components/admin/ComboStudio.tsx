@@ -8,8 +8,7 @@ import { generateComboAction, type ComboSpec } from '@/app/actions/comboGen';
 import { ImageViewer, type ViewerItem } from '@/components/tools/ImageViewer';
 import { downloadImage } from '@/lib/media/download';
 import { createFinishUploadAction, saveFinishMediaAction } from '@/app/actions/finishMedia';
-import { COMBINATION_GUIDANCE } from '@/lib/finishes/media-types';
-import { extensionFor, shrinkForUpload } from '@/lib/finishes/resize';
+import { extensionFor } from '@/lib/finishes/resize';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { EPOXY_GROUPS, comboKeyFor, visibleGroups } from '@/lib/verticals/epoxy/options';
 
@@ -229,26 +228,36 @@ export function ComboStudio({ existing }: { existing: ExistingCombo[] }) {
     }
 
     /**
-     * Same three-step upload as the swatch studio and CombinationUploader,
-     * with the picture brought down to the size it is actually displayed at
-     * first. PHASE 60.
+     * ======================================================================
+     * COMBINATION RENDERS ARE UPLOADED AT FULL SIZE. PHASE 61.
+     * ======================================================================
      *
-     * COMBINATION_GUIDANCE has said 1200x800 since the media types were
-     * written, and until now that was advice printed to the operator while the
-     * code uploaded whatever the model happened to render. The hero image in
-     * the picker is capped at 32vh, so anything past this is bytes nobody sees
-     * — paid for once here and then downloaded by every visitor, because the
-     * free storage tier has no transform on read.
+     * Phase 60 put a 1200x800 downscale here and it was a mistake, for a
+     * reason worth writing down so it is not repeated: the two kinds of finish
+     * media have opposite economics and were treated as one problem.
      *
-     * It fits rather than crops: this is a photograph of a real garage and
-     * trimming it to hit an exact 3:2 would cut the floor out of the one
-     * picture whose subject is the floor.
+     *   A SWATCH is a small rectangle and the picker loads twenty-five of them
+     *   at once. Bytes are the entire cost. It is still resized, in
+     *   SwatchStudio, and that is where the weight complaint actually came
+     *   from.
+     *
+     *   A COMBINATION is the hero. Exactly ONE is on screen at a time, it is
+     *   the largest thing in the picker, and it is the picture a homeowner
+     *   leans in to look at. Resolution is the product here. Trading it for
+     *   bandwidth on a single image is optimising the wrong picture.
+     *
+     * PHASE 60 ALSO ASSERTED, IN A COMMENT, THAT THE HERO IS CAPPED AT 32vh.
+     * That number was invented. The stylesheet governing `.fp-stage` had never
+     * been read when it was written. It is removed rather than corrected,
+     * because the honest statement is that this file does not know how large
+     * the picture will be displayed and has no business deciding on its
+     * behalf.
+     *
+     * `extensionFor` is kept: the stored filename should still match the
+     * content type the model actually returned.
      */
-    const shrunk = await shrinkForUpload(gen.dataUrl, {
-      width: COMBINATION_GUIDANCE.idealWidth,
-      height: COMBINATION_GUIDANCE.idealHeight,
-    });
-    const contentType = shrunk.contentType;
+    const blob = await (await fetch(gen.dataUrl)).blob();
+    const contentType = blob.type || 'image/webp';
     const signed = await createFinishUploadAction({ contentType });
     if (!signed.ok) return { status: 'failed', note: signed.message };
 
@@ -258,7 +267,7 @@ export function ComboStudio({ existing }: { existing: ExistingCombo[] }) {
       .uploadToSignedUrl(
         signed.path,
         signed.token,
-        new File([shrunk.blob], row.comboKey + '.' + extensionFor(contentType), {
+        new File([blob], row.comboKey + '.' + extensionFor(contentType), {
           type: contentType,
         })
       );
