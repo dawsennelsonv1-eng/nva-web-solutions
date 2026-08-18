@@ -1,0 +1,77 @@
+/* ============================================================================
+   PHASE 64 — THE RECIPE MOVES UNDER THE PICTURE.
+   ============================================================================
+
+   THE LAST ITEM OF THE BRIEF, AND THE ONE THAT GOT ARGUED AWAY ONCE.
+
+   The request was: move the text to the bottom, and give the space at the top
+   to the combination preview. Phase 62 did the second half — 62vh, no fixed
+   ratio, nothing letterboxed — and dismissed the first on the grounds that the
+   mix panel only appears when there is no photograph, so a working picker
+   would not show it anyway.
+
+   That was true and it missed the point twice over. When a combination has no
+   photograph yet, the mix list WAS the top of the screen, sitting in a box
+   shaped like a picture. And phase 62 made the mismatch worse: the real
+   picture went to 62vh while `.fp-stage-none` stayed at 50vh with
+   `aspect-ratio: 3 / 2`, so the placeholder was reserving picture-sized space
+   for three lines of type and not even the right amount of it.
+
+   Two rules fix it. The placeholder stops pretending to be a photograph, and
+   the list it used to hold is styled in its new home below the stage.
+
+   ============================================================================
+   WHY THE LIST MOVED RATHER THAN BEING HIDDEN
+   ============================================================================
+
+   Inside the stage, the mix list and the photograph were ALTERNATIVES: the
+   markup showed one or the other. A visitor looking at a rendered floor could
+   not see what was in it, and a visitor reading his recipe could not see a
+   floor. Below the stage they coexist — the picture keeps the pinned space and
+   the recipe sits underneath it, legible in both states.
+
+   `.fp-mix` itself is untouched. It is phase30's rule and it was already right:
+   mono, 0.8125rem, generous line height. Only its position in the document
+   changed, which is a component decision rather than a stylesheet one.
+
+   ============================================================================
+   ADDITIVE, AND NO COLOUR
+   ============================================================================
+
+   `.fp-stage-lean` and `.fp-under*` are new names introduced by this phase.
+   `.fp-stage-none` keeps every rule phase35 gave it — the flex column, the
+   dashed border, the padding — and this only overrides the two properties that
+   describe its SHAPE, via a compound selector that cannot fire without the new
+   class being present.
+
+   Only `opacity` and metrics are declared. No colour, so no
+   html[data-n15-theme='light'] block, per the constraint in app/layout.tsx.
+============================================================================ */
+
+.fp-stage-none.fp-stage-lean {
+  /* The two that made it picture-shaped. Everything else phase35 set stands. */
+  aspect-ratio: auto;
+  max-height: none;
+}
+
+.fp-under {
+  margin: 0 0 0.85rem;
+}
+
+.fp-under-h {
+  margin: 0 0 0.15rem;
+  font-family: var(--n15-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  /* Matches `.fp-hero-cap` and `.fp-stage-cap`: this is a label for the thing
+     above it, and labels in this picker are quiet. */
+  opacity: 0.6;
+}
+
+/* The list sits directly under its own heading, so phase30's 0.75rem top
+   margin — which spaced it away from a panel heading inside the stage — is now
+   a gap between a label and the thing it labels. */
+.fp-under .fp-mix {
+  margin-top: 0;
+}

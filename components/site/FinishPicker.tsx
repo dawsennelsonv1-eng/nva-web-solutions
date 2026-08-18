@@ -469,28 +469,61 @@ export function FinishPicker({ verticalId, selections, onChange, children }: Fin
             </div>
           </div>
         ) : (
-          <div className="fp-stage-none">
+          /* ----------------------------------------------------------------
+             THE PLACEHOLDER NO LONGER PRETENDS TO BE A PHOTOGRAPH. PHASE 64.
+
+             `.fp-stage-none` carries `aspect-ratio: 3 / 2` and a vh cap from
+             phase35, which made sense when it held the mix list: it kept the
+             pinned block from changing height the moment a combination
+             acquired a picture. But it meant three lines of type were given a
+             picture-sized box in the most valuable space on the screen, and
+             phase 62 widened the gap by taking the real picture to 62vh while
+             this stayed at 50.
+
+             The mix list has moved below the stage — see `.fp-under` further
+             down — so what is left here is two short lines, and
+             `.fp-stage-lean` lets the box be as tall as they are.
+            ---------------------------------------------------------------- */
+          <div className="fp-stage-none fp-stage-lean">
             <p className="fp-stage-none-h">
-              {summary.length > 0 ? 'Your mix' : 'Start with the coating'}
+              {summary.length > 0 ? 'No photo of this mix yet' : 'Start with the coating'}
             </p>
-            {summary.length > 0 ? (
-              <>
-                <ul className="fp-mix">
-                  {summary.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-                <p className="fp-stage-none-b">
-                  No reference photo of this exact combination yet. You will see it on
-                  your own floor at the end &mdash; that one is made from your photos.
-                </p>
-              </>
-            ) : (
-              <p className="fp-stage-none-b">Pick a coating below and this fills in.</p>
-            )}
+            <p className="fp-stage-none-b">
+              {summary.length > 0
+                ? 'You will see it on your own floor at the end \u2014 that one is made from your photos.'
+                : 'Pick a coating below and this fills in.'}
+            </p>
           </div>
         )}
       </div>
+
+      {/* ------------------------------------------------------------------
+          YOUR MIX, UNDER THE PICTURE RATHER THAN INSTEAD OF IT. PHASE 64.
+
+          This list used to live inside the pinned stage, and only in the
+          branch where there was NO photograph — so a visitor either saw his
+          recipe or saw the floor, never both, and the recipe was occupying
+          the space the floor wanted.
+
+          Below the stage it can do both. When a combination has a photograph
+          the list names what is in it; when one does not, the list is the
+          answer and the lean panel above says so in a sentence. Either way the
+          top of the screen belongs to the picture.
+
+          `.fp-mix` is phase30's class, reused unchanged — only its position in
+          the document has moved, so nothing about how it reads had to be
+          redecided.
+         ------------------------------------------------------------------ */}
+      {summary.length > 0 ? (
+        <div className="fp-under">
+          <p className="fp-under-h">Your mix</p>
+          <ul className="fp-mix">
+            {summary.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {/* ------------------------------------------------------------------
           THE DESCRIPTION STRIP, NOW BELOW THE PINNED PICTURE.

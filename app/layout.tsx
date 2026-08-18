@@ -99,6 +99,18 @@ import './phase59.css';
 import './phase62.css';
 
 /**
+ * PHASE 64 — the mix list moves below the preview.
+ *
+ * Defines `.fp-stage-lean` and `.fp-under*`. It overrides only the two
+ * shape properties on `.fp-stage-none`, through a compound selector that
+ * cannot fire unless the component adds the new class, so phase35's rule is
+ * intact for anything still using it alone.
+ *
+ * No colour, so no light-theme block.
+ */
+import './phase64.css';
+
+/**
  * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
  *
  * THE IMPORT ORDER IS THE WHOLE MECHANISM and it is deliberate. Each file adds

@@ -147,7 +147,30 @@ const MAX_TILT_DEG = 6;
  * The floor is enforced, the ceiling is enforced, and the visitor is told
  * both before he starts rather than discovering them by being refused.
  */
-const MIN_PHOTOS = 3;
+/**
+ * ============================================================================
+ * ONE PHOTOGRAPH IS ENOUGH TO START. PHASE 65.
+ * ============================================================================
+ *
+ * The floor was three, and the reasoning above it is still sound as ADVICE:
+ * corner shots triangulate, a known-size object anchors the scale, and a
+ * measurement from one frame is less reliable than one from three.
+ *
+ * But it was written as a REFUSAL. Somebody standing in his garage with one
+ * good wide shot was told to go and take two more before the tool would do
+ * anything at all, and the most common outcome of asking for two more of
+ * anything is nothing.
+ *
+ * Reliability was never binary, and the machinery for saying so already
+ * exists. `analyse()` returns a confidence, an unconfident result opens manual
+ * entry rather than guessing, and the estimate states the band it derived. A
+ * single photograph simply lands lower on that scale — which the visitor is
+ * told, and can answer by adding another frame or typing the size himself.
+ *
+ * MAXIMUM FIVE IS UNCHANGED. That ceiling is about tokens and patience, and
+ * both arguments still hold.
+ */
+const MIN_PHOTOS = 1;
 const MAX_PHOTOS = 5;
 
 export interface ToolCardFinish {
@@ -1244,10 +1267,10 @@ export function ToolCard({
             {flow.k !== 'ready' && flow.k !== 'collecting' && (
               <div className="tc-up">
                 <p className="tc-up-h">
-                  Send {MIN_PHOTOS} to {MAX_PHOTOS} photos of your garage
+                  Send up to {MAX_PHOTOS} photos of your garage
                 </p>
                 <p className="tc-up-sub">
-                  One from each corner. It works out how big the floor is and prices
+                  One will do; a few from different corners measure better. It works out how big the floor is and prices
                   it — you do not need to measure anything, and you do not need to
                   tidy up. Get the garage door or a car in at least one shot; that is
                   what it measures against.
@@ -1446,8 +1469,8 @@ export function ToolCard({
                 </ul>
 
                 <p className="tc-review-note">
-                  {photos.length < MIN_PHOTOS
-                    ? `${MIN_PHOTOS - photos.length} more and it can measure the floor. Different corners work best.`
+                  {photos.length === 1
+                    ? 'One is enough to measure from. Another from a different corner makes it more accurate.'
                     : 'Check they all show the same floor and none are blurred.'}
                 </p>
 
@@ -1458,9 +1481,7 @@ export function ToolCard({
                     disabled={photos.length < MIN_PHOTOS}
                     onClick={() => void analyse()}
                   >
-                    {photos.length < MIN_PHOTOS
-                      ? `Add ${MIN_PHOTOS - photos.length} more`
-                      : `Measure my floor`}
+                    {photos.length < MIN_PHOTOS ? 'Add a photo' : 'Measure my floor'}
                   </button>
                   <button
                     type="button"
