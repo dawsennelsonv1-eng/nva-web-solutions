@@ -184,7 +184,7 @@ export const TOOL_IDEAS: readonly ToolIdea[] = [
       'One render per lead under the phase 67 cap. Same order as epoxy.',
     origin: 'research-list',
     verdict:
-      'One of the three best on this list. A dead yard becoming a finished patio is the most legible transformation in home services, the surface geometry is as forgiving as a floor, and the ticket is high. Constrain it to a picker of defined styles rather than a free text prompt — free text produces renders no contractor can price, and pricing is the whole product.',
+      'One of the three best on this list. A dead yard becoming a finished patio is the most legible transformation in home services, the surface geometry is as forgiving as a floor, and the ticket is high. Constrain it to a picker of defined styles rather than a free text prompt — free text produces renders no contractor can price, and pricing is the whole product. ARTIFICIAL TURF BELONGS HERE AS A STYLE, NOT AS ITS OWN TOOL: a dead brown lawn turning perfect green is among the most shareable transformations available, and it is the same photo, the same measurement and the same render as every other yard style. Building it as a separate vertical would duplicate an entire module for one material.',
   },
   {
     id: 'landscaping-bom',
@@ -717,6 +717,94 @@ export const TOOL_IDEAS: readonly ToolIdea[] = [
 
 /**
  * ============================================================================
+ * CAPABILITIES THAT DO NOT EXIST YET — AND ARE NOT BLOCKED
+ * ============================================================================
+ *
+ * SEVERAL ENTRIES ABOVE ARE MARKED `needs-new-capability`. THAT MEANS NOT YET
+ * BUILT. IT DOES NOT MEAN HARD, RISKY, OR OUT OF REACH, AND IT SHOULD NOT BE
+ * READ AS A REASON TO DECLINE.
+ *
+ * This section exists so that an assistant picking this file up in a fresh
+ * session has what it needs to start, rather than treating the label as a wall.
+ * Each entry states what the capability is, the concrete approach, what is
+ * genuinely uncertain, and what has to be true before a line is written.
+ *
+ * ONLY THREE ARE DOCUMENTED, AND THE OMISSIONS ARE DELIBERATE. Several other
+ * entries are also marked `needs-new-capability` without a matching entry here:
+ * the storm tracker, HVAC maintenance outreach, the landscaping bill of
+ * materials, blueprint takeoff, the HVAC load widget and the brick matcher.
+ * Each is either a park-it verdict, blocked on data that has to be assembled by
+ * hand rather than on code, or — in the bill of materials case — an idea that
+ * should be redesigned before it is built at all. Writing build notes for them
+ * would imply a recommendation this file does not make. If one is chosen, its
+ * capability entry gets written then.
+ */
+
+export interface UnbuiltCapability {
+  id: string;
+  name: string;
+  /** Which TOOL_IDEAS entries become buildable once this exists. */
+  unlocks: readonly string[];
+  /** The concrete approach. Specific enough to start from. */
+  approach: string;
+  /** What is genuinely uncertain, stated plainly. */
+  risks: string;
+  /** What must be true or obtained before writing code. */
+  prerequisites: string;
+  /** Rough size, in the only unit that matters here: sessions of work. */
+  effort: string;
+}
+
+export const UNBUILT_CAPABILITIES: readonly UnbuiltCapability[] = [
+  {
+    id: 'satellite-measurement',
+    name: 'Measuring a property from an address',
+    unlocks: [
+      'roofing-satellite-quoter',
+      'fencing-perimeter-quoter',
+      'siteprep-dirt-quoter',
+      'gutter-linear-quoter',
+      /* The same Google Solar API call that returns roof geometry also returns
+         sun exposure, so this comes almost free once roofing is integrated —
+         the panel-reading vision call is separate and already possible. */
+      'solar-sun-exposure-calculator',
+    ],
+    approach:
+      "Three separate problems that share one integration. ROOF AREA AND PITCH: Google's Solar API building-insights endpoint returns roof segments for an address with area, pitch and azimuth already computed — the hard part is solved by someone else, and pitch is what makes it worth using, since a flat footprint underestimates real roof area by anywhere from 5% to 40% depending on slope. PERIMETER: no AI and no model at all — the customer taps the corners of their property on a map and the tool computes geodesic distance between consecutive points. That is pure arithmetic, exactly correct rather than estimated, and testable offline. EXCAVATION VOLUME: an elevation API gives surface topography, and the user supplies the design depth, which the tool must ASK FOR rather than assume.",
+    risks:
+      "The integration cannot be tested without a live API key and network access, so it will be written-unverified until it runs against the real endpoint — the one category of work this codebase has been burned by. Mitigate with the pattern already used everywhere here: parse every response against a strict schema and fall through to manual entry the moment anything fails to validate, rather than trusting a shape. Coverage is good in the US and patchy elsewhere, which is fine for a Dallas-Fort Worth market and must not be assumed beyond it. The perimeter tool carries almost none of this risk and is the sensible thing to build first.",
+    prerequisites:
+      'A Google Maps Platform project with billing enabled and the Solar API and Elevation API turned on. Check billing BEFORE writing code — the endpoints return an authorisation error rather than data without it, and that failure looks exactly like a bug.',
+    effort:
+      'Perimeter alone: small, and self-contained. Roofing with real pitch data: moderate, dominated by response handling rather than arithmetic. Once either exists the remaining tools are mostly catalogue and copy.',
+  },
+  {
+    id: 'video-frame-extraction',
+    name: 'Pulling still frames from a phone video',
+    unlocks: ['painting-video-quoter'],
+    approach:
+      'Sample frames client-side by drawing a <video> element to a canvas at intervals, which is the same browser API lib/finishes/resize.ts already uses for downscaling. Feed the chosen frames into the existing multi-frame vision path, which was built to reason across several views in one call and needs no change.',
+    risks:
+      'Choosing WHICH frames matters more than extracting them — a blurred pan produces confident nonsense. Prefer sharpness-scored frames over fixed intervals.',
+    prerequisites: 'None. Everything needed is already in the browser.',
+    effort: 'Small. The vision side already exists.',
+  },
+  {
+    id: 'render-caching',
+    name: 'Not paying twice for the same render',
+    unlocks: [],
+    approach:
+      'Key a stored render on a hash of the photo bytes plus the serialised selections. A repeat of an identical request returns the stored image and costs nothing.',
+    risks:
+      'Almost none. The correctness question is only whether the key captures everything that changes the output — photo and selections are the whole input to the render call.',
+    prerequisites: 'Somewhere to store the mapping. The media bucket already exists.',
+    effort:
+      'Small, and the highest-value item in this entire file for running cost. Recording an advert currently regenerates the same image on every take.',
+  },
+] as const;
+
+/**
+ * ============================================================================
  * THE RECOMMENDATION
  * ============================================================================
  *
@@ -736,13 +824,52 @@ export const TOOL_IDEAS: readonly ToolIdea[] = [
  * satellite capability first and get four tools out of one piece of work.
  */
 export const SHORTLIST: readonly string[] = [
-  // Most viral, highest ticket, and the module is already half written.
-  'exterior-painting-visualiser',
-  // Most legible transformation in home services; forgiving geometry.
+  /*
+   * Weedy dirt to a finished patio, and turf as a style within it. The most
+   * legible transformation available and one that needs no context at all —
+   * a viewer who has never thought about landscaping still sees it.
+   */
   'landscaping-visualiser',
-  // Enormous before-and-after, and the research list missed the consumer version.
+  /*
+   * A whole house changes colour in one cut. The largest frame-filling delta
+   * here, and the only one with an engagement mechanic built in: "which
+   * colour?" invites argument, and argument travels further than approval.
+   * The painting module already exists in scaffold form.
+   */
+  'exterior-painting-visualiser',
+  /*
+   * Dark dated kitchen to bright white. An enormous online genre, instantly
+   * readable, and it does not cannibalise the yard tool the way a standalone
+   * turf tool would — different room, different moment, same pipeline.
+   */
   'cabinet-refinishing-visualiser',
 ] as const;
+
+/**
+ * ============================================================================
+ * THE RANKING CRITERION, WHICH IS NOT THE OBVIOUS ONE
+ * ============================================================================
+ *
+ * These three are NOT ranked by ticket size or by cost per lead. They are
+ * ranked by whether a stranger with no interest in the trade would stop
+ * scrolling, because the growth loop runs through people who are not the
+ * customer:
+ *
+ *   an uninterested viewer watches the transformation and likes it
+ *     -> the video reaches more people
+ *       -> a CONTRACTOR eventually sees it
+ *         -> he wants it on his own website
+ *
+ * The homeowner using the tool is not the buyer. The contractor watching the
+ * output travel is. That inverts the usual ranking, and it is why the satellite
+ * quoters are absent from this shortlist despite probably being better
+ * businesses: near-zero serving cost, exact arithmetic, no confidence problem —
+ * and their output is a NUMBER. Nobody has ever shared a number.
+ *
+ * If the priority ever shifts from reach to cost per lead, the shortlist should
+ * change with it. Build the satellite capability and take four tools from one
+ * piece of work.
+ */
 
 /** Look up one idea by id. Present so the file has an entry point. */
 export function findToolIdea(id: string): ToolIdea | null {
