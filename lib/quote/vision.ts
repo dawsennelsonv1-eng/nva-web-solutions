@@ -376,12 +376,12 @@ export async function analyzeFloorPhoto(args: AnalyzeArgs): Promise<VisionResult
   ensureVerticalsRegistered();
   const ctx: VisionContext = args.context ?? { selections: {} };
 
-  let prompt: string;
+  let basePrompt: string;
   let schema: Parameters<typeof runJob>[0]['schema'];
   let detectLowConfidence: (parsed: unknown) => string[];
   try {
     const mod = getVertical(args.vertical);
-    prompt = mod.vision.buildPrompt(ctx);
+    basePrompt = mod.vision.buildPrompt(ctx);
     schema = mod.vision.responseSchema;
     detectLowConfidence = (p) => mod.vision.lowConfidenceFields(p);
   } catch {
@@ -410,6 +410,47 @@ export async function analyzeFloorPhoto(args: AnalyzeArgs): Promise<VisionResult
     // missing key: nothing called, nothing billed, straight to manual entry.
     return { status: 'unavailable', reason: 'not_configured' };
   }
+
+  /**
+   * ==========================================================================
+   * A SINGLE FRAME HAS TO SAY SO. PHASE 67.
+   * ==========================================================================
+   *
+   * The note above `images` states the risk exactly, and it was written before
+   * anything could trigger it: "One photograph of a garage carries almost no
+   * scale information... it is right often enough to be dangerous — the failure
+   * mode is a confident number that is forty per cent wrong, which becomes a
+   * quote a contractor cannot honour."
+   *
+   * Phase 65 lowered the card's minimum from three photographs to one, so that
+   * path now exists, and it was lowered for a good reason: a visitor with one
+   * good wide shot was being refused outright, and the usual answer to "go and
+   * take two more" is to leave. But the vertical's prompt is written for a set
+   * of frames — parallax, several known-size objects, the run of a wall — and
+   * with one image it is describing evidence that is not there. A model asked
+   * to triangulate from a set it does not have will still answer, and answer
+   * confidently.
+   *
+   * SO THE CALIBRATION IS MADE EXPLICIT RATHER THAN THE MEASUREMENT REFUSED.
+   * The machinery for an uncertain answer already exists and already works:
+   * `lowConfidenceFields` flags it, the card opens manual entry instead of
+   * guessing, and the estimate states the band it derived. What was missing is
+   * that the model had no way to know it was working from one frame, so it had
+   * no reason to use any of that.
+   *
+   * This appends to the vertical's prompt rather than replacing it — every
+   * module keeps its own wording, and a vertical that later handles single
+   * frames well loses nothing by being told the count.
+   */
+  const prompt =
+    images.length === 1
+      ? basePrompt +
+        ' IMPORTANT: you have been given ONE photograph, not a set. You cannot triangulate across viewpoints,' +
+        ' and any dimension not directly measurable against a recognisable object in this single frame is an' +
+        ' inference rather than a measurement. Estimate from what is actually visible, widen your range to' +
+        ' reflect that, and report low confidence for anything you could not verify in this frame.' +
+        ' Do not compensate by guessing a typical garage size.'
+      : basePrompt;
 
   // Images first, then the prompt — the same order Phase 3 sent, which is the
   // order every vertical's prompt is written against. With several frames they

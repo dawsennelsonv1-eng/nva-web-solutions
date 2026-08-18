@@ -171,6 +171,41 @@ const MAX_TILT_DEG = 6;
  * both arguments still hold.
  */
 const MIN_PHOTOS = 1;
+/**
+ * ============================================================================
+ * HOW MANY FRAMES GET RENDERED. PHASE 67.
+ * ============================================================================
+ *
+ * ONE. Previously every photograph was rendered, and that single decision was
+ * behind two separate complaints and one bill.
+ *
+ * THE COST. A render is the most expensive call this product makes, and a
+ * visitor who sent five photographs triggered five of them. Measurement is one
+ * call for the whole set; rendering was one call PER FRAME. That is where an
+ * OpenRouter balance goes, and it goes there fastest during exactly the
+ * repeated demo runs that recording an advert requires.
+ *
+ * THE INCONSISTENCY. Each frame was an independent generation, so each one
+ * invented its own reading of the finish and they disagreed with each other —
+ * reported as "each of these pictures are very different to each other while
+ * it's supposed to be the same render on all pictures". Rendering one frame
+ * does not improve agreement between frames; it removes the disagreement by
+ * removing the second opinion.
+ *
+ * WHAT IS LOST, HONESTLY. The old comment argued that showing one finished
+ * floor "made the tool look as though it had only used one" photograph. That
+ * was a fair point when three were mandatory. It is much weaker now that one
+ * photograph is a supported path, and it is a presentation concern weighed
+ * against a five-fold cost multiple on the most expensive call in the product.
+ *
+ * The measurement still reads every frame. Only the rendering is capped.
+ *
+ * TO SHOW MORE AGAIN: raise this number. Everything downstream already handles
+ * a list. But raise it knowing each increment multiplies the render bill and
+ * reintroduces frames that can disagree, and that the structural fix for the
+ * disagreement is chaining rather than a larger number.
+ */
+const MAX_RENDERED_PHOTOS = 1;
 const MAX_PHOTOS = 5;
 
 export interface ToolCardFinish {
@@ -1693,11 +1728,11 @@ export function ToolCard({
                            thing that turns it. */
                         key={renderNonce}
                         enabled={renderEnabled}
-                        // The WHOLE set. He was asked for three to five and the
-                        // measurement read all of them; showing him one
-                        // finished floor made the tool look as though it had
-                        // only used one.
-                        photos={photos}
+                        /* Capped at MAX_RENDERED_PHOTOS. The measurement
+                           still reads every frame; only the paid renders are
+                           limited. See the note on the constant for what this
+                           costs and what it buys. */
+                        photos={photos.slice(0, MAX_RENDERED_PHOTOS)}
                         finishLabel={selectedFinish?.label ?? 'the finish'}
                         finishDescription={renderDescription(selections)}
                         selections={selections}
