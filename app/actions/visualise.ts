@@ -166,10 +166,26 @@ function messageFor(reason: string): string {
  * checks because they defend different things: this one bounds what a caller
  * can cause to be fetched, the other bounds what one request costs.
  */
+/**
+ * The resolved references, and whether the first of them is an installed
+ * photograph rather than a close-cropped tile. PHASE 66.
+ *
+ * IT RETURNS A FLAG BECAUSE THE PROMPT CANNOT INFER IT. Both kinds arrive as
+ * https URLs in one array and nothing about a URL says whether it points at a
+ * material tile or at a photograph of somebody's garage. Asking the prompt to
+ * guess is how the two came to be described with the same sentence, which is
+ * the bug this phase exists to close.
+ */
+interface ResolvedMaterials {
+  urls: string[];
+  /** True when urls[0] is a combination render — a whole room, not a tile. */
+  leadsWithInstalledPhoto: boolean;
+}
+
 async function resolveMaterials(
   selections: Record<string, string | string[] | undefined> | undefined
-): Promise<string[]> {
-  if (!selections) return [];
+): Promise<ResolvedMaterials> {
+  if (!selections) return { urls: [], leadsWithInstalledPhoto: false };
   try {
     const slots = await finishMediaFor('epoxy');
     const byKey = indexByKey(slots);
@@ -214,7 +230,17 @@ async function resolveMaterials(
      */
     const comboKey = comboKeyFor(selections);
     const combo = byKey.get('combination|' + comboKey);
-    if (combo && combo.src.startsWith('https://')) urls.push(combo.src);
+    /**
+     * PHASE 66 TRACKS THIS RATHER THAN ONLY PUSHING IT. The anchor stays — it
+     * is what stops three photographs becoming three disagreeing renders — but
+     * the fact that it IS a room has to travel with it, or the prompt calls a
+     * photograph of a garage "a sample" and the model returns the garage.
+     */
+    let leadsWithInstalledPhoto = false;
+    if (combo && combo.src.startsWith('https://')) {
+      urls.push(combo.src);
+      leadsWithInstalledPhoto = true;
+    }
 
     /**
      * ORDER IS DELIBERATE: the system first, then whichever colour group
@@ -239,14 +265,14 @@ async function resolveMaterials(
         // fetching from the outside, and would be a reference that silently
         // resolves to nothing.
         if (hit && hit.src.startsWith('https://')) urls.push(hit.src);
-        if (urls.length >= MAX_MATERIAL_REFS) return urls;
+        if (urls.length >= MAX_MATERIAL_REFS) return { urls, leadsWithInstalledPhoto };
       }
     }
-    return urls;
+    return { urls, leadsWithInstalledPhoto };
   } catch {
     // A render with no samples is worse than one with them, and far better
     // than none at all.
-    return [];
+    return { urls: [], leadsWithInstalledPhoto: false };
   }
 }
 
@@ -348,7 +374,8 @@ async function runVisualise(args: VisualiseActionArgs): Promise<VisualiseActionR
   }
 
   // ---- 3. the render, which checks the daily ceiling itself ----------------
-  const materialUrls = await resolveMaterials(args.selections);
+  const materials = await resolveMaterials(args.selections);
+  const materialUrls = materials.urls;
 
   const result = await visualiseFinish({
     photoBase64: args.photoBase64,
@@ -356,6 +383,7 @@ async function runVisualise(args: VisualiseActionArgs): Promise<VisualiseActionR
     finishLabel: args.finishLabel,
     ...(args.selections ? { finishDescription: renderDescription(args.selections) } : {}),
     ...(materialUrls.length > 0 ? { materialUrls } : {}),
+    ...(materials.leadsWithInstalledPhoto ? { materialsLeadWithInstalledPhoto: true } : {}),
     colourLabel: args.colourLabel,
     colourHex: args.colourHex,
     surfaceLabel: args.surfaceLabel,
@@ -418,4 +446,5 @@ async function runVisualise(args: VisualiseActionArgs): Promise<VisualiseActionR
  * BEFORE ADDING A CONSTANT TO ANY 'use server' FILE: it belongs in a plain
  * module that the action imports. The boundary only carries functions.
  */
+
 

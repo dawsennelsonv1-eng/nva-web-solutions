@@ -95,6 +95,16 @@ export interface VisualiseArgs {
    * server-side; never taken from a browser.
    */
   materialUrls?: string[];
+  /**
+   * True when the FIRST entry of materialUrls is a combination render — a
+   * photograph of a whole finished floor in somebody else's room — rather than
+   * a close-cropped material tile. PHASE 66.
+   *
+   * THE PROMPT HAS TO KNOW, because the two need opposite instructions and
+   * calling both "a sample" is what produced the worst bug this tool has had.
+   * See the note above the material clauses in buildPrompt.
+   */
+  materialsLeadWithInstalledPhoto?: boolean;
   /** Hex of the chosen colour, so the model is told the target directly. */
   colourHex?: string;
   /** e.g. 'garage'. Used to name the surface, not to price anything. */
@@ -162,13 +172,67 @@ function buildPrompt(args: VisualiseArgs): string {
     `The FIRST image is a photograph of a ${args.surfaceLabel}. Edit that photograph.`,
   ];
 
+  /**
+   * ==========================================================================
+   * THE REFERENCES ARE NOT ALL THE SAME KIND OF THING. PHASE 66.
+   * ==========================================================================
+   *
+   * THE BUG THIS FIXES, IN THE WORDS IT WAS REPORTED IN: "instead of the output
+   * being the combination I chose previewed on the picture I uploaded, the
+   * backend keeps pushing the combination pictures I saw before to me instead
+   * of my floor."
+   *
+   * That is exactly what the old wording asked for. `resolveMaterials` puts the
+   * COMBINATION RENDER first in the array — deliberately, as a consistency
+   * anchor, and the reasoning there is good — but a combination render is a
+   * photograph of a WHOLE GARAGE FLOOR IN SOMEBODY ELSE'S ROOM. The prompt then
+   * announced it as "a sample of the exact floor finish to apply".
+   *
+   * So the model was handed two photographs of garages, told the first was the
+   * subject and the second was a "sample", and asked to produce a garage with
+   * that finish. Returning the second image satisfies every instruction it was
+   * given. It is not a model failure; it is an accurate description of a tile
+   * applied to something that is not a tile.
+   *
+   * THE FIX IS NOT TO REMOVE THE ANCHOR. Without it, three photographs become
+   * three independent calls that each invent their own reading of "domino
+   * flake", and the renders disagree with each other — the second complaint in
+   * the same report. The anchor is what makes them agree. What was missing is
+   * that its ROLE was never stated.
+   *
+   * So an installed example is now introduced as a different room, explicitly,
+   * with the single thing to take from it named and everything else forbidden.
+   * And whatever the references are, the output is required to be the first
+   * room and returning a reference is ruled out in as many words.
+   */
   if (materials > 0) {
+    if (args.materialsLeadWithInstalledPhoto) {
+      lines.push(
+        'The SECOND image shows this same floor finish already installed in a DIFFERENT room. It is a material reference ONLY.',
+        'Take from it just one thing: what this finish looks like across a whole floor at real scale — the colour, the pattern, the density of any flakes or aggregate, and the level of gloss.',
+        'Ignore everything else about it. Its room, its walls, its doors, its contents, its camera angle, its lighting and its shadows are irrelevant and must not appear in your output.'
+      );
+      if (materials > 1) {
+        lines.push(
+          `The remaining ${materials - 1} images are close-up samples of the same finish. Use them to pin the colour and the texture exactly.`
+        );
+      }
+    } else {
+      lines.push(
+        materials === 1
+          ? 'The SECOND image is a close-up sample of the exact floor finish to apply.'
+          : `The following ${materials} images are close-up samples of the exact floor finish to apply.`
+      );
+    }
+
     lines.push(
-      materials === 1
-        ? 'The SECOND image is a sample of the exact floor finish to apply.'
-        : `The following ${materials} images are samples of the exact floor finish to apply.`,
-      'Match those samples closely: the colour, the pattern, the size and density of any flakes or aggregate, and the level of gloss.',
-      'Reproduce the material shown, not your own interpretation of its name.'
+      'Match the samples closely: the colour, the pattern, the size and density of any flakes or aggregate, and the level of gloss.',
+      'Reproduce the material shown, not your own interpretation of its name.',
+      /* Stated positively AND negatively, because this is the failure that
+         matters most: a homeowner shown a stranger's garage and told it is his
+         own has been lied to by the product. */
+      'Your output must be the room from the FIRST image: the same walls, the same doors, the same objects in the same positions, from the same camera position.',
+      'Do not return any of the reference images, edited or unedited. Do not replace the first room with a room from a reference. If the finished result does not show the same room as the first image, it is wrong.'
     );
   }
 
@@ -321,3 +385,4 @@ export async function visualiseFinish(args: VisualiseArgs): Promise<VisualiseRes
     disclosure: RENDER_DISCLOSURE,
   };
 }
+
