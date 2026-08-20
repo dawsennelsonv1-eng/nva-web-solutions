@@ -456,8 +456,9 @@ export const TOOL_IDEAS: readonly ToolIdea[] = [
     costShape:
       'A maps API call. No inference whatsoever, so effectively free per lead.',
     origin: 'research-list',
+    builtAs: 'fencing',
     verdict:
-      'Underrated. Tapping your own property line is satisfying, the arithmetic is exact rather than estimated — so no confidence problem and no manual override needed — and it costs nothing to serve. The best non-AI tool here.',
+      'BUILT — phase 78, as lib/verticals/fencing, migration 0027. NOTE THAT IT WAS BUILT DIFFERENTLY FROM THIS ENTRY. The entry below describes a map-tap calculator, and the verdict that it was not shareable was correct about THAT design. It ships instead on the photo-and-render path like every other vertical: a homeowner sees the fence standing on their own property, which is shareable, and the satellite perimeter becomes an accuracy upgrade to the measurement rather than a prerequisite for the tool. The original note still applies to the calculator form: Tapping your own property line is satisfying, the arithmetic is exact rather than estimated — so no confidence problem and no manual override needed — and it costs nothing to serve. The best non-AI tool here.',
   },
 
   // -- Flooring -------------------------------------------------------------

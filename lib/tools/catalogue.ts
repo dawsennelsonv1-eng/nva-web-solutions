@@ -392,7 +392,7 @@ const LANDSCAPING: ToolPage = {
   /* Epoxy first: a contractor reading about yards is often the same person who
      does garage floors, and it is the tool with the most finished surface to
      show. */
-  similar: ['epoxy', 'painting'],
+  similar: ['fencing', 'epoxy', 'painting'],
   tryHref: '/demo',
 };
 
@@ -481,11 +481,97 @@ const CABINETS: ToolPage = {
   tryHref: '/demo',
 };
 
+
+const FENCING: ToolPage = {
+  id: 'fencing',
+  title: 'Show them the fence on their own house',
+  tagline:
+    'A homeowner sends one photo of the boundary, picks a style, and sees that fence standing on their property \u2014 with a price from your per-foot rates.',
+  intro:
+    'A fence is bought on how it looks from the kitchen window. Nobody can picture that from a brochure, so this shows them theirs.',
+  storyPoints: [
+    {
+      head: 'They see it on their own boundary',
+      body: 'Not a catalogue photo of a fence in somebody else\u2019s garden. Their house, their line, the style they picked \u2014 which is the difference between a quote they think about and a quote they show their partner.',
+      mediaKey: null,
+    },
+    {
+      head: 'Rock is priced, not discovered',
+      body: 'Caliche and limestone shelf are everywhere in this market, and setting posts in rock is the most under-quoted condition in the trade. The tool looks for it and prices it before you commit to a number.',
+      mediaKey: null,
+    },
+    {
+      head: 'Seven styles across a tenfold spread',
+      body: 'Chain link to stone columns. Each with your rate per foot, your gate prices, your removal cost and your minimum.',
+      mediaKey: null,
+    },
+  ],
+  howItWorks: [
+    {
+      head: 'They send one photo down the line',
+      body: 'A side boundary, the back of the yard, or the front of the house. The house or a car in frame gives it something to judge distance against.',
+      mediaKey: null,
+    },
+    {
+      head: 'They pick the fence',
+      body: 'Chain link, cedar privacy, board on board with steel posts, horizontal slat, vinyl, ornamental metal, or stone columns with panels. Then the finish.',
+      mediaKey: null,
+    },
+    {
+      head: 'They see it standing there',
+      body: 'On their property, in the style and finish they chose.',
+      mediaKey: null,
+    },
+    {
+      head: 'It prices the run from your rates',
+      body: 'Length times your rate, plus gates as pieces, plus taking the old fence out. Your minimum, your mobilisation, your range.',
+      mediaKey: null,
+    },
+  ],
+  features: [
+    {
+      head: 'Gates are priced as gates',
+      body: 'A drive gate is a fabrication problem, not twelve feet of fence. Charging it by the foot is how quotes go wrong on the jobs that matter most.',
+    },
+    {
+      head: 'It filters before you drive out',
+      body: 'Somebody who wanted stone columns and sees the stone column range self-selects. The ones who book have accepted the number.',
+    },
+    {
+      head: 'Every rate is yours',
+      body: 'Per foot by style, per gate, per foot of removal, and five site adjustments. None of it guessed.',
+    },
+  ],
+  faq: [
+    {
+      q: 'How does it know how long the run is?',
+      a: 'It estimates from your photo, using the house, a car or a garage door for scale \u2014 and it tells you when it is not sure rather than guessing, because a boundary that recedes from the camera is easy to underestimate. You can always type the length instead.',
+    },
+    {
+      q: 'What about rocky ground?',
+      a: 'It is an adjustment in the quote, and the tool looks for visible rock in the photo. In this market that is the difference between augering a post hole and coring one, and it is the line most estimates leave out.',
+    },
+    {
+      q: 'Does it handle taking the old fence out?',
+      a: 'Yes, as its own line charged on the full run. When the photo shows an existing fence it suggests it, and the homeowner can turn it off.',
+    },
+    {
+      q: 'How do I put it on my site?',
+      a: 'One line of code. If somebody else built your site, send them the line or send it to us.',
+    },
+  ],
+  reviews: [],
+  extras: ['live-widget'],
+  similar: ['landscaping', 'epoxy'],
+  tryHref: '/demo',
+};
+
 const PAGES: Record<string, ToolPage> = {
   epoxy: EPOXY,
   painting: PAINTING,
   landscaping: LANDSCAPING,
   cabinets: CABINETS,
+  fencing: FENCING,
 };
 
 /**

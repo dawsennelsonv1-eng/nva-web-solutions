@@ -3,6 +3,7 @@ import { epoxyVertical } from '@/lib/verticals/epoxy';
 import { paintingVertical } from '@/lib/verticals/painting';
 import { landscapingVertical } from '@/lib/verticals/landscaping';
 import { cabinetsVertical } from '@/lib/verticals/cabinets';
+import { fencingVertical } from '@/lib/verticals/fencing';
 
 /**
  * THE ONE REGISTRATION POINT. This file belongs to the vertical surface, not
@@ -55,6 +56,18 @@ export function ensureVerticalsRegistered(): void {
    * quote.
    */
   registerVertical(cabinetsVertical);
+  /**
+   * FENCING, phase 78. The first vertical measured in LINEAR FEET rather than
+   * area or pieces — it reuses the quantity control with unit 'linear_ft', so
+   * again no core change.
+   *
+   * Deliberately built on the photo-and-render path rather than waiting for
+   * satellite perimeter measurement. The render is the reason anyone shares it;
+   * satellite improves the measurement later and writes to the same field.
+   *
+   * Needs supabase/migrations/0027_fencing_defaults.sql.
+   */
+  registerVertical(fencingVertical);
 }
 
 export function getRegisteredVerticals() {
