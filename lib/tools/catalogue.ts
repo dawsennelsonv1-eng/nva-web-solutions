@@ -232,7 +232,11 @@ const EPOXY: ToolPage = {
   ],
   reviews: [],
   extras: ['live-widget', 'pricing-model'],
-  similar: ['painting', 'concrete-polishing', 'pressure-washing'],
+  /* Two real tools rather than two real and one aspirational. The row
+     previously listed 'concrete-polishing' and 'pressure-washing', neither of
+     which has a page — a link to a tool that does not exist is worse than a
+     shorter row. */
+  similar: ['painting', 'landscaping'],
   tryHref: '/demo',
 };
 
@@ -300,13 +304,102 @@ const PAINTING: ToolPage = {
   ],
   reviews: [],
   extras: [],
-  similar: ['epoxy'],
+  similar: ['epoxy', 'landscaping'],
+  tryHref: '/demo',
+};
+
+
+const LANDSCAPING: ToolPage = {
+  id: 'landscaping',
+  title: 'Show them the finished yard, then price it',
+  tagline:
+    'A homeowner sends one photo of their yard, picks a style, and sees it built — with a real range from your rates underneath it.',
+  intro:
+    'Nobody can picture a patio from a description. This one shows them their own yard finished, while they are still standing in it.',
+  storyPoints: [
+    {
+      head: 'The photograph does the selling',
+      body: 'A yard is the hardest job in the trade to sell on paper, because the customer is being asked to imagine the one thing they cannot picture. Showing them their own space finished ends that conversation before it starts.',
+      mediaKey: null,
+    },
+    {
+      head: 'What is already there is priced, not ignored',
+      body: 'Tearing out a slab is thousands of dollars of machine time and dump fees, and it is the line every rough estimate forgets. This one asks what is on the ground and prices removal separately, so the range is not one you have to walk back on site.',
+      mediaKey: null,
+    },
+    {
+      head: 'You set every rate. It never invents one.',
+      body: 'Your rate per square foot for each style, your clearing rates, your access and slope adjustments, your minimum. Changed from your dashboard, live for the next customer.',
+      mediaKey: null,
+    },
+  ],
+  howItWorks: [
+    {
+      head: 'They send one photo of the yard',
+      body: 'One wide shot from a door or a corner. A fence or the house in frame is what it measures against. They do not need to tidy up first, and they do not need to measure anything.',
+      mediaKey: null,
+    },
+    {
+      head: 'They pick what it should become',
+      body: 'Paver patio, flagstone, artificial turf, gravel and drought planting, lawn and beds, or a deck with a pergola. Then the material tone.',
+      mediaKey: null,
+    },
+    {
+      head: 'They see their own yard, finished',
+      body: 'Not a stock photo of somebody else\u2019s garden. Their yard, with the style they chose on it.',
+      mediaKey: null,
+    },
+    {
+      head: 'It prices the job from your rates',
+      body: 'Area times your rate for that style, plus clearing what is there now, plus grading where it is needed. Your minimum, your mobilisation, your range.',
+      mediaKey: null,
+    },
+  ],
+  features: [
+    {
+      head: 'The quote survives the site visit',
+      body: 'Clearing, access and slope are priced up front instead of discovered later, so the number you gave is close to the number you sign.',
+    },
+    {
+      head: 'It filters before you drive',
+      body: 'A homeowner who wanted flagstone and sees the flagstone range self-selects. The ones who book a visit have already accepted the number.',
+    },
+    {
+      head: 'Every rate is yours',
+      body: 'Six styles, four clearing levels, five site adjustments and a minimum. All editable, none guessed.',
+    },
+  ],
+  faq: [
+    {
+      q: 'How accurate is the size from one photo?',
+      a: 'Close enough to quote a range, and it tells you when it is not sure. Everything here is area times a rate, so when the photo does not give it enough to go on it says so and asks for the size instead of guessing.',
+    },
+    {
+      q: 'Does the render show real materials?',
+      a: 'It shows the style and tone they chose on their own yard. It is an illustration of the finish, not a photograph of the work you will do \u2014 and it says so on the page, beside the picture.',
+    },
+    {
+      q: 'What if the yard needs a retaining wall?',
+      a: 'There is an adjustment for it, and the estimate says plainly that ground conditions are only fully known on site. The tool is built to hand you a warm lead, not to commit you to a number you have not seen.',
+    },
+    {
+      q: 'How do I put it on my site?',
+      a: 'One line of code. If somebody else built your site, send them the line or send it to us.',
+    },
+  ],
+  reviews: [],
+  extras: ['live-widget'],
+  /* Epoxy first: a contractor reading about yards is often the same person who
+     does garage floors, and it is the tool with the most finished surface to
+     show. */
+  similar: ['epoxy', 'painting'],
   tryHref: '/demo',
 };
 
 const PAGES: Record<string, ToolPage> = {
   epoxy: EPOXY,
   painting: PAINTING,
+  landscaping: LANDSCAPING,
 };
 
 /**
