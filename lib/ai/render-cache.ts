@@ -111,6 +111,15 @@ export function renderCacheKey(input: {
   colourLabel?: string | undefined;
   colourHex?: string | undefined;
   selections?: Record<string, string | string[] | undefined> | undefined;
+  /**
+   * Which vertical. PHASE 83.
+   *
+   * Two verticals can present the same photograph, the same finish label and
+   * the same colour and mean entirely different materials — 'Natural cedar' is
+   * a fence and a deck. Without this in the key they would share a cached
+   * render and one of them would be wrong.
+   */
+  vertical?: string | undefined;
 }): string {
   const sel = input.selections ?? {};
   const stable = Object.keys(sel)
@@ -129,6 +138,7 @@ export function renderCacheKey(input: {
   h.update('\u0000' + (input.colourLabel ?? ''));
   h.update('\u0000' + (input.colourHex ?? ''));
   h.update('\u0000' + stable);
+  h.update('\u0000' + (input.vertical ?? 'epoxy'));
   return h.digest('hex');
 }
 

@@ -467,6 +467,13 @@ function WidgetBody({
                 surfaceLabel={selectedSurfaceLabel}
                 sessionId={sessionId ?? 'unknown'}
                 prototypeId={prototypeId}
+                /* PHASE 83. The action reads the vertical's own catalogue to
+                   describe the finish and to resolve material references, and
+                   it cannot do either without knowing which vertical this is.
+                   `answers` is the picker's raw output, which is exactly the
+                   shape the action expects. */
+                vertical={config.vertical}
+                selections={answers as Record<string, string | string[] | undefined>}
                 onRendered={recordRenderPath}
               />
             </>
@@ -607,6 +614,13 @@ function WidgetBody({
                 surfaceLabel={selectedSurfaceLabel}
                 sessionId={sessionId ?? 'unknown'}
                 prototypeId={prototypeId}
+                /* PHASE 83. The action reads the vertical's own catalogue to
+                   describe the finish and to resolve material references, and
+                   it cannot do either without knowing which vertical this is.
+                   `answers` is the picker's raw output, which is exactly the
+                   shape the action expects. */
+                vertical={config.vertical}
+                selections={answers as Record<string, string | string[] | undefined>}
                 onRendered={recordRenderPath}
               />
             </>

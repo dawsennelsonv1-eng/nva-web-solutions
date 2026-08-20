@@ -59,6 +59,20 @@ export interface FinishPreviewProps {
   surfaceLabel: string;
   sessionId: string;
   prototypeId: string | null;
+  /**
+   * Which vertical, and what the visitor actually chose. PHASE 83.
+   *
+   * WITHOUT THESE THE RENDER WAS BUILT FROM LABELS ALONE. The action resolves
+   * material references and writes the finish description from the vertical's
+   * own catalogue, and it could do neither without knowing which catalogue to
+   * read — so every widget vertical was rendering against epoxy's assumptions
+   * or against nothing.
+   *
+   * Both optional so an existing caller keeps compiling; the action defaults to
+   * epoxy, which is what those callers meant.
+   */
+  vertical?: string;
+  selections?: Record<string, string | string[] | undefined>;
   /** Fired when a render is stored, so the lead can carry the path. */
   onRendered?: (storagePath: string | null) => void;
 }
@@ -72,6 +86,8 @@ export function FinishPreview({
   surfaceLabel,
   sessionId,
   prototypeId,
+  vertical,
+  selections,
   onRendered,
 }: FinishPreviewProps) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
@@ -97,6 +113,8 @@ export function FinishPreview({
         surfaceLabel,
         sessionId,
         prototypeId,
+        ...(vertical ? { vertical } : {}),
+        ...(selections ? { selections } : {}),
       });
       if (!result.ok) {
         setMessage(result.message);

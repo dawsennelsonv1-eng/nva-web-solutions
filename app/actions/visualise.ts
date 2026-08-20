@@ -10,6 +10,8 @@ import {
 } from '@/lib/ai/render-cache';
 import { finishMediaFor, indexByKey } from '@/lib/finishes/media';
 import { renderDescription, swatchKeyFor, comboKeyFor } from '@/lib/verticals/epoxy/options';
+import { getVertical, hasVertical } from '@/lib/verticals/registry';
+import '@/lib/verticals/manifest';
 import {
   validateImagePayload,
   checkIpRateLimit,
@@ -74,6 +76,20 @@ export interface VisualiseActionArgs {
   surfaceLabel: string;
   sessionId: string;
   prototypeId: string | null;
+  /**
+   * Which vertical the visitor is in. PHASE 83.
+   *
+   * DEFAULTS TO EPOXY, and that default is compatibility rather than a
+   * preference: every existing caller predates this field, and epoxy is what
+   * they all meant.
+   *
+   * WHY THIS FIELD HAD TO EXIST. Until now this action imported epoxy's key
+   * builders directly and called finishMediaFor('epoxy'), so landscaping,
+   * cabinets and fencing could quote but could not render their own finishes —
+   * the one thing those tools are for. The picker was general and the
+   * visualiser was not.
+   */
+  vertical?: string;
 }
 
 export type VisualiseActionResult =
@@ -188,11 +204,38 @@ interface ResolvedMaterials {
 }
 
 async function resolveMaterials(
-  selections: Record<string, string | string[] | undefined> | undefined
+  selections: Record<string, string | string[] | undefined> | undefined,
+  vertical: string
 ): Promise<ResolvedMaterials> {
   if (!selections) return { urls: [], leadsWithInstalledPhoto: false };
+
+  /**
+   * ========================================================================
+   * ONLY EPOXY HAS A MEDIA LIBRARY, AND SAYING SO IS THE HONEST FIX. PHASE 83.
+   * ========================================================================
+   *
+   * The key builders below — comboKeyFor and swatchKeyFor — are epoxy's, and
+   * they encode epoxy's group structure. Running them against a fencing
+   * selection would produce keys that match nothing, which is harmless, and
+   * running them against a vertical that later grows a similarly-shaped
+   * catalogue would produce keys that match the WRONG THING, which is not.
+   *
+   * The deeper fact is that finish_media contains 25 swatches and 10
+   * combinations, all with vertical = 'epoxy'. No studio exists to generate
+   * them for anything else. So for other verticals there is nothing to resolve,
+   * and pretending otherwise by inventing a generic key scheme would be
+   * building a lookup against an empty table and calling it support.
+   *
+   * A render with no material references still works — see buildPrompt, which
+   * falls back to describing the finish in words. It is a weaker render, and it
+   * is an honest one. When a vertical gains a media library, this is where its
+   * key builder goes, and the module should carry it rather than this file
+   * importing another vertical's internals.
+   */
+  if (vertical !== 'epoxy') return { urls: [], leadsWithInstalledPhoto: false };
+
   try {
-    const slots = await finishMediaFor('epoxy');
+    const slots = await finishMediaFor(vertical);
     const byKey = indexByKey(slots);
     const urls: string[] = [];
 
@@ -320,6 +363,54 @@ async function resolveMaterials(
  * THIS DOES NOT HIDE THE BUG. It stops the bug being anonymous. The underlying
  * throw still needs fixing once it has a name.
  */
+/**
+ * A sentence describing the chosen finish, for whichever vertical this is.
+ *
+ * EPOXY KEEPS ITS OWN. `renderDescription` in lib/verticals/epoxy/options.ts
+ * knows about systems, flake blends and topcoats and writes a far better
+ * sentence than anything generic could — and the render prompt has been tuned
+ * against its wording.
+ *
+ * EVERYTHING ELSE IS BUILT FROM THE MODULE'S OWN CATALOGUE: the finish label
+ * and its description, plus the colour label. That is enough for the image
+ * model to know it is drawing a cedar board-on-board fence in a walnut stain
+ * rather than a generic fence, which is the difference that matters.
+ *
+ * RETURNS NULL RATHER THAN AN EMPTY STRING when there is nothing useful to say,
+ * because the caller spreads it conditionally and an empty description would
+ * override finishLabel with nothing.
+ */
+function describeFor(vertical: string, args: VisualiseActionArgs): string | null {
+  if (vertical === 'epoxy') {
+    return args.selections ? renderDescription(args.selections) : null;
+  }
+
+  if (!hasVertical(vertical)) return null;
+
+  const mod = getVertical(vertical);
+  const finishId =
+    typeof args.selections?.['finishId'] === 'string'
+      ? (args.selections['finishId'] as string)
+      : null;
+
+  const finish = finishId ? mod.finishes.find((f) => f.id === finishId) : undefined;
+  const parts: string[] = [];
+
+  if (finish) {
+    parts.push(finish.label);
+    /* The catalogue description is written for a homeowner and doubles as the
+       best available render hint — a style whose description does not describe
+       what it looks like is one nobody can picture either. */
+    if (finish.description) parts.push(finish.description);
+  } else if (args.finishLabel) {
+    parts.push(args.finishLabel);
+  }
+
+  if (args.colourLabel) parts.push('in ' + args.colourLabel);
+
+  return parts.length > 0 ? parts.join('. ') : null;
+}
+
 export async function visualiseAction(
   args: VisualiseActionArgs
 ): Promise<VisualiseActionResult> {
@@ -396,6 +487,10 @@ async function runVisualise(args: VisualiseActionArgs): Promise<VisualiseActionR
    * The daily ceiling lives inside visualiseFinish and is therefore skipped on
    * a hit. That is correct: the ceiling bounds SPEND, and a hit spends nothing.
    */
+  /* Resolved once, near the top, so the cache key and the material lookup
+     cannot disagree about which vertical this is. */
+  const vertical = args.vertical?.trim() || 'epoxy';
+
   const cacheKey = renderCacheKey({
     photoBase64: args.photoBase64,
     finishLabel: args.finishLabel,
@@ -403,6 +498,10 @@ async function runVisualise(args: VisualiseActionArgs): Promise<VisualiseActionR
     colourLabel: args.colourLabel,
     colourHex: args.colourHex,
     selections: args.selections,
+    /* Two verticals could present the same photo, finish label and colour and
+       mean different materials. Without this they would share a cached
+       render. */
+    vertical,
   });
 
   const cached = getCachedRender(cacheKey);
@@ -416,14 +515,14 @@ async function runVisualise(args: VisualiseActionArgs): Promise<VisualiseActionR
   }
 
   // ---- 4. the render, which checks the daily ceiling itself ----------------
-  const materials = await resolveMaterials(args.selections);
+  const materials = await resolveMaterials(args.selections, vertical);
   const materialUrls = materials.urls;
 
   const result = await visualiseFinish({
     photoBase64: args.photoBase64,
     photoMediaType: args.photoMediaType,
     finishLabel: args.finishLabel,
-    ...(args.selections ? { finishDescription: renderDescription(args.selections) } : {}),
+    ...(describeFor(vertical, args) ? { finishDescription: describeFor(vertical, args) as string } : {}),
     ...(materialUrls.length > 0 ? { materialUrls } : {}),
     ...(materials.leadsWithInstalledPhoto ? { materialsLeadWithInstalledPhoto: true } : {}),
     colourLabel: args.colourLabel,
