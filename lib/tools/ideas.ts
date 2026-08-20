@@ -112,6 +112,25 @@ export interface ToolIdea {
   costShape: string;
   /** Whether this came from the trade research list or was added here. */
   origin: 'research-list' | 'added';
+  /**
+   * The vertical id this was BUILT as, if it has been. PHASE 77.
+   *
+   * OPTIONAL BY DESIGN — most entries will never have it, and making it
+   * required would mean touching thirty entries to record something true of
+   * three. Its absence means "not built", which is the common case and needs no
+   * ceremony.
+   *
+   * IT EXISTS BECAUSE THIS FILE WAS ALREADY WRONG. Phases 71 and 76 built
+   * landscaping and cabinets, and until this field the catalogue still
+   * described both as things to consider building. A canonical list that has
+   * gone stale is worse than no list: it is confidently misleading, and the
+   * next session to read it would have rebuilt what already exists.
+   *
+   * When a tool is built, set this AND say so in `verdict`. Both, because a
+   * reader skimming verdicts should not have to check a second field to learn
+   * the thing already ships.
+   */
+  builtAs?: string;
   /** The honest recommendation, including the ones that say don't. */
   verdict: string;
 }
@@ -183,8 +202,9 @@ export const TOOL_IDEAS: readonly ToolIdea[] = [
     costShape:
       'One render per lead under the phase 67 cap. Same order as epoxy.',
     origin: 'research-list',
+    builtAs: 'landscaping',
     verdict:
-      'One of the three best on this list. A dead yard becoming a finished patio is the most legible transformation in home services, the surface geometry is as forgiving as a floor, and the ticket is high. Constrain it to a picker of defined styles rather than a free text prompt — free text produces renders no contractor can price, and pricing is the whole product. ARTIFICIAL TURF BELONGS HERE AS A STYLE, NOT AS ITS OWN TOOL: a dead brown lawn turning perfect green is among the most shareable transformations available, and it is the same photo, the same measurement and the same render as every other yard style. Building it as a separate vertical would duplicate an entire module for one material.',
+      'BUILT — phase 71, as lib/verticals/landscaping, with a tool page in phase 75. Six styles, clearance priced as its own line, migration 0025. One of the three best on this list. A dead yard becoming a finished patio is the most legible transformation in home services, the surface geometry is as forgiving as a floor, and the ticket is high. Constrain it to a picker of defined styles rather than a free text prompt — free text produces renders no contractor can price, and pricing is the whole product. ARTIFICIAL TURF BELONGS HERE AS A STYLE, NOT AS ITS OWN TOOL: a dead brown lawn turning perfect green is among the most shareable transformations available, and it is the same photo, the same measurement and the same render as every other yard style. Building it as a separate vertical would duplicate an entire module for one material.',
   },
   {
     id: 'landscaping-bom',
@@ -656,8 +676,9 @@ export const TOOL_IDEAS: readonly ToolIdea[] = [
     feasibility: 'ready',
     costShape: 'One render and one vision call per lead.',
     origin: 'added',
+    builtAs: 'cabinets',
     verdict:
-      'The research list has cabinetry only as contractor LiDAR software and misses the homeowner-facing version entirely, which is the one that generates leads. Dark cabinets going white is among the most shared before-and-afters online. Harder than a floor — many small faces rather than one plane — but well inside what the pipeline does.',
+      'BUILT — phase 76, as lib/verticals/cabinets, with a tool page. Priced per door and drawer front rather than by area, because a door is a unit of work whose cost barely varies with its size; migration 0026. The research list has cabinetry only as contractor LiDAR software and misses the homeowner-facing version entirely, which is the one that generates leads. Dark cabinets going white is among the most shared before-and-afters online. Harder than a floor — many small faces rather than one plane — but well inside what the pipeline does.',
   },
   {
     id: 'garage-door-visualiser',
@@ -890,6 +911,25 @@ export const SHORTLIST: readonly string[] = [
    */
   'cabinet-refinishing-visualiser',
 ] as const;
+
+/**
+ * STATUS, AS OF PHASE 77.
+ *
+ *   landscaping-visualiser          BUILT (phases 71, 75)
+ *   cabinet-refinishing-visualiser  BUILT (phase 76)
+ *   exterior-painting-visualiser    BLOCKED
+ *
+ * The exterior tool is not blocked on content — phase 72 shipped its colour
+ * decks. It is blocked on a chain of contract changes documented in
+ * HANDOFF-4 section 3, of which the load-bearing one is that `WidgetConfig`
+ * carries no colour collections at all, so a body/trim/accent picker has
+ * nothing to read. Do not start it by writing a module; start by finding
+ * whatever builds WidgetConfig.
+ *
+ * ALSO WORTH KNOWING BEFORE BUILDING A FOURTH: as of phase 77, none of the four
+ * tools now registered has been observed running. Adding a fifth surface before
+ * one of them is verified adds risk rather than progress.
+ */
 
 /**
  * ============================================================================

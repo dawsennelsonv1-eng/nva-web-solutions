@@ -1,4 +1,4 @@
-# HANDOFF-4 — phases 56 to 72
+# HANDOFF-4 — phases 56 to 77
 
 Continues HANDOFF-3. Read `HOW-WE-WORK.md` first; it still governs.
 
@@ -118,6 +118,50 @@ Note the widget's own header comment: composites absorb declared steps.
 skipped rather than rendered. **This is why the landscaping module's `colour`
 step is correct as written** — painting declares the identical step. Do not
 "fix" it.
+
+
+**73 — this handoff.**
+
+**74 — render caching.** `lib/ai/render-cache.ts`. Identical photo plus identical
+selections returns the stored render instead of paying again. **`sessionId` and
+`prototypeId` are deliberately excluded from the key** — neither changes the
+picture, and including either would mean every take of an advert missed. Sits
+after the rate limit and validation, before `resolveMaterials`. In-process only:
+one serverless instance, 8 entries, 24MB, 30-minute TTL. Warm-instance repeats
+hit; cold starts do not.
+
+**75 — landscaping tool page.** The vertical existed but nothing on the site
+pointed at it. Also removed two dangling `similar` links from epoxy
+(`concrete-polishing`, `pressure-washing` — neither has a page).
+
+**76 — cabinets vertical.** Module, manifest, migration 0026, tool page. Priced
+per door and drawer front, not by area. Drawer rates are their own keys rather
+than a fraction of door rates — they run 56-59% and narrow as tiers get
+expensive, because the saving is in handling, not coats or cure. Oak grain
+filling is the largest modifier at +22%; it is the line this trade forgets and
+the customer discovers six weeks later.
+
+A calibration error was caught by running the formula rather than reading it: at
+a $2,800 minimum a single bathroom vanity quoted $2,800, roughly double market,
+on a surface the module offers. Lowered to $1,200. Every real kitchen clears
+that on its own arithmetic, so a kitchen-shaped minimum protected nothing.
+
+**77 — reconciled `lib/tools/ideas.ts` with reality.** Two shortlist entries were
+still described as things to consider building. Added `builtAs`.
+
+---
+
+## 6. Four tools are registered. None has been seen running.
+
+epoxy, painting, landscaping, cabinets. Landscaping and cabinets have tool pages
+that go live on push, and **each needs its migration applied or it will render
+and quote nothing** — 0025 and 0026 respectively. Both assume
+`vertical_rule_defaults(vertical, rules, finish_catalogue)`; `NEW_VERTICAL.md`
+documents the table and the `finish_catalogue` column but not the middle one.
+
+Building a fifth vertical before one of these is verified adds surface, not
+progress. The next work worth doing is: apply both migrations, load each tool,
+run one render, and confirm phase 66 returns the visitor's own room.
 
 ---
 
