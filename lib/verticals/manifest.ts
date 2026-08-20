@@ -1,6 +1,7 @@
 import { registerVertical, listVerticals } from '@/lib/verticals/registry';
 import { epoxyVertical } from '@/lib/verticals/epoxy';
 import { paintingVertical } from '@/lib/verticals/painting';
+import { landscapingVertical } from '@/lib/verticals/landscaping';
 
 /**
  * THE ONE REGISTRATION POINT. This file belongs to the vertical surface, not
@@ -28,9 +29,25 @@ export function ensureVerticalsRegistered(): void {
   registered = true;
   registerVertical(epoxyVertical);
   registerVertical(paintingVertical);
+  /**
+   * LANDSCAPING, added in phase 71, and registered on the same terms painting
+   * was: the module prices, and the widget renders its declared step plan
+   * because that plan uses only controls painting already proved
+   * (surface_select, photo, quantity, finish_select, colour_select,
+   * single_select, multi_select). No new control kind was invented for it,
+   * which is what makes this a one-line registration rather than a core
+   * change.
+   *
+   * Its defaults row must exist before a prototype can quote — see
+   * supabase/migrations/0025_landscaping_defaults.sql. A registered vertical
+   * with no rules row resolves fine and then quotes nothing, which is the
+   * failure NEW_VERTICAL.md warns about.
+   */
+  registerVertical(landscapingVertical);
 }
 
 export function getRegisteredVerticals() {
   ensureVerticalsRegistered();
   return listVerticals();
 }
+
