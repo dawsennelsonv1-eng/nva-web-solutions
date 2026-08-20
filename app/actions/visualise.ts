@@ -3,6 +3,11 @@
 import { headers } from 'next/headers';
 import { visualiseFinish, RENDER_DISCLOSURE } from '@/lib/ai/visualise';
 import { MAX_MATERIAL_REFS } from '@/lib/ai/images';
+import {
+  getCachedRender,
+  putCachedRender,
+  renderCacheKey,
+} from '@/lib/ai/render-cache';
 import { finishMediaFor, indexByKey } from '@/lib/finishes/media';
 import { renderDescription, swatchKeyFor, comboKeyFor } from '@/lib/verticals/epoxy/options';
 import {
@@ -373,7 +378,44 @@ async function runVisualise(args: VisualiseActionArgs): Promise<VisualiseActionR
     };
   }
 
-  // ---- 3. the render, which checks the daily ceiling itself ----------------
+  /**
+   * ---- 3. have we already made exactly this picture? ----------------------
+   *
+   * PHASE 74. Placed HERE, and the position is the design:
+   *
+   *   AFTER the IP rate limit, because that guard is about abuse as well as
+   *   spend, and an endpoint answering unlimited cheap requests is still an
+   *   endpoint answering unlimited requests.
+   *
+   *   AFTER payload validation, so a malformed photograph is rejected by the
+   *   one validator this codebase has rather than hashed and stored.
+   *
+   *   BEFORE resolveMaterials and before visualiseFinish, because those are
+   *   where the money goes — several storage reads and one image generation.
+   *
+   * The daily ceiling lives inside visualiseFinish and is therefore skipped on
+   * a hit. That is correct: the ceiling bounds SPEND, and a hit spends nothing.
+   */
+  const cacheKey = renderCacheKey({
+    photoBase64: args.photoBase64,
+    finishLabel: args.finishLabel,
+    surfaceLabel: args.surfaceLabel,
+    colourLabel: args.colourLabel,
+    colourHex: args.colourHex,
+    selections: args.selections,
+  });
+
+  const cached = getCachedRender(cacheKey);
+  if (cached) {
+    return {
+      ok: true,
+      dataUrl: cached.dataUrl,
+      storagePath: cached.storagePath,
+      disclosure: cached.disclosure,
+    };
+  }
+
+  // ---- 4. the render, which checks the daily ceiling itself ----------------
   const materials = await resolveMaterials(args.selections);
   const materialUrls = materials.urls;
 
@@ -403,9 +445,20 @@ async function runVisualise(args: VisualiseActionArgs): Promise<VisualiseActionR
     };
   }
 
+  const dataUrl = `data:${result.mediaType};base64,${result.base64}`;
+
+  /* Only successes are stored. A rate limit, an outage or a bad payload are all
+     transient, and a cached failure would turn a minute of trouble into half an
+     hour of it. */
+  putCachedRender(cacheKey, {
+    dataUrl,
+    storagePath: result.storagePath,
+    disclosure: RENDER_DISCLOSURE,
+  });
+
   return {
     ok: true,
-    dataUrl: `data:${result.mediaType};base64,${result.base64}`,
+    dataUrl,
     storagePath: result.storagePath,
     disclosure: RENDER_DISCLOSURE,
   };
