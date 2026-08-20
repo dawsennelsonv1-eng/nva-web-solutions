@@ -330,6 +330,77 @@ const colourCollections: ColourCollection[] = [
       { id: 'custom_match', label: 'Match my existing colour', hex: '#D9D9D9' },
     ],
   },
+  /**
+   * ========================================================================
+   * EXTERIOR DECKS. PHASE 72.
+   * ========================================================================
+   *
+   * WHY A SECOND AND THIRD DECK RATHER THAN MORE ENTRIES IN THE FIRST.
+   * `repaint_deck` is an interior deck — it is built around what looks right on
+   * a wall in artificial light, and it holds one colour per job because an
+   * interior room is one colour.
+   *
+   * A HOUSE IS NEVER ONE COLOUR. It is a body, a trim and usually a front door,
+   * and the relationship between those three IS the decision a homeowner is
+   * making. Offering a single flat list forces them to make that decision three
+   * times without ever seeing it as one choice, and it is also the reason the
+   * exterior tool is worth building at all: "which colour?" is a question people
+   * argue about in comments, and argument travels further than approval.
+   *
+   * BODY COLOURS ARE NOT INTERIOR COLOURS AT LOWER SATURATION. Exteriors are
+   * seen in full sun, where a colour reads two or three shades lighter and
+   * washed out, so the deck below runs deliberately deeper than the interior
+   * one. The whites are warmer for the same reason — a cold interior white goes
+   * blue outdoors under a Texas sky.
+   *
+   * A KNOWN LIMITATION, RECORDED RATHER THAN WORKED AROUND. `ColourCollection`
+   * attaches to FINISHES, not to surfaces, so there is no way in the current
+   * contract to say "these decks are for exterior siding only". Every deck
+   * therefore shows for every sheen. That is noisy rather than broken, and the
+   * honest fix is a `surfaceTypeIds` field on ColourCollection in registry.ts —
+   * a core change, which does not belong in a content phase.
+   */
+  {
+    id: 'exterior_body',
+    label: 'Exterior Body Colours',
+    colours: [
+      { id: 'ext_alabaster', label: 'Alabaster', hex: '#EFEADD' },
+      { id: 'ext_shell_white', label: 'Shell White', hex: '#E6DFCF' },
+      { id: 'ext_agreeable_grey', label: 'Agreeable Grey', hex: '#CFC7B8' },
+      { id: 'ext_dovetail', label: 'Dovetail', hex: '#9A958C' },
+      { id: 'ext_gauntlet_grey', label: 'Gauntlet Grey', hex: '#6E6B66' },
+      { id: 'ext_iron_ore', label: 'Iron Ore', hex: '#3A3937' },
+      { id: 'ext_hale_navy', label: 'Hale Navy', hex: '#39434F' },
+      { id: 'ext_riverway', label: 'Riverway', hex: '#4A5A63' },
+      { id: 'ext_pewter_green', label: 'Pewter Green', hex: '#5A6355' },
+      { id: 'ext_rosemary', label: 'Rosemary', hex: '#46503F' },
+      { id: 'ext_sagebrush', label: 'Sagebrush', hex: '#8B9080' },
+      { id: 'ext_weathered_clay', label: 'Weathered Clay', hex: '#A67A5B' },
+      { id: 'ext_brick_red', label: 'Brick Red', hex: '#8A4B3C' },
+      { id: 'ext_desert_tan', label: 'Desert Tan', hex: '#C4A882' },
+      { id: 'ext_charcoal_slate', label: 'Charcoal Slate', hex: '#4C5257' },
+    ],
+  },
+  {
+    id: 'exterior_trim',
+    label: 'Trim & Front Door',
+    colours: [
+      /* Trim is overwhelmingly white or near-black, and a front door is where
+         people take the risk. Both live in one deck because they are chosen
+         against each other and against the body — three lists would hide the
+         relationship that is the whole point. */
+      { id: 'trim_pure_white', label: 'Pure White', hex: '#F7F5F0' },
+      { id: 'trim_extra_white', label: 'Extra White', hex: '#F2F2EE' },
+      { id: 'trim_greek_villa', label: 'Greek Villa', hex: '#EDE6D8' },
+      { id: 'trim_iron_black', label: 'Iron Black', hex: '#2B2B2B' },
+      { id: 'trim_tricorn', label: 'Tricorn Black', hex: '#333436' },
+      { id: 'door_spiced_rum', label: 'Spiced Rum', hex: '#8C4A2F' },
+      { id: 'door_teal', label: 'Deep Teal', hex: '#2F5459' },
+      { id: 'door_mustard', label: 'Mustard', hex: '#B08A3E' },
+      { id: 'door_forest', label: 'Forest Green', hex: '#33463A' },
+      { id: 'door_oxblood', label: 'Oxblood', hex: '#6B3238' },
+    ],
+  },
 ];
 
 /**
@@ -900,3 +971,4 @@ export const paintingVertical: VerticalModule<PaintingInputs, PaintingPricingRul
   finishCatalogue: legacyFinishCatalogue(finishes, colourCollections),
   photoAnalysisPrompt: BASE_PROMPT,
 };
+
