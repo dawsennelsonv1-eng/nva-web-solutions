@@ -717,6 +717,52 @@ export const TOOL_IDEAS: readonly ToolIdea[] = [
 
 /**
  * ============================================================================
+ * THE SHAPE EVERY TOOL TAKES. THIS IS NOT OPTIONAL AND NOT PER-TOOL.
+ * ============================================================================
+ *
+ * The epoxy tool works and is the proof the pipeline is sound. Its FLOW is not
+ * the thing to copy. Every tool after it uses the shape below, and a tool that
+ * departs from it needs a reason written down next to the departure.
+ *
+ *   1. HOOK — A BIG PICTURE, IMMEDIATELY.
+ *      The first thing on screen is a large image of the visitor's own
+ *      property. Not a headline, not a form, not an explanation of what the
+ *      tool does. A person who has just uploaded a photograph of their yard
+ *      should see their yard, large, before anything else is asked of them.
+ *      This is the moment attention is won or lost, and it is also the "before"
+ *      half of the before-and-after the whole tool is building towards.
+ *
+ *   2. CUSTOMISE — THE CHOICES, AND ONLY THE CHOICES.
+ *      Style, colour, material. Nothing about measurement, nothing about
+ *      price, no forms. Progressive reveal: a question appears when the answer
+ *      before it makes it relevant, and questions that do not apply are not
+ *      shown at all.
+ *
+ *   3. FORM — ONE GATE, PLACED AFTER DESIRE EXISTS.
+ *      Contact details are asked for once the visitor wants the result, not
+ *      before. Asking earlier converts worse and deserves less.
+ *
+ *   4. OUTPUT — THE AFTER, BIGGER THAN ANYTHING ELSE ON THE PAGE.
+ *      The rendered result is the largest element in the tool, with the price,
+ *      the measured size and every supporting detail arranged beneath it. Not
+ *      beside it, not above it. The picture is the product; the numbers
+ *      substantiate it.
+ *
+ * SIMPLER THAN EPOXY, DELIBERATELY. Epoxy accumulated a photo count minimum, a
+ * measurement step of its own, and a size announcement before the picker.
+ * Phases 57 and 65 removed most of that — one photograph is enough, the
+ * measurement happens quietly, and the size arrives with the price. New tools
+ * start where epoxy ended up rather than repeating the route it took.
+ *
+ * WHAT THIS MEANS CONCRETELY WHEN BUILDING A MODULE:
+ *   - One photograph is the minimum. Never refuse a visitor for sending one.
+ *   - The measurement is never its own step and never announced on its own.
+ *   - Images are shown large and uncropped: fit them, never crop to a fixed
+ *     ratio. See app/phase62.css for what that took to correct once.
+ *   - Text goes below pictures, never above them. See app/phase64.css.
+ *   - One paid render per visitor. See MAX_RENDERED_PHOTOS in ToolCard.
+ *
+ * ============================================================================
  * CAPABILITIES THAT DO NOT EXIST YET — AND ARE NOT BLOCKED
  * ============================================================================
  *
