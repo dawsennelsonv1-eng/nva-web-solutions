@@ -114,8 +114,23 @@ export type FenceTier = keyof FencingPricingRules['styleRateCentsPerLinearFt'];
 
 export const fencingInputSchema = z.object({
   surfaceTypeId: z.string().min(1),
-  /** The run. Written by the area step today, by satellite measurement later. */
+  /** The run, as estimated from a photo or typed in by hand. */
   linearFt: z.number().finite().optional(),
+  /**
+   * The run as MEASURED by tapping the boundary on a satellite view. PHASE 85.
+   *
+   * ITS OWN KEY, NOT A SECOND WRITER OF `linearFt`. The registry rejects two
+   * steps writing one input, and that rule is correct: two controls quietly
+   * overwriting each other is exactly the bug it exists to prevent. Phase 82
+   * broke it by pointing both the map and the length step at `linearFt`.
+   *
+   * Keeping them separate is also more honest about what they are. `linearFt`
+   * is an ESTIMATE — from a photograph, or from somebody's memory of their own
+   * garden. This is a MEASUREMENT, computed from coordinates. Collapsing the
+   * two into one field would throw away the distinction that decides which one
+   * pricing should believe.
+   */
+  mapLinearFt: z.number().finite().nonnegative().optional(),
 
   finishId: z.string().min(1).optional(),
   finishTierKey: z.string().min(1),
@@ -378,32 +393,6 @@ const steps: StepDescriptor[] = [
     writesTo: 'photoUrl',
     control: { kind: 'photo' },
   },
-  /**
-   * THE MAP STEP SITS BEFORE THE LENGTH STEP, and that order is the whole
-   * design. PHASE 82.
-   *
-   * Both write to `linearFt`. Tapping a boundary produces an exact number, so
-   * it lands first and the length step below then shows that number for
-   * confirmation rather than asking cold. Reversing them would have the
-   * visitor guess a length and then be silently corrected, which is a worse
-   * experience and wastes the guess.
-   *
-   * IT IS OPTIONAL AND IT RENDERS NOTHING WITHOUT A MAPS KEY, so this step is
-   * safe to declare before the key exists: the visitor sees the question, taps
-   * nothing, and continues to the length step exactly as before.
-   *
-   * `closed: false` because the usual fencing job is three sides of a back yard
-   * with the house closing the fourth. Closing the loop automatically would add
-   * a leg across the building and quote fence nobody is buying.
-   */
-  {
-    id: 'map',
-    question: 'Tap the corners of your fence line',
-    help: 'Find your property, then tap each corner the fence runs to. This measures it exactly, so you do not have to guess.',
-    optional: true,
-    writesTo: 'linearFt',
-    control: { kind: 'property_map', closed: false },
-  },
   {
     id: 'length',
     question: 'How long is the run?',
@@ -417,6 +406,32 @@ const steps: StepDescriptor[] = [
       configMaxKey: 'sqft_max',
       presetsFrom: 'surfaceType',
     },
+  },
+  /**
+   * THE MAP COMES AFTER THE LENGTH STEP. PHASE 85 corrected phase 82, which put
+   * it before and had both steps write `linearFt` — which the registry rejects,
+   * rightly.
+   *
+   * The order that survived is also the better one. The visitor has just been
+   * shown an estimate, so this reads as an offer to improve it rather than a
+   * chore before anything has happened: here is roughly your run, now make it
+   * exact if you like. Asking somebody to find their house on a map before they
+   * have seen a single number is work with no visible payoff.
+   *
+   * OPTIONAL, AND INVISIBLE WITHOUT A MAPS KEY. Skipping it leaves the estimate
+   * standing and everything downstream still works.
+   *
+   * `closed: false` because the usual job is three sides of a back yard with
+   * the house closing the fourth. Closing the loop would add a leg across the
+   * building and quote fence nobody is buying.
+   */
+  {
+    id: 'map',
+    question: 'Want the exact length?',
+    help: 'Find your property and tap each corner your fence runs to. This measures the line properly, so the quote is not working from an estimate.',
+    optional: true,
+    writesTo: 'mapLinearFt',
+    control: { kind: 'property_map', closed: false },
   },
   {
     id: 'style',
@@ -602,19 +617,37 @@ function priceFencing(
     );
   }
 
-  if (inputs.linearFt === undefined) {
+  /**
+   * A TAPPED MEASUREMENT WINS OUTRIGHT. It is not averaged with the estimate and
+   * it is not treated as another opinion.
+   *
+   * `linearFt` comes from a photograph or from memory. A boundary receding from
+   * the camera is foreshortened, which is the classic way to underestimate a
+   * fence, and a homeowner's guess at their own garden is a guess.
+   * `mapLinearFt` is computed from coordinates the person pointed at on an
+   * image of their own property. Those are not two measurements of equal
+   * standing, and blending them would make the better one worse.
+   *
+   * Zero is treated as absent: the map emits nothing until at least two corners
+   * exist, and a cleared map must not price a fence of no length.
+   */
+  const measured =
+    inputs.mapLinearFt !== undefined && inputs.mapLinearFt > 0 ? inputs.mapLinearFt : null;
+  const chosenRun = measured ?? inputs.linearFt;
+
+  if (chosenRun === undefined) {
     throw new PricingError('invalid_inputs', 'linearFt is required for a fencing quote');
   }
 
   assertWithinBounds(
-    inputs.linearFt,
+    chosenRun,
     inputs.sqftMin,
     inputs.sqftMax,
     'sqft_out_of_bounds',
     'linear ft'
   );
 
-  const run = Math.round(inputs.linearFt);
+  const run = Math.round(chosenRun);
   const walk = Math.min(Math.max(Math.round(inputs.walkGates ?? 0), 0), MAX_GATES);
   const drive = Math.min(Math.max(Math.round(inputs.driveGates ?? 0), 0), MAX_GATES);
 
@@ -687,6 +720,9 @@ function priceFencing(
     minimumJobCents: rules.minimumJobCents,
     rangeSpreadPct: rules.rangeSpreadPct,
     modifiersApplied: mods.applied,
+    /* `linearFt` carries the run that was actually priced, whichever source it
+       came from, so the stored quote and the breakdown cannot disagree about
+       the number the money was computed from. */
     inputs: { ...inputs, linearFt: run, walkGates: walk, driveGates: drive },
   });
 }
