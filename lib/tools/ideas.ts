@@ -821,6 +821,15 @@ export interface UnbuiltCapability {
   prerequisites: string;
   /** Rough size, in the only unit that matters here: sessions of work. */
   effort: string;
+  /**
+   * What of this capability now exists. PHASE 79.
+   *
+   * Optional, because most capabilities are all-or-nothing. Satellite
+   * measurement turned out not to be: its arithmetic and its network calls have
+   * completely different risk profiles, and recording only "not built" would
+   * hide that half of it is done and tested.
+   */
+  progress?: string;
 }
 
 export const UNBUILT_CAPABILITIES: readonly UnbuiltCapability[] = [
@@ -845,6 +854,8 @@ export const UNBUILT_CAPABILITIES: readonly UnbuiltCapability[] = [
       'A Google Maps Platform project with billing enabled and the Solar API and Elevation API turned on. Check billing BEFORE writing code — the endpoints return an authorisation error rather than data without it, and that failure looks exactly like a bug.',
     effort:
       'Perimeter alone: small, and self-contained. Roofing with real pitch data: moderate, dominated by response handling rather than arithmetic. Once either exists the remaining tools are mostly catalogue and copy.',
+    progress:
+      'PARTLY BUILT - phase 79. lib/measure/geo.ts is the arithmetic half: geodesic distance, open-path length, closed perimeter and polygon area from tapped coordinates. No API key, no network, no billing account, and VERIFIED rather than asserted - checked against the JFK-LAX great circle, a degree of latitude, a degree of longitude at Dallas latitude, and a constructed 100x50m rectangle, all within 0.25 percent. Splitting the capability this way was the point: the maths could be proven offline while the fetching half stays honestly untested. STILL MISSING: a map component to produce the taps, and the Google Solar and Elevation calls for roof pitch and terrain.',
   },
   {
     id: 'video-frame-extraction',
