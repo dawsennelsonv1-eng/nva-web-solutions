@@ -274,7 +274,11 @@ export function PropertyTapMap({
         <img
           ref={imgRef}
           className="ptm-img"
-          src={staticMapUrl(frame, apiKey)}
+          /* `resolvedKey`, not `apiKey`. The guard above narrows the
+             resolved value; the raw prop is still `string | null | undefined`
+             because it falls back to the env var. Passing the prop here was a
+             build-breaking type error in phase 82. */
+          src={staticMapUrl(frame, resolvedKey)}
           alt="Satellite view of the property"
           onClick={handleTap}
           decoding="async"
