@@ -71,8 +71,35 @@
 --                        the same photograph foreshortens a receding boundary,
 --                        so this is not narrower than cabinets.
 -- ===========================================================================
+-- THE COLUMNS, AND WHY THE FIRST VERSION OF THIS FILE FAILED
+-- ===========================================================================
+--
+-- docs/NEW_VERTICAL.md names three columns: vertical, rules, finish_catalogue.
+-- The table actually has NINE, and SIX of them are NOT NULL. The first version
+-- of this migration inserted the documented three and was rejected on
+-- sqft_min. The documentation was incomplete rather than wrong, and the schema
+-- is the authority:
+--
+--   vertical          text       NOT NULL
+--   rules             jsonb      NOT NULL
+--   finish_catalogue  jsonb      NOT NULL  default '[]'
+--   sqft_min          integer    NOT NULL
+--   sqft_max          integer    NOT NULL
+--   range_spread_pct  numeric    NOT NULL
+--   notes             text       NULL
+--   created_at        timestamptz NOT NULL default now()
+--   updated_at        timestamptz NOT NULL default now()
+--
+-- BOUNDS FOR THIS VERTICAL:
+--   THE COLUMN IS NAMED sqft AND HOLDS LINEAR FEET. The module reuses this plumbing for its run rather than renaming a shared column for one vertical, and every label shown to a person says 'linear ft'. 20 is a short gate-to-corner run; 2000 covers a large rural perimeter. Copying epoxy's 100-6000 floor-area bounds here would have rejected a 70ft side fence outright.
+--
+-- range_spread_pct is set to the same value as rangeSpreadPct inside `rules`.
+-- The module reads the one in the JSON; the column is kept in step so the two
+-- can never tell a reader different things about the same quote.
+-- ===========================================================================
 
-insert into public.vertical_rule_defaults (vertical, rules, finish_catalogue)
+insert into public.vertical_rule_defaults
+  (vertical, rules, finish_catalogue, sqft_min, sqft_max, range_spread_pct, notes)
 values (
   'fencing',
   '{
@@ -99,8 +126,17 @@ values (
     "mobilizationFeeCents": 25000,
     "rangeSpreadPct": 0.15
   }'::jsonb,
-  '[]'::jsonb
+  '[]'::jsonb,
+  20,
+  2000,
+  0.15,
+  'THE COLUMN IS NAMED sqft AND HOLDS LINEAR FEET. The module reuses this plumbing for its run rather than renaming a shared column for one vertical, and every label shown to a person says ''linear ft''. 20 is a short gate-to-corner run; 2000 covers a large rural perimeter. Copying epoxy''s 100-6000 floor-area bounds here would have rejected a 70ft side fence outright.'
 )
 on conflict (vertical) do update
-  set rules = excluded.rules,
-      finish_catalogue = excluded.finish_catalogue;
+  set rules            = excluded.rules,
+      finish_catalogue = excluded.finish_catalogue,
+      sqft_min         = excluded.sqft_min,
+      sqft_max         = excluded.sqft_max,
+      range_spread_pct = excluded.range_spread_pct,
+      notes            = excluded.notes,
+      updated_at       = now();

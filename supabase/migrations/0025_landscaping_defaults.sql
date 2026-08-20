@@ -95,8 +95,35 @@
 -- .strict(), so an extra key here produces a prototype that resolves and then
 -- quotes nothing — validate before applying.
 -- ===========================================================================
+-- THE COLUMNS, AND WHY THE FIRST VERSION OF THIS FILE FAILED
+-- ===========================================================================
+--
+-- docs/NEW_VERTICAL.md names three columns: vertical, rules, finish_catalogue.
+-- The table actually has NINE, and SIX of them are NOT NULL. The first version
+-- of this migration inserted the documented three and was rejected on
+-- sqft_min. The documentation was incomplete rather than wrong, and the schema
+-- is the authority:
+--
+--   vertical          text       NOT NULL
+--   rules             jsonb      NOT NULL
+--   finish_catalogue  jsonb      NOT NULL  default '[]'
+--   sqft_min          integer    NOT NULL
+--   sqft_max          integer    NOT NULL
+--   range_spread_pct  numeric    NOT NULL
+--   notes             text       NULL
+--   created_at        timestamptz NOT NULL default now()
+--   updated_at        timestamptz NOT NULL default now()
+--
+-- BOUNDS FOR THIS VERTICAL:
+--   Area in square feet. 100 is a small patio footprint; 20000 covers a large lot front and back. Presets in the module top out at 4000, so this leaves headroom for an acreage job without accepting a typo.
+--
+-- range_spread_pct is set to the same value as rangeSpreadPct inside `rules`.
+-- The module reads the one in the JSON; the column is kept in step so the two
+-- can never tell a reader different things about the same quote.
+-- ===========================================================================
 
-insert into public.vertical_rule_defaults (vertical, rules, finish_catalogue)
+insert into public.vertical_rule_defaults
+  (vertical, rules, finish_catalogue, sqft_min, sqft_max, range_spread_pct, notes)
 values (
   'landscaping',
   '{
@@ -126,8 +153,17 @@ values (
     "mobilizationFeeCents": 45000,
     "rangeSpreadPct": 0.18
   }'::jsonb,
-  '[]'::jsonb
+  '[]'::jsonb,
+  100,
+  20000,
+  0.18,
+  'Area in square feet. 100 is a small patio footprint; 20000 covers a large lot front and back. Presets in the module top out at 4000, so this leaves headroom for an acreage job without accepting a typo.'
 )
 on conflict (vertical) do update
-  set rules = excluded.rules,
-      finish_catalogue = excluded.finish_catalogue;
+  set rules            = excluded.rules,
+      finish_catalogue = excluded.finish_catalogue,
+      sqft_min         = excluded.sqft_min,
+      sqft_max         = excluded.sqft_max,
+      range_spread_pct = excluded.range_spread_pct,
+      notes            = excluded.notes,
+      updated_at       = now();

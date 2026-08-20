@@ -88,8 +88,35 @@
 --                         a yard's square footage, and the customer can verify
 --                         the count himself by looking at his own kitchen.
 -- ===========================================================================
+-- THE COLUMNS, AND WHY THE FIRST VERSION OF THIS FILE FAILED
+-- ===========================================================================
+--
+-- docs/NEW_VERTICAL.md names three columns: vertical, rules, finish_catalogue.
+-- The table actually has NINE, and SIX of them are NOT NULL. The first version
+-- of this migration inserted the documented three and was rejected on
+-- sqft_min. The documentation was incomplete rather than wrong, and the schema
+-- is the authority:
+--
+--   vertical          text       NOT NULL
+--   rules             jsonb      NOT NULL
+--   finish_catalogue  jsonb      NOT NULL  default '[]'
+--   sqft_min          integer    NOT NULL
+--   sqft_max          integer    NOT NULL
+--   range_spread_pct  numeric    NOT NULL
+--   notes             text       NULL
+--   created_at        timestamptz NOT NULL default now()
+--   updated_at        timestamptz NOT NULL default now()
+--
+-- BOUNDS FOR THIS VERTICAL:
+--   THESE BOUNDS ARE INERT FOR THIS VERTICAL. Nothing in a cabinet quote is measured in area - the module prices doors, drawer fronts and linear feet of box, and its own step controls carry the count limits (80 doors, 60 drawers). The columns are NOT NULL, so they are filled with a range wide enough never to reject anything rather than with numbers pretending to mean something.
+--
+-- range_spread_pct is set to the same value as rangeSpreadPct inside `rules`.
+-- The module reads the one in the JSON; the column is kept in step so the two
+-- can never tell a reader different things about the same quote.
+-- ===========================================================================
 
-insert into public.vertical_rule_defaults (vertical, rules, finish_catalogue)
+insert into public.vertical_rule_defaults
+  (vertical, rules, finish_catalogue, sqft_min, sqft_max, range_spread_pct, notes)
 values (
   'cabinets',
   '{
@@ -125,8 +152,17 @@ values (
     "mobilizationFeeCents": 27500,
     "rangeSpreadPct": 0.15
   }'::jsonb,
-  '[]'::jsonb
+  '[]'::jsonb,
+  1,
+  100000,
+  0.15,
+  'THESE BOUNDS ARE INERT FOR THIS VERTICAL. Nothing in a cabinet quote is measured in area - the module prices doors, drawer fronts and linear feet of box, and its own step controls carry the count limits (80 doors, 60 drawers). The columns are NOT NULL, so they are filled with a range wide enough never to reject anything rather than with numbers pretending to mean something.'
 )
 on conflict (vertical) do update
-  set rules = excluded.rules,
-      finish_catalogue = excluded.finish_catalogue;
+  set rules            = excluded.rules,
+      finish_catalogue = excluded.finish_catalogue,
+      sqft_min         = excluded.sqft_min,
+      sqft_max         = excluded.sqft_max,
+      range_spread_pct = excluded.range_spread_pct,
+      notes            = excluded.notes,
+      updated_at       = now();
