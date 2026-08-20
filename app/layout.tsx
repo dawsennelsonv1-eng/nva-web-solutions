@@ -111,6 +111,17 @@ import './phase62.css';
 import './phase64.css';
 
 /**
+ * PHASE 80 - the property tap map.
+ *
+ * Declares colour without a light-theme block, which is allowed here for the
+ * same reason phase35 gave `.lb-open` a theme-independent treatment: these
+ * elements sit on a satellite photograph rather than on a panel, and the
+ * backdrop is the same aerial image in either theme. Text that sits on the page
+ * rather than the image uses currentColor and inherits normally.
+ */
+import './phase80.css';
+
+/**
  * PHASE 16B. phase16.css is imported LAST and carries the tool page template.
  *
  * THE IMPORT ORDER IS THE WHOLE MECHANISM and it is deliberate. Each file adds

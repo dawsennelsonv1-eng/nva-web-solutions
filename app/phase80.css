@@ -1,0 +1,102 @@
+/* ============================================================================
+   PHASE 80 — the property tap map.
+   ============================================================================
+
+   All selectors are new to this phase. Nothing earlier declares `.ptm-*`, so
+   nothing here overrides an earlier layer.
+
+   IT DECLARES COLOUR, AND CARRIES NO LIGHT-THEME BLOCK. That is allowed here
+   for the same reason phase35 gave `.lb-open` a theme-independent treatment:
+   these elements sit ON A SATELLITE PHOTOGRAPH, not on a panel. The backdrop is
+   an aerial image of a roof and a lawn in both themes, so a marker that
+   retinted with the theme would be tuned against a surface that never changes.
+   White with a dark ring reads on grass, asphalt, gravel and shingle alike.
+
+   The one exception is `.ptm-label` and `.ptm-readout`, which sit on the page
+   rather than the image — so they take `currentColor` and inherit whatever the
+   theme already decided.
+============================================================================ */
+
+.ptm {
+  margin: 0 0 1rem;
+}
+
+.ptm-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.9375rem;
+  color: currentColor;
+  opacity: 0.85;
+}
+
+.ptm-stage {
+  position: relative;
+  width: 100%;
+  /* Square, because the frame is requested square. A different aspect here
+     would letterbox the image and every tap fraction would be measured against
+     a box the projection knows nothing about. */
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 0.5rem;
+}
+
+.ptm-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: crosshair;
+  /* Stops a tap being treated as a double-tap-to-zoom on mobile, which would
+     both zoom the page and swallow the corner. */
+  touch-action: manipulation;
+}
+
+.ptm-dot {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: #ffffff;
+  /* The dark ring is what makes it visible on a pale driveway; the white fill
+     is what makes it visible on grass. Both are needed. */
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+
+.ptm-readout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+  color: currentColor;
+}
+
+.ptm-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ptm-btn {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+}
+
+.ptm-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ptm-warn {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: currentColor;
+  opacity: 0.7;
+}
