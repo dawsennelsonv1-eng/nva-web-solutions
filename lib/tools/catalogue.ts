@@ -304,7 +304,7 @@ const PAINTING: ToolPage = {
   ],
   reviews: [],
   extras: [],
-  similar: ['epoxy', 'landscaping'],
+  similar: ['cabinets', 'epoxy', 'landscaping'],
   tryHref: '/demo',
 };
 
@@ -396,10 +396,96 @@ const LANDSCAPING: ToolPage = {
   tryHref: '/demo',
 };
 
+
+const CABINETS: ToolPage = {
+  id: 'cabinets',
+  title: 'Show them the kitchen, then price it by the door',
+  tagline:
+    'A homeowner sends one photo. It counts the doors and drawers, shows the cabinets in the colour they picked, and prices it from your per-door rates.',
+  intro:
+    'A repainted kitchen is the before-and-after everybody shares. This one shows them theirs, and quotes it while they are still looking at it.',
+  storyPoints: [
+    {
+      head: 'It counts the doors so they do not have to',
+      body: 'The number that decides the price is the one no homeowner knows. Asking them to count 30 fronts loses half of them; counting it from their photo and letting them correct it keeps them.',
+      mediaKey: null,
+    },
+    {
+      head: 'Oak grain is priced, not discovered on site',
+      body: 'Open-grain oak painted white without filling still reads as oak, and the customer finds out six weeks later. Filling it is real labour on every front, so it is a line in the quote instead of a conversation you have to have after quoting.',
+      mediaKey: null,
+    },
+    {
+      head: 'Per door, per drawer, per foot of box \u2014 your rates',
+      body: 'Five finish levels from brushed to catalysed varnish, three prep grades, and adjustments for grease, glass and water damage. All yours, all editable.',
+      mediaKey: null,
+    },
+  ],
+  howItWorks: [
+    {
+      head: 'They send one photo of the kitchen',
+      body: 'One wide shot with as many doors in frame as they can get. It counts what it can see and says so when some are cut off.',
+      mediaKey: null,
+    },
+    {
+      head: 'They pick the finish and the colour',
+      body: 'Brushed, sprayed lacquer, conversion varnish, stripped and restained, or painted with a glaze. Then the colour.',
+      mediaKey: null,
+    },
+    {
+      head: 'They see their own kitchen in it',
+      body: 'Their cabinets, their room, the colour they chose \u2014 not a showroom photo of somebody else\u2019s kitchen.',
+      mediaKey: null,
+    },
+    {
+      head: 'It prices it per front from your rates',
+      body: 'Doors, drawer fronts, boxes in place, prep by condition, and your minimum. The figure is yours.',
+      mediaKey: null,
+    },
+  ],
+  features: [
+    {
+      head: 'The count is the quote, and it is checkable',
+      body: 'A homeowner looking at his own kitchen will spot a missing four doors immediately. That makes the one number everything rests on the easiest one to verify.',
+    },
+    {
+      head: 'It quotes the small jobs too',
+      body: 'A single vanity prices sensibly instead of hitting a kitchen-sized minimum. Raise the minimum in your dashboard if you would rather not take them.',
+    },
+    {
+      head: 'Every rate is yours',
+      body: 'Per door, per drawer, per linear foot of box, per front of prep. None of it guessed.',
+    },
+  ],
+  faq: [
+    {
+      q: 'What if it counts the doors wrong?',
+      a: 'They correct it, and it is built to be corrected \u2014 it counts only what is actually visible rather than estimating what is round the corner, so it undercounts rather than overcounts. An undercount is obvious to somebody standing in their own kitchen.',
+    },
+    {
+      q: 'Does it handle laminate doors?',
+      a: 'It looks for them, because laminate and thermofoil cannot be stripped and restained at all. When it cannot tell wood from a wood-look laminate it says so rather than guessing, and the estimate notes that it is confirmed on site.',
+    },
+    {
+      q: 'Why is oak more expensive?',
+      a: 'The grain has to be filled before painting or it prints through the finish. That is labour on every single front, which is why it is the largest adjustment in the tool and why it is priced up front instead of after.',
+    },
+    {
+      q: 'How do I put it on my site?',
+      a: 'One line of code. If somebody else built your site, send them the line or send it to us.',
+    },
+  ],
+  reviews: [],
+  extras: ['live-widget'],
+  similar: ['painting', 'epoxy'],
+  tryHref: '/demo',
+};
+
 const PAGES: Record<string, ToolPage> = {
   epoxy: EPOXY,
   painting: PAINTING,
   landscaping: LANDSCAPING,
+  cabinets: CABINETS,
 };
 
 /**

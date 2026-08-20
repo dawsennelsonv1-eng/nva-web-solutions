@@ -2,6 +2,7 @@ import { registerVertical, listVerticals } from '@/lib/verticals/registry';
 import { epoxyVertical } from '@/lib/verticals/epoxy';
 import { paintingVertical } from '@/lib/verticals/painting';
 import { landscapingVertical } from '@/lib/verticals/landscaping';
+import { cabinetsVertical } from '@/lib/verticals/cabinets';
 
 /**
  * THE ONE REGISTRATION POINT. This file belongs to the vertical surface, not
@@ -44,6 +45,16 @@ export function ensureVerticalsRegistered(): void {
    * failure NEW_VERTICAL.md warns about.
    */
   registerVertical(landscapingVertical);
+  /**
+   * CABINET REFINISHING, phase 76. Its own vertical rather than a painting
+   * surface because it prices PIECES, not area — see the note at the head of
+   * the module. Uses only controls painting and landscaping already proved, so
+   * this is a registration and not a core change.
+   *
+   * Needs supabase/migrations/0026_cabinets_defaults.sql applied before it can
+   * quote.
+   */
+  registerVertical(cabinetsVertical);
 }
 
 export function getRegisteredVerticals() {
