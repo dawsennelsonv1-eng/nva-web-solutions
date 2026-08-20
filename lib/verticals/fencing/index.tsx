@@ -378,6 +378,32 @@ const steps: StepDescriptor[] = [
     writesTo: 'photoUrl',
     control: { kind: 'photo' },
   },
+  /**
+   * THE MAP STEP SITS BEFORE THE LENGTH STEP, and that order is the whole
+   * design. PHASE 82.
+   *
+   * Both write to `linearFt`. Tapping a boundary produces an exact number, so
+   * it lands first and the length step below then shows that number for
+   * confirmation rather than asking cold. Reversing them would have the
+   * visitor guess a length and then be silently corrected, which is a worse
+   * experience and wastes the guess.
+   *
+   * IT IS OPTIONAL AND IT RENDERS NOTHING WITHOUT A MAPS KEY, so this step is
+   * safe to declare before the key exists: the visitor sees the question, taps
+   * nothing, and continues to the length step exactly as before.
+   *
+   * `closed: false` because the usual fencing job is three sides of a back yard
+   * with the house closing the fourth. Closing the loop automatically would add
+   * a leg across the building and quote fence nobody is buying.
+   */
+  {
+    id: 'map',
+    question: 'Tap the corners of your fence line',
+    help: 'Find your property, then tap each corner the fence runs to. This measures it exactly, so you do not have to guess.',
+    optional: true,
+    writesTo: 'linearFt',
+    control: { kind: 'property_map', closed: false },
+  },
   {
     id: 'length',
     question: 'How long is the run?',

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { geocodeAddressAction } from '@/app/actions/geocode';
 import { measureFromTaps, type LatLng } from '@/lib/measure/geo';
 import { latLngToTap, staticMapUrl, type MapFrame } from '@/lib/measure/mercator';
 
@@ -50,10 +51,34 @@ import { latLngToTap, staticMapUrl, type MapFrame } from '@/lib/measure/mercator
  */
 
 export interface PropertyTapMapProps {
-  /** Referrer-restricted static maps key, decided server-side. */
-  apiKey: string | null;
-  /** Where to frame. Geocoded from an address, or the centre of the lot. */
-  center: LatLng | null;
+  /**
+   * Referrer-restricted static maps key. OPTIONAL, and when omitted it is read
+   * from NEXT_PUBLIC_GOOGLE_MAPS_KEY. PHASE 82.
+   *
+   * THE ORIGINAL DESIGN TOOK THIS ONLY AS A PROP, reasoning that a
+   * `process.env` reference in a client component bakes the value into the
+   * bundle. That is true and it is beside the point for a NEXT_PUBLIC_ variable
+   * — being in the bundle is what the prefix MEANS, and a static maps key is
+   * browser-visible by nature because it travels inside the image URL. The
+   * protection is the HTTP referrer restriction, not secrecy.
+   *
+   * What the prop-only design actually bought was a plumbing problem:
+   * `WidgetConfig` carries no such field, so the key could not reach here
+   * without a core change. Reading the public var directly removes that, and
+   * the prop stays for callers that would rather pass it.
+   */
+  apiKey?: string | null;
+  /**
+   * Where to frame. OPTIONAL as of phase 82: when absent the component asks for
+   * an address and geocodes it itself.
+   *
+   * SELF-CONTAINED ON PURPOSE. Splitting the address into its own widget step
+   * would have needed a text control kind the widget does not have, plus an
+   * action call from the widget, plus somewhere to keep the coordinate between
+   * steps. Owning both halves means the whole feature is ONE new control kind
+   * and one branch.
+   */
+  center?: LatLng | null;
   /**
    * Closed for a perimeter, open for a run.
    *
@@ -81,10 +106,60 @@ export function PropertyTapMap({
   const [points, setPoints] = useState<LatLng[]>([]);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
+  const [address, setAddress] = useState('');
+  const [located, setLocated] = useState<LatLng | null>(null);
+  const [locatedLabel, setLocatedLabel] = useState<string | null>(null);
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
+  const resolvedKey =
+    apiKey ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY?.trim() ?? null;
+
+  /* A caller-supplied centre wins over a looked-up one: if something upstream
+     already knows where the property is, asking again would be rude and
+     slower. */
+  const effectiveCenter = center ?? located;
+
+  const lookUp = useCallback(async () => {
+    const query = address.trim();
+    if (query.length < 5) {
+      setLookupError('Include the street and the town.');
+      return;
+    }
+    setLookupBusy(true);
+    setLookupError(null);
+    try {
+      const res = await geocodeAddressAction(query);
+      if (res.ok) {
+        setLocated(res.point);
+        setLocatedLabel(res.formattedAddress);
+        /* An APPROXIMATE match is often the centre of a postcode rather than a
+           house, which frames a satellite view of roughly the right
+           neighbourhood and definitely the wrong roof. Said plainly rather than
+           hidden, because the person can see whether it is their house. */
+        if (res.precision === 'approximate') {
+          setLookupError('That is the closest I could get. Check the view is your property.');
+        }
+        /* Corners from a previous address would be measured against a frame
+           that no longer exists. */
+        setPoints([]);
+        onMeasure({ linearFt: 0, areaSqft: 0, confidence: 0 });
+      } else {
+        setLocated(null);
+        setLocatedLabel(null);
+        setLookupError(res.message);
+      }
+    } catch {
+      setLookupError('Address lookup failed. You can enter the size instead.');
+    } finally {
+      setLookupBusy(false);
+    }
+  }, [address, onMeasure]);
+
   const frame = useMemo<MapFrame | null>(() => {
-    if (!center) return null;
+    if (!effectiveCenter) return null;
     return {
-      center,
+      center: effectiveCenter,
       zoom: DEFAULT_ZOOM,
       widthPx: REQUEST_SIZE,
       heightPx: REQUEST_SIZE,
@@ -92,7 +167,7 @@ export function PropertyTapMap({
          projection divides it out. */
       scale: 2,
     };
-  }, [center]);
+  }, [effectiveCenter]);
 
   const emit = useCallback(
     (next: LatLng[]) => {
@@ -147,9 +222,43 @@ export function PropertyTapMap({
     emit([]);
   }, [emit]);
 
-  // Nothing to show without a key or a location. Deliberately silent: the flow
-  // has two working measurement routes without this one.
-  if (!apiKey || !frame) return null;
+  /* No key means the feature is switched off. Silent, because the flow has two
+     working measurement routes without it and an error about a missing
+     environment variable is not a homeowner's problem. */
+  if (!resolvedKey) return null;
+
+  /* Key but no location yet: ask for the address. This is the normal first
+     render, not an error state. */
+  if (!frame) {
+    return (
+      <div className="ptm">
+        <p className="ptm-label">Find your property</p>
+        <div className="ptm-lookup">
+          <input
+            className="ptm-input"
+            type="text"
+            inputMode="text"
+            autoComplete="street-address"
+            placeholder="Street address, town"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void lookUp();
+            }}
+          />
+          <button
+            type="button"
+            className="ptm-btn"
+            onClick={() => void lookUp()}
+            disabled={lookupBusy}
+          >
+            {lookupBusy ? 'Looking…' : 'Find'}
+          </button>
+        </div>
+        {lookupError ? <p className="ptm-warn">{lookupError}</p> : null}
+      </div>
+    );
+  }
 
   const measurement = measureFromTaps(points, { closed });
   const markers = points.map((p) => latLngToTap(frame, p));
@@ -157,6 +266,8 @@ export function PropertyTapMap({
   return (
     <div className="ptm">
       <p className="ptm-label">{label}</p>
+      {locatedLabel ? <p className="ptm-warn">{locatedLabel}</p> : null}
+      {lookupError ? <p className="ptm-warn">{lookupError}</p> : null}
 
       <div className="ptm-stage">
         {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -100,3 +100,30 @@
   color: currentColor;
   opacity: 0.7;
 }
+
+/* ---------------------------------------------------------------------------
+   The address lookup, added in phase 82 when the component became
+   self-contained. These sit on the PAGE rather than on the satellite image, so
+   unlike the markers they take currentColor and inherit the theme normally.
+--------------------------------------------------------------------------- */
+
+.ptm-lookup {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.ptm-input {
+  flex: 1 1 auto;
+  /* `min-width: 0` because a flex item's automatic minimum size is its content,
+     and an input's default size attribute is wide enough to push the Find
+     button off a narrow phone. */
+  min-width: 0;
+  font: inherit;
+  font-size: 0.9375rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: transparent;
+  color: currentColor;
+}

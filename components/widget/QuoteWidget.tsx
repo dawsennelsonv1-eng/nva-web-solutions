@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MotionProvider } from '@/lib/motion';
+import { PropertyTapMap } from '@/components/tools/PropertyTapMap';
 import { calculateQuote, type QuoteComputation } from '@/lib/quote/pricing';
 import { priceQuote } from '@/lib/quote/price-quote';
 import type { StepDescriptor } from '@/lib/verticals/registry';
@@ -496,6 +497,22 @@ function WidgetBody({
             />
           )}
 
+          {current?.control.kind === 'property_map' && (
+            <PropertyTapMap
+              closed={current.control.closed ?? false}
+              label={current.question}
+              onMeasure={(m) => {
+                /* Only a real measurement is written. A cleared map emits zero,
+                   and writing that would overwrite a good photo estimate with
+                   nothing — the visitor undoing his taps must not silently
+                   destroy the number the analysis already produced. */
+                if (m.linearFt > 0) {
+                  store.getState().setAnswer(current.writesTo, m.linearFt);
+                }
+              }}
+            />
+          )}
+
           {current?.control.kind === 'single_select' && (
             <ChoiceControl
               step={current}
@@ -774,4 +791,5 @@ function ChoiceControl({
     </div>
   );
 }
+
 

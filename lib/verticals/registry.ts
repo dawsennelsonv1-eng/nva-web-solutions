@@ -136,7 +136,24 @@ export type StepControl =
       optionsFrom?: 'conditionModifiers';
       options?: SelectOption[];
     }
-  | { kind: 'photo' };
+  | { kind: 'photo' }
+  /**
+   * A satellite view of the property that the visitor taps corners on, giving
+   * an exact run in feet instead of an estimate. PHASE 82.
+   *
+   * WHY THE CONTROL CARRIES ALMOST NOTHING. The component owns its own address
+   * lookup and geocoding, so there is no centre to pass and no address step to
+   * co-ordinate. `closed` is the only thing a vertical genuinely decides:
+   * fencing usually wants an OPEN path, because a back yard is three sides with
+   * the house closing the fourth, while a perimeter measurement wants the loop.
+   *
+   * IT RENDERS NOTHING WITHOUT NEXT_PUBLIC_GOOGLE_MAPS_KEY, so a vertical may
+   * declare this step safely before the key exists — the step simply shows its
+   * question and the visitor continues. Any measurement it produces should
+   * REPLACE a photo estimate rather than average with it: tapping your own
+   * boundary is not an estimate.
+   */
+  | { kind: 'property_map'; closed?: boolean };
 
 export interface StepDescriptor {
   id: string;
@@ -437,3 +454,4 @@ export function hasVertical(id: string): boolean {
 export function listVerticals(): AnyVerticalModule[] {
   return [...registry.values()];
 }
+
