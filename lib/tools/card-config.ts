@@ -41,8 +41,27 @@ import type { ToolCardFinish, ToolCardPricer } from '@/components/site/ToolCard'
  * unfinished tools with a tag, which is the whole point of that page.
  */
 
-/** Ordered. Only these appear on the homepage deck. */
-export const PUBLIC_TOOLS: readonly string[] = ['epoxy'];
+/**
+ * Ordered. Only these appear on the homepage deck.
+ *
+ * PHASE 87 — the five registered verticals, epoxy first. Every one of them has
+ * a queue row, a catalogue page and a module that prices the trade, so each has
+ * a page worth linking to.
+ *
+ * A TOOL IN THIS LIST DOES NOT NECESSARILY HAVE A LIVE DEMO. That is decided
+ * separately by PRICERS below, and only epoxy has one. A card without a pricer
+ * still renders its copy, its status and its links, and states plainly why
+ * there is no demo. Listing it is a claim that the tool exists; the pricer is a
+ * claim that its rates are published. Those are different claims and the site
+ * makes them separately on purpose.
+ */
+export const PUBLIC_TOOLS: readonly string[] = [
+  'epoxy',
+  'landscaping',
+  'cabinets',
+  'fencing',
+  'painting',
+];
 
 /**
  * Per-card gradient stops, drawn from the 15A palette. Distinct per tool so
@@ -52,6 +71,13 @@ export const PUBLIC_TOOLS: readonly string[] = ['epoxy'];
 export const TINTS: Record<string, { a: string; b: string; durationSeconds: number }> = {
   epoxy: { a: 'rgba(201, 112, 47, 0.34)', b: 'rgba(38, 72, 112, 0.30)', durationSeconds: 34 },
   painting: { a: 'rgba(22, 84, 70, 0.30)', b: 'rgba(38, 72, 112, 0.26)', durationSeconds: 41 },
+  /* PHASE 87. Each drawn from the trade rather than at random — green for a
+     yard, a warm timber for cabinets, a cool slate for fencing — and every
+     duration a different prime-ish number so no two cards in the deck ever
+     pulse together. */
+  landscaping: { a: 'rgba(79, 107, 58, 0.32)', b: 'rgba(38, 72, 112, 0.24)', durationSeconds: 29 },
+  cabinets: { a: 'rgba(176, 123, 78, 0.30)', b: 'rgba(60, 64, 69, 0.26)', durationSeconds: 43 },
+  fencing: { a: 'rgba(90, 92, 94, 0.32)', b: 'rgba(22, 84, 70, 0.24)', durationSeconds: 31 },
 };
 
 export const DEFAULT_TINT = {
@@ -93,9 +119,30 @@ const PRICERS: Record<
   },
 };
 
+/**
+ * Why a card has no live demo. One entry per tool in PUBLIC_TOOLS without a
+ * pricer — an unexplained missing demo reads as broken rather than as unfinished.
+ *
+ * PHASE 87 EXTENDED THIS RATHER THAN INVENTING PRICERS. Every reason below is
+ * the same reason: lib/site/reference-rates.ts holds ONE rate document and it
+ * is epoxy's — its tier keys are flake, metallic and solid polyaspartic, and
+ * its bounds are floor areas. There is nothing there for a fence run or a door
+ * count to price against.
+ *
+ * Filling PRICERS by pointing these tools at epoxy's rates would produce a card
+ * that quotes confidently in the wrong units. The honest fix is a per-vertical
+ * reference rate document, published on the site the way epoxy's is, which is a
+ * real piece of work and a positioning decision rather than a wiring one.
+ */
 export const QUIET_REASON: Record<string, string> = {
   painting:
     'The module prices this trade and the arithmetic is written down. There is no live demo on this page yet, because the published rate document a demo prices against does not exist for painting.',
+  landscaping:
+    'The module prices this trade and the arithmetic is written down. There is no live demo on this page yet, because the published rate document a demo prices against does not exist for landscaping.',
+  cabinets:
+    'The module prices this trade by the door front and the arithmetic is written down. There is no live demo on this page yet, because the published rate document a demo prices against does not exist for cabinet refinishing.',
+  fencing:
+    'The module prices this trade by the linear foot and the arithmetic is written down. There is no live demo on this page yet, because the published rate document a demo prices against does not exist for fencing.',
 };
 
 const FINISHES: ToolCardFinish[] = REFERENCE_FINISHES.map((f) => ({
@@ -126,3 +173,4 @@ export function pricerFor(toolId: string): ToolCardPricer | null {
     defaultTier: DEFAULT_TIER,
   };
 }
+

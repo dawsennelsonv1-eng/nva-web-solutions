@@ -288,33 +288,44 @@ export const TOOLS: Tool[] = [
     id: 'fencing',
     name: 'Fence Installation',
     trade: 'Fencing',
-    status: 'SPEC ONLY',
-    unit: 'NVA-FEN-00',
-    rev: 0,
+    /**
+     * SPEC REWRITTEN TO THE BUILT MODULE. PHASE 87.
+     *
+     * The previous sheet promised post-by-post arithmetic — line posts at 8ft
+     * spacing, terminal posts counted separately, concrete volume by hole depth,
+     * frost-line lookup by city. The module that exists prices the RUN by style
+     * and charges gates as pieces. Both are defensible ways to quote a fence;
+     * only one of them is what the code does, and this page invites a contractor
+     * to check the arithmetic against a job he has done.
+     */
+    status: 'IN SERVICE',
+    unit: 'NVA-FEN-01',
+    rev: 1,
     date: '2026-08',
-    prices: 'New fence by linear feet, material, height and gate count.',
+    prices: 'New fence by linear feet and style, with gates priced as pieces.',
     inputs: [
-      { label: 'Run', accepts: 'linear feet' },
-      { label: 'Material', accepts: 'pressure-treated pine · cedar · vinyl · chain link · ornamental steel' },
-      { label: 'Height', accepts: "4' · 6' · 8'" },
-      { label: 'Corners and ends', accepts: 'count — each is a heavier post' },
-      { label: 'Gates', accepts: 'walk gates and drive gates, with width' },
-      { label: 'Ground', accepts: 'flat · sloped · rock' },
-      { label: 'Removal', accepts: 'linear feet of existing fence' },
+      { label: 'Run', accepts: 'linear feet — back yard · one side · frontage · whole perimeter' },
+      { label: 'Style', accepts: 'chain link · cedar privacy · board on board with steel posts · horizontal slat · vinyl · ornamental metal · stone or brick columns' },
+      { label: 'Finish', accepts: 'timber stain · metal powder coat · vinyl colour · masonry' },
+      { label: 'Gates', accepts: 'walk gates and drive gates, counted' },
+      { label: 'Ground', accepts: 'rock or caliche · slope · trees on the line · machine access' },
+      { label: 'Removal', accepts: 'whether an existing fence comes out' },
+      { label: 'Photo, or the map', accepts: 'optional — estimated from a photo, or measured exactly by tapping the boundary on a satellite view' },
     ],
     math: [
-      { label: 'Line posts', formula: 'ceiling(run ÷ 8) − 1, at 8 ft spacing' },
-      { label: 'Terminal posts', formula: 'corners + ends + gate posts, heavier and deeper set' },
-      { label: 'Panel material', formula: 'run × rate per linear foot for material and height' },
-      { label: 'Post setting', formula: 'per post — concrete volume by hole depth and diameter' },
-      { label: 'Gates', formula: 'per gate by width, hardware priced with the gate not the run' },
-      { label: 'Ground surcharge', formula: 'per post on rock or slope, where hand digging is required' },
-      { label: 'Removal and disposal', formula: 'existing linear feet × removal rate, plus haul-off' },
+      { label: 'Fence', formula: 'linear feet × rate per foot for the chosen style, at six feet' },
+      { label: 'Removal', formula: 'linear feet × removal rate, charged on the full run' },
+      { label: 'Gates', formula: 'per gate — flat, because most of a gate is hardware and two properly set posts rather than width' },
+      { label: 'Site modifiers', formula: 'percentage of the subtotal, added not compounded' },
+      { label: 'Mobilisation', formula: 'flat, applied after the percentages' },
+      { label: 'Midpoint', formula: 'raised to the job minimum if it lands under' },
+      { label: 'Quoted band', formula: 'midpoint ± spread, low clamped to the minimum' },
     ],
     notes: [
-      'Post depth is one third of post height below grade, or below the local frost line, whichever is deeper. The tool asks for the city so it uses the right one.',
+      'Height is a modifier, not a dimension. An eight-foot fence is not a third more fence — it is longer posts, deeper holes, more concrete and an extra rail, which is about a quarter more money.',
+      'Rock and caliche are the largest site adjustment and the most under-quoted condition in this market. Setting a post in limestone shelf is coring, not augering.',
     ],
-    keywords: ['fence', 'fencing', 'fence install', 'privacy fence', 'chain link', 'wood fence'],
+    keywords: ['fence', 'fencing', 'fence install', 'privacy fence', 'chain link', 'wood fence', 'cedar fence', 'iron fence'],
     order: 7,
   },
   {
@@ -619,36 +630,53 @@ export const TOOLS: Tool[] = [
     order: 16,
   },
   {
-    id: 'landscaping-sod',
-    name: 'Sod & Landscape Install',
+    /**
+     * ID CHANGED FROM 'landscaping-sod' TO 'landscaping'. PHASE 87.
+     *
+     * THE ID IS A JOIN KEY, and it was silently failing on both sides.
+     * getQueueRow() looks the row up by the CATALOGUE page id, which is
+     * 'landscaping', found nothing, and the tool page called notFound() — the
+     * page did not exist at all. And getQueueSections() reconciles against the
+     * vertical registry by the same id, so a module registered as 'landscaping'
+     * could never promote a row called 'landscaping-sod' to IN SERVICE.
+     *
+     * THE SPEC ALSO DESCRIBED A DIFFERENT TOOL. It was written for sod: pallet
+     * coverage, topsoil depth, irrigation zones. What was built prices six
+     * hardscape and softscape styles by area, with clearance as its own line —
+     * sod is one of the six. On a site whose whole pitch is "check the
+     * arithmetic", published math that does not match what the module does is
+     * worse than no math at all.
+     */
+    id: 'landscaping',
+    name: 'Landscaping & Hardscaping',
     trade: 'Landscaping',
-    status: 'SPEC ONLY',
-    unit: 'NVA-LND-00',
-    rev: 0,
+    status: 'IN SERVICE',
+    unit: 'NVA-LND-01',
+    rev: 1,
     date: '2026-08',
-    prices: 'Sod, grading and bed installation by area and prep depth.',
+    prices: 'Yard transformation by area and style — patios, turf, gravel, planting and decks.',
     inputs: [
-      { label: 'Area', accepts: 'square feet' },
-      { label: 'Sod type', accepts: 'bermuda · zoysia · st augustine · fescue' },
-      { label: 'Existing surface', accepts: 'bare soil · existing turf to kill and strip' },
-      { label: 'Grading', accepts: 'none · rough grade · fine grade with topsoil' },
-      { label: 'Topsoil', accepts: 'depth in inches' },
-      { label: 'Beds', accepts: 'square feet, with edging linear feet' },
-      { label: 'Irrigation', accepts: 'none · existing to adjust · new zones' },
+      { label: 'Area', accepts: 'square feet — back yard · front yard · patio · whole property' },
+      { label: 'Style', accepts: 'paver patio · flagstone · artificial turf · gravel and drought planting · lawn and beds · deck and pergola' },
+      { label: 'Material tone', accepts: 'per style — paver, stone, turf, gravel, mulch or timber' },
+      { label: 'What is there now', accepts: 'bare dirt · grass · gravel or mulch · concrete or pavers' },
+      { label: 'Site conditions', accepts: 'slope · access · drainage · trees · retaining' },
+      { label: 'Photo of the yard', accepts: 'optional — measured for area and existing surface' },
     ],
     math: [
-      { label: 'Sod', formula: 'square feet ÷ pallet coverage = pallets, +5% for cuts' },
-      { label: 'Strip and haul', formula: 'square feet × removal rate + disposal by cubic yard' },
-      { label: 'Topsoil', formula: 'cubic yards = area × (depth ÷ 12) ÷ 27' },
-      { label: 'Grading', formula: 'square feet × rate, machine versus hand by access' },
-      { label: 'Install labour', formula: 'square feet × laying rate, higher on slope and cut-up shapes' },
-      { label: 'Beds and edging', formula: 'bed area × mulch depth, edging by linear foot' },
-      { label: 'Irrigation', formula: 'per zone, plus heads by count' },
+      { label: 'Installation', formula: 'square feet × rate per sqft for the chosen style' },
+      { label: 'Clearing', formula: 'square feet × rate for what is on the ground now — a line, not a percentage, because removing a slab costs the same whatever replaces it' },
+      { label: 'Grading and drainage', formula: 'square feet × rate, only when the job needs it' },
+      { label: 'Site modifiers', formula: 'percentage of the subtotal, added not compounded' },
+      { label: 'Mobilisation', formula: 'flat, applied after the percentages' },
+      { label: 'Midpoint', formula: 'raised to the job minimum if it lands under' },
+      { label: 'Quoted band', formula: 'midpoint ± spread, low clamped to the minimum' },
     ],
     notes: [
-      'Sod is sold by the pallet and pallets cover different areas by region and grass type. The tool asks the city so it uses the local pallet size.',
+      'Styles span more than sixfold, from gravel to a composite deck, so the band is wider here than on other trades. That is the estimate being honest rather than vague.',
+      'Clearing what is already there is priced separately and is the line most rough estimates leave out.',
     ],
-    keywords: ['landscaping', 'sod', 'lawn', 'turf', 'grading', 'landscaper', 'yard'],
+    keywords: ['landscaping', 'sod', 'lawn', 'turf', 'grading', 'landscaper', 'yard', 'patio', 'pavers', 'hardscape', 'xeriscape'],
     order: 17,
   },
   {
@@ -719,6 +747,53 @@ export const TOOLS: Tool[] = [
     keywords: ['electrical', 'electrician', 'panel upgrade', 'breaker box', 'service upgrade', 'rewire'],
     order: 19,
   },
+
+  {
+    /**
+     * CABINET REFINISHING. PHASE 87 — new row, not a rewrite.
+     *
+     * IT HAD NO QUEUE ENTRY AT ALL, so getQueueRow('cabinets') returned null
+     * and the tool page called notFound(). The catalogue page and the module
+     * both existed; the page simply could not render.
+     *
+     * IT IS ITS OWN TRADE, not a painting surface. Refinishers run their own
+     * shops and price per door front, and the arithmetic below is what makes
+     * that concrete: nothing in this sheet is measured in area.
+     */
+    id: 'cabinets',
+    name: 'Cabinet Refinishing',
+    trade: 'Cabinet refinishing',
+    status: 'IN SERVICE',
+    unit: 'NVA-CAB-01',
+    rev: 1,
+    date: '2026-08',
+    prices: 'Kitchen and vanity refinishing by door and drawer front, not by area.',
+    inputs: [
+      { label: 'Where', accepts: 'kitchen · island only · bathroom vanity · laundry' },
+      { label: 'Doors', accepts: 'count — read from the photo where possible' },
+      { label: 'Drawer fronts', accepts: 'count' },
+      { label: 'Finish', accepts: 'brushed · sprayed lacquer · conversion varnish · stripped and restained · painted with glaze' },
+      { label: 'Colour', accepts: 'cabinet paint deck or stain deck' },
+      { label: 'Condition', accepts: 'good · normal wear · heavily worn or greasy' },
+      { label: 'Photo of the kitchen', accepts: 'optional — counts fronts and reads the material' },
+    ],
+    math: [
+      { label: 'Doors', formula: 'door count × rate per front for the chosen finish' },
+      { label: 'Drawer fronts', formula: 'drawer count × its own rate — about 55-60% of the door rate, narrowing as finishes get more expensive, because the saving is in handling and not in coats or cure time' },
+      { label: 'Boxes', formula: 'linear feet of visible frame × rate, finished in place' },
+      { label: 'Preparation', formula: 'total fronts × rate for the condition — per front, not a percentage, because stripping a greasy door costs the same whatever finish follows' },
+      { label: 'Condition modifiers', formula: 'percentage of the subtotal, added not compounded' },
+      { label: 'Collection and delivery', formula: 'flat, applied after the percentages' },
+      { label: 'Midpoint', formula: 'raised to the job minimum if it lands under' },
+      { label: 'Quoted band', formula: 'midpoint ± spread, low clamped to the minimum' },
+    ],
+    notes: [
+      'Open-grain oak has to be filled before painting or the grain prints through the finish. It is labour on every single front, which is why it is the largest adjustment here and why the tool asks rather than assuming.',
+      'Laminate and thermofoil doors cannot be stripped and restained at all. The tool looks for them and says so when it cannot tell.',
+    ],
+    keywords: ['cabinet', 'cabinets', 'cabinet refinishing', 'cabinet painting', 'kitchen cabinets', 'refinishing', 'respray'],
+    order: 20,
+  },
 ];
 
 /**
@@ -744,3 +819,4 @@ assertCatalogue();
 export function getTool(id: string): Tool | undefined {
   return TOOLS.find((t) => t.id === id);
 }
+
