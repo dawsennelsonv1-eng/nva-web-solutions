@@ -8,12 +8,14 @@ import { QuoteWidget } from '@/components/widget/QuoteWidget';
 import { PayloadScreen } from './PayloadScreen';
 import {
   getDemoWidgetCatalogue,
+  getWidgetCatalogue,
   DEMO_CONTRACTOR,
   DEMO_VERTICAL,
   DEMO_SQFT_MIN,
   DEMO_SQFT_MAX,
   DEMO_RULES,
 } from '@/lib/demo/config';
+import { demoModifiers, verticalDemoFor } from '@/lib/demo/verticals';
 import { analyzePhotoAction, touchSessionAction } from '@/app/actions/quote';
 import { persistDemoQuote, submitDemoLead, type SplitScreenPayload } from '@/app/actions/lead';
 import { AnalysisDegradedSignal } from '@/lib/quote/machine';
@@ -47,9 +49,27 @@ import type { DbDegradedReason, Surface } from '@/types';
 export function DemoExperience({
   surface,
   entryPoint,
+  verticalId,
 }: {
   surface: Extract<Surface, 'public_hub' | 'demo'>;
   entryPoint?: string;
+  /**
+   * Which trade to demonstrate. PHASE 88.
+   *
+   * OMITTED MEANS EPOXY, and omitted is what every existing caller does — the
+   * homepage and /demo both mount this with no vertical and must keep behaving
+   * exactly as before. That is why this is an optional prop on the working
+   * component rather than a second copy of it: the orchestration below is 200
+   * lines of session handling, port adapters and payload swapping, and a
+   * duplicate would drift the moment either was touched.
+   *
+   * ANY OTHER VERTICAL TAKES THE DECLARED-STEPS PATH. `getDemoWidgetCatalogue`
+   * deliberately withholds `steps` so epoxy keeps its hand-built flow — the one
+   * surface where a subtle regression costs real inbound. A trade built after
+   * that decision has no hand-built flow to protect and its module's declared
+   * plan IS its flow, so it gets steps and renders them.
+   */
+  verticalId?: string;
 }) {
   const router = useRouter();
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -68,7 +88,30 @@ export function DemoExperience({
     return <div className="mx-auto w-full max-w-md p-4" aria-hidden />;
   }
 
-  const catalogue = getDemoWidgetCatalogue();
+  /**
+   * EPOXY KEEPS THE EXACT OBJECT IT ALWAYS HAD. Anything else is built from its
+   * own module and its own published rate document, and carries `steps`.
+   *
+   * `doc` being null for a requested vertical is not an error — it means no
+   * published rates exist for that trade yet, and the caller should not have
+   * mounted this. Falling back to epoxy would quote a fence against floor rates,
+   * so the guard below refuses instead.
+   */
+  const requested = verticalId ?? DEMO_VERTICAL;
+  const doc = requested === DEMO_VERTICAL ? null : verticalDemoFor(requested);
+  const isEpoxy = requested === DEMO_VERTICAL;
+
+  const catalogue = isEpoxy
+    ? getDemoWidgetCatalogue()
+    : getWidgetCatalogue(requested, demoModifiers(requested));
+  /**
+   * A vertical was asked for and has no published rates. Refuse rather than
+   * fall back: DEMO_RULES is epoxy's, and pricing a fence run against floor
+   * rates would produce a confident number in the wrong units — the exact
+   * failure pricerFor() returning null exists to prevent.
+   */
+  if (!isEpoxy && !doc) return null;
+
 
   async function analyzeAdapter(args: { imageBase64: string; mediaType: string }) {
     const res = await analyzePhotoAction({
@@ -76,7 +119,7 @@ export function DemoExperience({
       surface,
       prototypeId: null,
       sessionId: sessionId as string,
-      vertical: DEMO_VERTICAL,
+      vertical: requested,
       imageBase64: args.imageBase64,
       mediaType: args.mediaType as 'image/jpeg' | 'image/webp' | 'image/png',
     });
@@ -221,16 +264,19 @@ export function DemoExperience({
               prototypeId={null}
               entryPoint={entryPoint}
               config={{
-                vertical: DEMO_VERTICAL,
+                vertical: requested,
                 step1Question: catalogue.step1Question,
                 surfaceTypes: catalogue.surfaceTypes,
                 finishes: catalogue.finishes,
-                rules: DEMO_RULES,
-                sqftMin: DEMO_SQFT_MIN,
-                sqftMax: DEMO_SQFT_MAX,
+                rules: doc ? doc.rules : DEMO_RULES,
+                sqftMin: doc ? doc.sqftMin : DEMO_SQFT_MIN,
+                sqftMax: doc ? doc.sqftMax : DEMO_SQFT_MAX,
                 conditionModifiers: catalogue.conditionModifiers,
                 contractorName: DEMO_CONTRACTOR.name,
                 contractorPhone: DEMO_CONTRACTOR.phone,
+                /* Only the non-epoxy path gets steps. See the note on the
+                   verticalId prop for why epoxy is left alone. */
+                ...(doc && 'steps' in catalogue ? { steps: catalogue.steps } : {}),
               }}
               ports={{
                 analyze: analyzeAdapter,
@@ -245,5 +291,6 @@ export function DemoExperience({
     </MotionProvider>
   );
 }
+
 
 

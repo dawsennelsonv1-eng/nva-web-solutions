@@ -137,12 +137,24 @@ const PRICERS: Record<
 export const QUIET_REASON: Record<string, string> = {
   painting:
     'The module prices this trade and the arithmetic is written down. There is no live demo on this page yet, because the published rate document a demo prices against does not exist for painting.',
+  /*
+   * PHASE 88 — these three now HAVE published rates and a working widget
+   * further down their page, so the old wording ("there is no live demo") had
+   * become false. A card that denies the existence of the tool running beneath
+   * it is worse than one that says nothing.
+   *
+   * They still have no PRICER, which is a narrower claim: the epoxy card's
+   * inline slider prices floor area through calculateQuote, and neither a door
+   * count nor a fence run fits that control or that function. The live tool for
+   * these trades is the widget, which renders whatever steps their module
+   * declares.
+   */
   landscaping:
-    'The module prices this trade and the arithmetic is written down. There is no live demo on this page yet, because the published rate document a demo prices against does not exist for landscaping.',
+    'The rates are published and the arithmetic is written down. This card prices floor area, which is not how a yard is quoted — the working tool for this trade is further down the page.',
   cabinets:
-    'The module prices this trade by the door front and the arithmetic is written down. There is no live demo on this page yet, because the published rate document a demo prices against does not exist for cabinet refinishing.',
+    'The rates are published and the arithmetic is written down. This card prices floor area, which is not how cabinets are quoted — they go by the door front. The working tool for this trade is further down the page.',
   fencing:
-    'The module prices this trade by the linear foot and the arithmetic is written down. There is no live demo on this page yet, because the published rate document a demo prices against does not exist for fencing.',
+    'The rates are published and the arithmetic is written down. This card prices floor area, which is not how a fence is quoted — it goes by the linear foot. The working tool for this trade is further down the page.',
 };
 
 const FINISHES: ToolCardFinish[] = REFERENCE_FINISHES.map((f) => ({

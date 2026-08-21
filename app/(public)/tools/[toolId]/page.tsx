@@ -14,6 +14,8 @@ import { mediaForTool } from '@/lib/tools/media';
 import { PUBLIC_TOOLS, QUIET_REASON, pricerFor, tintFor } from '@/lib/tools/card-config';
 import { isVisualiserConfigured } from '@/lib/site/render-config';
 import { getQueueRow } from '@/lib/queue/data';
+import { DemoExperience } from '@/components/demo/DemoExperience';
+import { hasVerticalDemo } from '@/lib/demo/verticals';
 
 /**
  * app/(public)/tools/[toolId]/page.tsx — ONE TEMPLATE, EVERY TOOL. Phase 17D.
@@ -177,6 +179,42 @@ export default async function ToolPage({ params }: { params: { toolId: string } 
         </div>
       </section>
 
+      {/* 1b — the working tool, for trades the card cannot price. PHASE 88.
+
+             THE CARD ABOVE IS THE EPOXY CARD. Its slider prices floor area
+             through calculateQuote, and a door count or a fence run fits
+             neither that control nor that function. Rather than bend a
+             one-trade card into a shape it was never built for, these verticals
+             mount the WIDGET, which renders whatever steps their module
+             declares — landscaping's clearance question, cabinets' door and
+             drawer steppers, fencing's styles and gates and satellite map.
+
+             GATED ON PUBLISHED RATES, not on the vertical being registered.
+             hasVerticalDemo() is true only where a rate document exists in
+             lib/demo/verticals.ts, so a trade whose module works but whose
+             rates were never published shows nothing here rather than quoting
+             against another trade's numbers. Painting is in exactly that state.
+
+             It sits immediately under the card and above the explanation of how
+             the tool works, because a visitor who has just read "instant quotes
+             on your own website" should meet the thing itself before he meets a
+             description of it. */}
+      {hasVerticalDemo(page.id) && (
+        <section className="n15-sec tp-tight" aria-labelledby="tool-live-h">
+          <div className="n15-in">
+            <p className="n15-eyebrow">Try it</p>
+            <h2 id="tool-live-h" className="n15-h3">
+              The tool, running
+            </h2>
+            <p className="n15-body">
+              The same one a contractor puts on his own site. Published rates,
+              your answers, a real range.
+            </p>
+            <DemoExperience surface="public_hub" entryPoint={`tool_${page.id}`} verticalId={page.id} />
+          </div>
+        </section>
+      )}
+
       {/* 2, 3 */}
       <ToolHowItWorks steps={page.howItWorks} slots={slots} />
       <ToolFeatures features={page.features} />
@@ -247,4 +285,5 @@ export default async function ToolPage({ params }: { params: { toolId: string } 
     </>
   );
 }
+
 
