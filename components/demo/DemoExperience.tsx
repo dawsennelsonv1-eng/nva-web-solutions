@@ -101,9 +101,26 @@ export function DemoExperience({
   const doc = requested === DEMO_VERTICAL ? null : verticalDemoFor(requested);
   const isEpoxy = requested === DEMO_VERTICAL;
 
-  const catalogue = isEpoxy
-    ? getDemoWidgetCatalogue()
+  /**
+   * TWO VARIABLES, NOT ONE, AND THE REASON IS TYPES RATHER THAN TASTE.
+   *
+   * `getWidgetCatalogue` returns `WidgetCatalogue`, whose `steps` is
+   * `StepDescriptor[]`. `getDemoWidgetCatalogue` returns an inferred object
+   * literal that deliberately has no `steps` at all. Assigning a ternary of the
+   * two to one variable produces a union, and reading `steps` off that union —
+   * even behind an `in` check — degraded it to `unknown`, which `WidgetConfig`
+   * rightly refused. That was a build failure.
+   *
+   * Keeping the vertical catalogue in its own properly-typed variable means
+   * `declaredSteps` is `StepDescriptor[] | undefined` with no cast. Casting
+   * would have silenced the compiler while leaving the next reader unsure
+   * whether the shape was ever checked.
+   */
+  const verticalCatalogue = isEpoxy
+    ? null
     : getWidgetCatalogue(requested, demoModifiers(requested));
+  const catalogue = verticalCatalogue ?? getDemoWidgetCatalogue();
+  const declaredSteps = verticalCatalogue?.steps;
   /**
    * A vertical was asked for and has no published rates. Refuse rather than
    * fall back: DEMO_RULES is epoxy's, and pricing a fence run against floor
@@ -276,7 +293,7 @@ export function DemoExperience({
                 contractorPhone: DEMO_CONTRACTOR.phone,
                 /* Only the non-epoxy path gets steps. See the note on the
                    verticalId prop for why epoxy is left alone. */
-                ...(doc && 'steps' in catalogue ? { steps: catalogue.steps } : {}),
+                ...(declaredSteps ? { steps: declaredSteps } : {}),
               }}
               ports={{
                 analyze: analyzeAdapter,
